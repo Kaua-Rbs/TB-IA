@@ -1,2 +1,0 @@
-"""TB-IA backend package."""
-
