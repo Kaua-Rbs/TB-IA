@@ -1,0 +1,41 @@
+PYTHON ?= python3
+MARKDOWN_FILES = AGENTS.md CONTRIBUTING.md README.md descricao_do_projeto.md frentes_de_desenvolvimento.md
+
+.PHONY: install lint format format-check type test coverage complexity deps mutation check
+
+install:
+	$(PYTHON) -m pip install -r requirements-dev.txt
+
+lint:
+	$(PYTHON) -m ruff check scripts tests
+	$(PYTHON) -m scripts.validate_docs
+
+format:
+	$(PYTHON) -m ruff format scripts tests
+	$(PYTHON) -m mdformat $(MARKDOWN_FILES)
+
+format-check:
+	$(PYTHON) -m ruff format --check scripts tests
+	$(PYTHON) -m mdformat --check $(MARKDOWN_FILES)
+
+type:
+	$(PYTHON) -m mypy scripts tests
+
+test:
+	$(PYTHON) -m pytest
+
+coverage:
+	$(PYTHON) -m pytest --cov=scripts --cov-report=term-missing --cov-fail-under=80
+
+complexity:
+	$(PYTHON) -m scripts.quality_gates complexity
+	$(PYTHON) -m radon cc scripts tests -s -a
+	$(PYTHON) -m radon mi scripts tests
+
+deps:
+	$(PYTHON) -m scripts.quality_gates deps
+
+mutation:
+	$(PYTHON) -m scripts.quality_gates mutation
+
+check: lint format-check type test
