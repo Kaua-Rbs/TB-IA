@@ -10,6 +10,7 @@ The application is expected to be implemented in Python. The current Python tool
 
 - `descricao_do_projeto.md`: product vision, scope, MVP assumptions, data sources, and LGPD constraints.
 - `frentes_de_desenvolvimento.md`: workstreams for product, evidence, data, rules, interface, architecture, and validation.
+- `referencias.md`: related systems, papers, and design references for public health surveillance and TB decision support.
 - `AGENTS.md`: project-specific instructions for future Codex sessions.
 - `CONTRIBUTING.md`: setup and quality command reference.
 

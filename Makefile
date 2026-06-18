@@ -1,5 +1,5 @@
 PYTHON ?= python3
-MARKDOWN_FILES = AGENTS.md CONTRIBUTING.md README.md descricao_do_projeto.md frentes_de_desenvolvimento.md
+MARKDOWN_FILES = AGENTS.md CONTRIBUTING.md README.md descricao_do_projeto.md frentes_de_desenvolvimento.md referencias.md
 
 .PHONY: install lint format format-check type test coverage complexity deps mutation check
 
