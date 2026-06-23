@@ -227,23 +227,27 @@ source caveats alongside the computed value.
 
 Starter indicators for MVP 1:
 
-| Indicator | Numerator | Denominator | Main source |
-| --- | --- | --- | --- |
-| TB incidence | new TB cases in period | population denominator | SINAN-TB, IBGE |
-| TB mortality | TB deaths in period | population denominator | SIM, IBGE |
-| Cure proportion | cases closed as cure | cases with closure status | SINAN-TB |
-| Treatment interruption proportion | cases closed as abandonment/interruption | cases with closure status | SINAN-TB |
-| Retreatment proportion | retreatment cases | notified TB cases | SINAN-TB |
-| Laboratory confirmation proportion | pulmonary cases confirmed by smear microscopy, rapid molecular test, or culture | new pulmonary TB cases | SINAN-TB |
-| HIV testing proportion | new TB cases tested for HIV | new TB cases | SINAN-TB |
-| TB-HIV burden | TB cases with HIV positive or coinfection marker | new TB cases | SINAN-TB |
-| Contacts examined proportion | examined contacts of lab-confirmed new pulmonary TB cases | identified contacts of lab-confirmed new pulmonary TB cases | SINAN-TB |
-| TRM-TB use proportion | new pulmonary TB cases with rapid molecular test | new pulmonary TB cases | SINAN-TB |
-| Culture use among retreatment | retreatment pulmonary TB cases with sputum culture | retreatment pulmonary TB cases | SINAN-TB |
-| Drug-resistant TB burden | new drug-resistant TB cases by initial resistance pattern | applicable TB DR case universe | Site-TB |
-| Preventive treatment initiation | people starting TB preventive treatment | applicable eligible group or period total | IL-TB, Silt, Vigilantos |
-| Hospitalization burden | TB-related admissions | population or TB cases | SIH/SUS, IBGE |
-| APS service capacity proxy | selected CNES/APS resources | population or territory | CNES, IBGE |
+| Indicator | Public-data status | Numerator | Denominator | Corrected public source | Implementation note |
+| --- | --- | --- | --- | --- | --- |
+| TB incidence | Obtainable | new TB cases in period | population denominator | SINAN-TB public DBC/TabNet, IBGE population | Use residence territory and the official new-case entry-type definition before ranking territories. |
+| TB mortality | Obtainable | TB deaths in period | population denominator | SIM public DBC, IBGE population | Filter underlying cause of death to CID-10 A15-A19 and use residence territory unless explicitly analyzing place of occurrence. |
+| Cure proportion | Obtainable | cases closed as cure | cases with closure status | SINAN-TB public DBC/TabNet | Requires official closure-status mapping and cohort period definition. |
+| Treatment interruption proportion | Obtainable | cases closed as abandonment/interruption | cases with closure status | SINAN-TB public DBC/TabNet | Requires official closure-status mapping; label should follow the current Brazilian indicator terminology. |
+| Retreatment proportion | Obtainable | retreatment cases | notified TB cases | SINAN-TB public DBC/TabNet | Use entry type categories such as recurrence and re-entry after abandonment according to the official dictionary. |
+| Laboratory confirmation proportion | Obtainable with transformation | pulmonary cases confirmed by smear microscopy, rapid molecular test, or culture | new pulmonary TB cases | SINAN-TB public DBC | Prefer DBC-derived transformation because the numerator combines multiple lab fields and should avoid double counting. |
+| HIV testing proportion | Obtainable | new TB cases tested for HIV | new TB cases | SINAN-TB public DBC/TabNet | Requires mapping tested, positive, negative, in-progress, and not-performed categories. |
+| TB-HIV burden | Obtainable | TB cases with HIV positive or AIDS/coinfection marker | new TB cases | SINAN-TB public DBC/TabNet | Define whether the official indicator uses HIV test result, AIDS comorbidity, or both. |
+| Contacts examined proportion | Conditional, requires validation | examined contacts of lab-confirmed new pulmonary TB cases | identified contacts of lab-confirmed new pulmonary TB cases | SINAN-TB public DBC fields, not TabNet-ready | Public DBC contains contact count fields, but public TabNet notes contact indicators cannot be calculated there; keep out of mandatory MVP until validated against the official indicator handbook. |
+| TRM-TB use proportion | Obtainable | new pulmonary TB cases with rapid molecular test | new pulmonary TB cases | SINAN-TB public DBC/TabNet | Requires mapping the rapid molecular test field and excluding non-applicable categories. |
+| Culture use among retreatment | Obtainable with transformation | retreatment pulmonary TB cases with sputum culture | retreatment pulmonary TB cases | SINAN-TB public DBC | Requires combining entry type, pulmonary form, and culture fields. |
+| Drug-resistant TB burden | Not publicly obtainable from the cited source | new drug-resistant TB cases by initial resistance pattern | applicable TB DR case universe | Site-TB only with authorized access; SINAN-TB has limited resistance-related fields | Do not include as a mandatory public-data MVP indicator. Use only as a local/institutional integration or as a crude surveillance-gap flag after domain validation. |
+| Preventive treatment initiation | Not publicly obtainable from the cited source | people starting TB preventive treatment | applicable eligible group or period total | IL-TB, Silt, or Vigilantos only with authorized access or specific public reports | Do not include as a mandatory public-data MVP indicator. Treat as a future integration or manual-report import. |
+| Hospitalization burden | Obtainable | TB-related admissions | population or TB cases | SIH/SUS public DBC, IBGE population and/or SINAN-TB | Filter primary/secondary TB diagnoses using CID-10 A15-A19; interpret as severe disease or care-pathway proxy, not incidence. |
+| APS service capacity proxy | Obtainable for CNES capacity; partial for APS production | selected CNES/APS resources | population or territory | CNES public DBC, IBGE population; SISAB/e-Gestor public reports when available | CNES supports facility/capacity proxies. SISAB/e-Gestor can enrich APS context but should not block MVP 1. |
+
+Mandatory MVP 1 indicators should be limited to the rows marked `Obtainable` or `Obtainable with transformation`. Rows marked `Conditional` require explicit validation before they affect scenario
+classification. Rows marked `Not publicly obtainable` must remain outside the public-data MVP unless
+there is institutional authorization, a curated local extract, or a specific public report.
 
 ### Scenario and prioritization engine
 
@@ -411,13 +415,17 @@ Example contract summary:
 
 | Source | Grain | Format | MVP use |
 | --- | --- | --- | --- |
-| SINAN-TB/DATASUS | aggregate public tables or derived source files | TabNet export, CSV-like tables, DBC/DBF-derived files | case burden, outcomes, lab confirmation |
-| SIM | aggregate mortality records | TabNet export, DBC/DBF-derived files | TB mortality |
-| SIH/SUS | aggregate hospital admissions | TabNet export, DBC/DBF-derived files | severe disease proxy |
-| CNES | facility and service capacity | TabNet export, DBC/DBF-derived files | local capacity proxy |
-| IBGE population | territory-year demographics | SIDRA/API JSON, CSV/XLSX export | denominators |
+| SINAN-TB/DATASUS | national public TB records by year; aggregate TabNet tables for validation | FTP DBC files such as `SINAN/DADOS/PRELIM/TUBEBR23.dbc` or older `FINAIS/TUBEBRYY.dbc`; TabNet PRN/HTML fallback | case burden, outcomes, lab confirmation, HIV, TRM-TB, culture, and conditional contact indicators |
+| SIM | UF mortality records by year | FTP DBC files such as `SIM/CID10/DORES/DOCE2023.dbc` | TB mortality filtered by CID-10 A15-A19 |
+| SIH/SUS | UF-month hospital admission records | FTP DBC files such as `SIHSUS/200801_/Dados/RDCE2401.dbc` | TB-related hospitalization burden and severity proxy |
+| CNES | facility and service capacity snapshots by module, UF, and month | FTP DBC files by submodule, for example `CNES/200508_/Dados/ST/STCE2401.dbc` | facility inventory, SUS linkage, establishment type, selected service/capacity proxies |
+| IBGE population | territory-year demographics | SIDRA/API JSON, CSV/XLSX export | denominators for incidence, mortality, hospitalizations, and capacity ratios |
 | IBGE malhas | territorial geometry | GeoJSON, TopoJSON, SHP, GPKG | maps |
-| SISAB/e-Gestor APS | aggregate APS production and coverage | public reports, CSV/XLSX/ODS where available | APS context |
+| SIA/SUS | UF-month ambulatory production records | FTP DBC files by SIA layout/module; procedure interpretation requires SIGTAP | optional diagnostic/ambulatory production proxies, not a required first release source |
+| SIGTAP | procedure terminology and attributes | public tables/downloads | procedure-code dictionary for SIA/SUS and selected SIH/SUS analyses |
+| SISAB/e-Gestor APS | aggregate APS production and coverage | public reports, CSV/XLSX/ODS where available | optional APS context; not required for first public-data MVP |
+| Site-TB | drug-resistant TB management records | restricted/authorized access; not open public bulk data | future institutional integration for DR-TB burden and follow-up |
+| IL-TB/Silt/Vigilantos | TB preventive treatment records | restricted/authorized access or specific public reports | future institutional/manual-report integration for preventive treatment initiation |
 | Local SINAN export | line list or local aggregate | CSV/XLSX/DBF depending on partner | local operational management |
 | Local lab export | lab request/result line list | CSV/XLSX/API depending on partner | diagnostic workflow |
 | Local pharmacy export | medication dispensing events | CSV/XLSX/API depending on partner | adherence proxy |
