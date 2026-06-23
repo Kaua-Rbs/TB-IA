@@ -1,0 +1,656 @@
+# Technical system specification
+
+This document adapts the previous medical/product proposal into a systems and engineering specification for TB-IA. It keeps the same public health purpose, but makes the work more concrete for software design, data engineering, validation, governance, and incremental delivery.
+
+The platform should support tuberculosis management in primary care and municipal surveillance. It should transform fragmented public, official, local, and questionnaire-based data into transparent indicators, territorial prioritization, operational queues, and evidence-linked recommendations.
+
+The platform must not diagnose tuberculosis, prescribe treatment, replace professional judgment, or generate unsourced clinical recommendations. It is a decision-support and operational management system.
+
+## Engineering interpretation of the proposal
+
+The original proposal describes four implementation layers:
+
+- Layer 0: questionnaire-based independent version;
+- Layer 1: public and official aggregated data;
+- Layer 2: local municipal data integration;
+- Layer 3: micro-care and operational decision support.
+
+From a systems perspective, these layers mix three separate dimensions:
+
+- data maturity: questionnaire, public aggregate data, local exports, individual records;
+- deployment maturity: standalone tool, public dashboard, municipal installation, integrated local system;
+- product maturity: education/screening, territorial intelligence, operational management, patient-level decision support.
+
+The implementation should keep these dimensions separate. A better engineering model is:
+
+1. Data ingestion.
+1. Canonical data store.
+1. Indicator engine.
+1. Scenario and prioritization engine.
+1. Evidence and recommendation library.
+1. Workflow and task engine.
+1. Dashboards and reporting.
+1. Audit, governance, privacy, and validation.
+
+## Recommended MVP sequence
+
+### MVP 0: questionnaire-only validation
+
+Purpose:
+
+- validate user experience;
+- collect consented, non-diagnostic screening and access-barrier data;
+- test language, flows, and risk explanations;
+- support education, outreach, and community campaigns.
+
+Core outputs:
+
+- symptom screening summary;
+- access-to-care barrier summary;
+- contact-exposure summary;
+- adherence-barrier summary for people already on treatment;
+- aggregated neighborhood or municipality report when consent and minimum counts allow.
+
+Engineering constraints:
+
+- no CPF, CNS, exact address, or individual geolocation in the first independent version;
+- no diagnosis labels;
+- no official surveillance claims;
+- no patient-level maps;
+- explicit consent and purpose text;
+- exportable aggregated dataset for analysis.
+
+### MVP 1: public-data territorial intelligence
+
+Purpose:
+
+- demonstrate the first defensible epidemiological management product;
+- use public and official aggregate data;
+- classify municipalities or larger territories into scenarios and subscenarios;
+- produce priority rankings and evidence-linked operational recommendations.
+
+Core sources:
+
+- SINAN-TB/DATASUS;
+- SIM;
+- SIH/SUS;
+- CNES;
+- IBGE population and territorial data;
+- SISAB or other public APS aggregate indicators where useful;
+- Boletim Epidemiologico Tuberculose 2026 as the official reference for Brazilian indicator
+  definitions, formulas, periods, exclusions, and source caveats.
+
+Core outputs:
+
+- municipality-level TB indicator dashboard;
+- incidence, mortality, cure, treatment interruption, retreatment, laboratory confirmation, TB-HIV, and demographic profiles;
+- scenario and subscenario classification;
+- priority territory ranking;
+- recommendation summary linked to a strategy library;
+- data-quality warnings and source freshness indicators.
+
+This should be the first engineering target for a buildable platform.
+
+### MVP 2: municipal operational integration
+
+Purpose:
+
+- support a municipal partner with authorized local exports;
+- move from public aggregate monitoring to local operational management;
+- compare UBS, teams, neighborhoods, microareas, or other local territories when governance permits.
+
+Possible inputs:
+
+- municipal SINAN export;
+- local laboratory or GAL export;
+- pharmacy dispensing file;
+- local contact investigation spreadsheet;
+- UBS/team/microarea territorial registry;
+- resource inventory by unit;
+- validated operational spreadsheets from surveillance teams.
+
+Core outputs:
+
+- local hot-zone analysis;
+- pending lab result alerts;
+- medication pickup delay alerts;
+- contact investigation pending lists;
+- unit-level operational indicators;
+- drug-resistance vigilance alerts based on retreatment, treatment failure, rifampicin resistance, missing culture, or missing drug susceptibility testing.
+
+### MVP 3: micro-care decision support
+
+Purpose:
+
+- support individual and microterritorial action lists;
+- detect missed screening opportunities;
+- estimate operational risk of treatment interruption;
+- provide professional validation workflows.
+
+Prerequisites:
+
+- authorized patient-level data;
+- local installation or equivalent governance agreement;
+- role-based access control;
+- audit logs;
+- data minimization and pseudonymization strategy;
+- validated clinical and operational rules;
+- professional review before recommendations are used in care.
+
+This should not be attempted before MVP 1 and MVP 2 establish data quality, workflows, and trust.
+
+## Core system modules
+
+### Data ingestion module
+
+Responsibilities:
+
+- import public DATASUS, IBGE, CNES, and other official sources;
+- import local CSV/XLSX/DBF/DBC-derived files when authorized;
+- validate schemas, required fields, and code systems;
+- record import provenance, version, source URL or file name, extraction date, and processing date;
+- reject or quarantine malformed files;
+- generate source-specific data-quality reports.
+
+Engineering requirements:
+
+- every imported dataset must have a declared grain;
+- every dataset must have a refresh cadence;
+- every transformation must be reproducible;
+- raw inputs should be preserved or checksummed;
+- derived tables should be regenerated from source transformations.
+
+### Canonical data store
+
+The platform should not let every module depend directly on source-specific fields. It should map source files into a canonical internal model.
+
+Starter entities:
+
+| Entity | Purpose | Typical grain |
+| --- | --- | --- |
+| `DataSource` | Source metadata, owner, update frequency, access method | one record per source |
+| `ImportRun` | Ingestion execution and validation result | one record per import |
+| `Territory` | UF, municipality, neighborhood, microarea, UBS catchment | one record per territory |
+| `PopulationDenominator` | Population by territory, year, age, sex where available | territory-period-group |
+| `Facility` | CNES/UBS/service unit metadata | one record per facility |
+| `Team` | APS or local health team | one record per team |
+| `CaseAggregate` | Aggregated TB cases by territory, time, and stratifier | territory-period-strata |
+| `MortalityAggregate` | TB deaths by territory, time, and stratifier | territory-period-strata |
+| `HospitalizationAggregate` | TB-related admissions and outcomes | territory-period-strata |
+| `IndicatorDefinition` | Numerator, denominator, filters, caveats | one record per indicator |
+| `IndicatorValue` | Computed indicator value with metadata | territory-period-indicator |
+| `ScenarioRule` | Scenario and subscenario rule definition | one record per rule |
+| `TerritoryScenario` | Rule output for a territory and period | territory-period-scenario |
+| `Strategy` | Evidence-linked intervention option | one record per strategy |
+| `Recommendation` | Strategy suggested for a scenario | territory-period-strategy |
+| `Alert` | Operational signal requiring review | one record per alert |
+| `Task` | Action assigned to a user/team | one record per task |
+| `ValidationEvent` | Human review of alert/recommendation | one record per review |
+| `AuditEvent` | Security and user activity log | one record per event |
+
+Additional patient-level entities should only be introduced for MVP 2 or MVP 3 with institutional authorization:
+
+- `Patient`;
+- `TbCase`;
+- `Contact`;
+- `LabOrder`;
+- `LabResult`;
+- `MedicationDispensing`;
+- `Appointment`;
+- `QuestionnaireResponse`;
+- `CareAction`.
+
+### Indicator engine
+
+Each indicator must be defined before implementation. A good indicator definition includes:
+
+- indicator ID;
+- name;
+- public health question answered;
+- numerator;
+- denominator;
+- filters;
+- geography;
+- time window;
+- source tables;
+- update cadence;
+- interpretation;
+- caveats;
+- minimum count or suppression rule;
+- owner/reviewer;
+- version.
+
+For the Brazilian public-data MVP, the indicator dictionary should be traceable to the Boletim
+Epidemiologico Tuberculose 2026 and the Caderno de Indicadores da Tuberculose. This means each
+implemented indicator should keep the official formula, source, analysis period, exclusions, and
+source caveats alongside the computed value.
+
+Starter indicators for MVP 1:
+
+| Indicator | Numerator | Denominator | Main source |
+| --- | --- | --- | --- |
+| TB incidence | new TB cases in period | population denominator | SINAN-TB, IBGE |
+| TB mortality | TB deaths in period | population denominator | SIM, IBGE |
+| Cure proportion | cases closed as cure | cases with closure status | SINAN-TB |
+| Treatment interruption proportion | cases closed as abandonment/interruption | cases with closure status | SINAN-TB |
+| Retreatment proportion | retreatment cases | notified TB cases | SINAN-TB |
+| Laboratory confirmation proportion | pulmonary cases confirmed by smear microscopy, rapid molecular test, or culture | new pulmonary TB cases | SINAN-TB |
+| HIV testing proportion | new TB cases tested for HIV | new TB cases | SINAN-TB |
+| TB-HIV burden | TB cases with HIV positive or coinfection marker | new TB cases | SINAN-TB |
+| Contacts examined proportion | examined contacts of lab-confirmed new pulmonary TB cases | identified contacts of lab-confirmed new pulmonary TB cases | SINAN-TB |
+| TRM-TB use proportion | new pulmonary TB cases with rapid molecular test | new pulmonary TB cases | SINAN-TB |
+| Culture use among retreatment | retreatment pulmonary TB cases with sputum culture | retreatment pulmonary TB cases | SINAN-TB |
+| Drug-resistant TB burden | new drug-resistant TB cases by initial resistance pattern | applicable TB DR case universe | Site-TB |
+| Preventive treatment initiation | people starting TB preventive treatment | applicable eligible group or period total | IL-TB, Silt, Vigilantos |
+| Hospitalization burden | TB-related admissions | population or TB cases | SIH/SUS, IBGE |
+| APS service capacity proxy | selected CNES/APS resources | population or territory | CNES, IBGE |
+
+### Scenario and prioritization engine
+
+The first version should use transparent rules and scoring, not opaque AI.
+
+Example subscenarios:
+
+- high incidence;
+- rising incidence;
+- high mortality;
+- high treatment interruption;
+- low cure;
+- high retreatment;
+- low laboratory confirmation;
+- high TB-HIV burden;
+- high hospitalization burden;
+- possible surveillance gap;
+- possible service fragility.
+
+Each subscenario rule should define:
+
+- input indicators;
+- threshold method;
+- comparison group;
+- minimum data requirements;
+- severity level;
+- explanation text;
+- recommended strategies;
+- validation status.
+
+Thresholds should initially be configurable:
+
+- absolute threshold;
+- percentile within state or region;
+- trend threshold;
+- comparison against national target;
+- composite score.
+
+A future hotspot module can follow the design pattern from the Nigeria AI-driven hotspot mapping
+study: local active case-finding events, contact investigation yield, facility screening yield, and
+contextual covariates are mapped into population clusters; a model predicts positivity or priority
+for unscreened clusters; a geoportal supports field team planning; and new screening results feed
+back into the next model cycle. This should be treated as a municipal-partnership feature because it
+requires local screening-event data, geocoding, governance, and prospective validation against
+conventional notification-based planning.
+
+### Evidence and recommendation library
+
+Recommendations should not be generated freely by a language model. They should come from a structured strategy library linked to evidence and guidelines.
+
+Recommended fields:
+
+| Field | Description |
+| --- | --- |
+| `strategy_id` | Stable identifier |
+| `name` | Strategy name |
+| `target_problem` | Scenario/subscenario addressed |
+| `target_population` | Territory, cases, contacts, vulnerable group, service unit |
+| `evidence_source` | WHO, Brazilian guideline, manual, paper, or local protocol |
+| `evidence_strength` | Guideline level, evidence grade, or local expert validation |
+| `required_resources` | CHW, nurse, lab access, transport, pharmacy, social support |
+| `estimated_cost_level` | low, medium, high, or unknown |
+| `operational_complexity` | low, medium, high |
+| `prerequisites` | data, authorization, service capacity |
+| `contraindications_or_limits` | when not to suggest it |
+| `monitoring_indicators` | indicators to reassess after implementation |
+| `review_date` | last evidence review |
+| `owner` | person/team responsible for maintaining the strategy |
+
+Generative AI may help explain or summarize recommendations, but only after the structured recommendation has already been selected by rules, evidence, and human-governed configuration.
+
+### Workflow and task engine
+
+Dashboards are not enough. The system needs to represent work.
+
+Common workflow states:
+
+- created;
+- assigned;
+- in review;
+- action planned;
+- action performed;
+- waiting for exam;
+- waiting for contact;
+- referred;
+- discarded;
+- impossible at the moment;
+- resolved;
+- reopened.
+
+Each alert or recommendation should support:
+
+- responsible user or team;
+- due date;
+- priority;
+- source indicators;
+- explanation;
+- action history;
+- human validation status;
+- audit events.
+
+### Dashboard and reporting module
+
+Dashboards should be separated by user role.
+
+Manager dashboard:
+
+- territory ranking;
+- scenario map;
+- trend indicators;
+- data freshness;
+- resource capacity;
+- strategy recommendations;
+- monitoring after intervention.
+
+Surveillance dashboard:
+
+- notification trends;
+- treatment outcomes;
+- retreatment;
+- laboratory confirmation;
+- TB-HIV markers;
+- mortality and hospitalization;
+- data completeness.
+
+Primary care dashboard:
+
+- unit/team indicators;
+- active task queues when local data exist;
+- contact follow-up;
+- missed screening opportunities when supported by data;
+- adherence barriers and follow-up tasks.
+
+Public or demonstration dashboard:
+
+- aggregated and non-identifiable information only;
+- no individual records;
+- no small-count exposure;
+- clear caveats about source and delay.
+
+## Data contracts
+
+Every source must have a small contract before implementation.
+
+Minimum fields:
+
+- source name;
+- owner;
+- access method;
+- file/API/table format;
+- grain;
+- geographic coverage;
+- time coverage;
+- refresh cadence;
+- required fields;
+- optional fields;
+- code systems;
+- missingness rules;
+- duplicate handling;
+- privacy level;
+- transformation owner;
+- validation checks.
+
+Example contract summary:
+
+| Source | Grain | Format | MVP use |
+| --- | --- | --- | --- |
+| SINAN-TB/DATASUS | aggregate public tables or derived source files | TabNet export, CSV-like tables, DBC/DBF-derived files | case burden, outcomes, lab confirmation |
+| SIM | aggregate mortality records | TabNet export, DBC/DBF-derived files | TB mortality |
+| SIH/SUS | aggregate hospital admissions | TabNet export, DBC/DBF-derived files | severe disease proxy |
+| CNES | facility and service capacity | TabNet export, DBC/DBF-derived files | local capacity proxy |
+| IBGE population | territory-year demographics | SIDRA/API JSON, CSV/XLSX export | denominators |
+| IBGE malhas | territorial geometry | GeoJSON, TopoJSON, SHP, GPKG | maps |
+| SISAB/e-Gestor APS | aggregate APS production and coverage | public reports, CSV/XLSX/ODS where available | APS context |
+| Local SINAN export | line list or local aggregate | CSV/XLSX/DBF depending on partner | local operational management |
+| Local lab export | lab request/result line list | CSV/XLSX/API depending on partner | diagnostic workflow |
+| Local pharmacy export | medication dispensing events | CSV/XLSX/API depending on partner | adherence proxy |
+| Questionnaire | voluntary response | app database, CSV export | screening and barriers |
+
+## Interoperability strategy
+
+The project should avoid designing a custom universe where standards already exist.
+
+Relevant patterns:
+
+- FHIR `Patient`, `Observation`, `Condition`, `DiagnosticReport`, `MedicationRequest`, `MedicationDispense`, `Encounter`, `Questionnaire`, and `QuestionnaireResponse` for future patient-level integration;
+- WHO SMART Guidelines and TB Digital Adaptation Kit for data dictionary, workflows, decision logic, indicators, and requirements;
+- CSV/XLSX import templates for realistic municipal pilots;
+- DBF/DBC conversion pipeline for DATASUS source files;
+- GeoJSON/TopoJSON/PostGIS-compatible geometries for territorial analysis;
+- API-first design for dashboards and future integrations.
+
+Interoperability should be incremental. The first implementation can use documented file imports, but the canonical model should not prevent later FHIR mapping.
+
+## Security, privacy, and LGPD requirements
+
+Security is a product feature, not a final checklist.
+
+Minimum requirements:
+
+- role-based access control;
+- separation between public aggregate data and restricted local/patient data;
+- audit logs for login, record view, export, edit, recommendation validation, and admin changes;
+- no patient-level public maps;
+- small-count suppression for public or shared maps;
+- pseudonymization for patient-level analytics whenever possible;
+- no CPF/CNS in independent MVPs;
+- explicit legal basis and governance agreement for local data;
+- retention policy by data source;
+- secure backup and restore procedure;
+- data export controls;
+- environment separation between development, demonstration, and production;
+- explicit review of availability, accessibility, acceptability, and quality impacts for AI-enabled
+  features, especially hotspot mapping, adherence monitoring, chatbots, and community-led
+  monitoring.
+
+Suggested roles:
+
+| Role | Access |
+| --- | --- |
+| Public viewer | public aggregate dashboards only |
+| Municipal manager | aggregate indicators, rankings, recommendations |
+| Surveillance professional | case and operational data authorized for surveillance |
+| APS professional | assigned unit/team tasks and authorized patient/contact data |
+| Data steward | import validation, source quality, metadata |
+| Evidence steward | strategy library and guideline updates |
+| System administrator | user and configuration management, no unnecessary clinical access |
+
+## AI and model governance
+
+The platform should start rule-based. AI should be introduced only where it solves a defined problem and can be validated.
+
+Acceptable early uses:
+
+- guideline summarization for internal drafting;
+- explanation of why a rule fired;
+- manager-facing report drafting from structured facts;
+- clustering or trend detection for exploratory analysis;
+- prioritization models after baseline rules exist.
+
+Uses that should not be allowed:
+
+- autonomous diagnosis;
+- treatment prescription;
+- unsourced clinical advice;
+- hidden scoring that cannot be explained to users;
+- patient-level risk models without validation, monitoring, and governance;
+- using sensitive predictors without ethical review and fairness analysis.
+
+ML-ready requirements:
+
+- labeled outcome definition;
+- training/validation split by time and territory;
+- baseline rule comparison;
+- drift monitoring;
+- fairness review;
+- model card;
+- human override;
+- rollback plan;
+- audit trail for model version used in each output;
+- assessment of privacy, confidentiality, non-discrimination, digital literacy, connectivity, and
+  sustainability risks before deployment.
+
+Cost and operational burden should be first-class inputs for future strategy scoring. The AI
+treatment-monitoring cost-effectiveness literature suggests that staff time, travel, video review,
+dose frequency, and eligibility criteria can dominate the practical value of adherence technologies.
+Those results should not be generalized to complex, drug-resistant, extrapulmonary, or highly
+comorbid cases without local validation.
+
+## Similar systems and design lessons
+
+| System | Relevance | Main lesson |
+| --- | --- | --- |
+| WHO SMART Guidelines / TB Digital Adaptation Kit | Software-neutral TB digital requirements | Use structured personas, workflows, data dictionary, decision logic, indicators, and requirements before coding |
+| Ni-kshay | National TB patient management and surveillance system in India | TB systems need case registration, lab orders, treatment details, adherence monitoring, transfer workflows, and surveillance reporting |
+| DHIS2 | Health information, disease surveillance, dashboards, maps, Tracker, interoperability | Use configurable metadata, organizational hierarchy, aggregate and line-listed data, APIs, validation, and dashboards |
+| SORMAS | Open-source disease surveillance and outbreak response | Model cases, contacts, labs, tasks, follow-up, field constraints, and operational states |
+| WHO Go.Data | Outbreak case investigation and contact tracing | Support low-connectivity data collection, contact follow-up, real-time analysis, and field operations |
+| OpenMRS | Open-source EMR | Use concept dictionaries, modular clinical records, REST/FHIR APIs, and local adaptation patterns |
+| CommCare | Frontline data collection and case management | Offline-first questionnaire and case workflows can be a product, not only a form |
+| OpenSRP | FHIR-native frontline health worker platform | Community/facility workflows benefit from registries, offline operation, and standards-based data models |
+| InfoDengue | Brazilian public-data surveillance dashboard | Public territorial intelligence should expose indicators, reports, APIs, and clear communication |
+| Mosqlimate | Brazilian data and model platform for arboviruses | Separate datastore, model registry, predictions, and dashboards |
+| Boletim Epidemiologico Tuberculose 2026 | Official Brazilian TB epidemiological and operational indicator reference | Use official formulas, sources, exclusions, and periods for the MVP 1 indicator dictionary |
+| AI-driven TB hotspot mapping in Nigeria | TB active case-finding site selection using Bayesian modeling and a geoportal | Future hotspot modules need local screening-event data, contextual covariates, field planning workflows, and prospective validation |
+| AI and right-to-health analysis for TB | Rights-based review of TB AI technologies | AI features must be evaluated for privacy, bias, acceptability, accessibility, quality, community participation, and sustainability |
+| AI treatment monitoring cost-effectiveness study | Cost-effectiveness comparison of AI monitoring and DOT | Future adherence modules should model staff time, travel, review workload, eligibility, cost, and uncertainty |
+
+## Validation and quality plan
+
+Validation should happen at multiple levels.
+
+Data validation:
+
+- schema checks;
+- required field checks;
+- code list checks;
+- time range checks;
+- duplicate detection;
+- denominator availability;
+- source freshness;
+- missingness reports.
+
+Indicator validation:
+
+- reproduce known public values for selected municipalities;
+- compare against TabNet/manual calculations;
+- unit tests for numerator and denominator logic;
+- snapshot tests for scenario classification;
+- review by epidemiology/domain expert.
+
+Workflow validation:
+
+- task creation from rule output;
+- task assignment and closure;
+- alert discard path;
+- audit log generation;
+- role permission tests.
+
+Usability validation:
+
+- manager can identify top priority territories;
+- surveillance professional can understand why a territory was flagged;
+- APS professional can act on a queue item without duplicate data entry;
+- users can distinguish recommendation, alert, and diagnosis.
+
+Safety validation:
+
+- no diagnosis language in Layer 0 outputs;
+- no patient location exposure;
+- no small-count public maps;
+- no generative AI recommendation without evidence source;
+- clear human validation requirement.
+
+## Non-functional requirements
+
+Initial targets:
+
+- reproducible local development environment;
+- deterministic indicator generation;
+- source import logs;
+- dashboard response time acceptable for municipal datasets;
+- accessible UI language for health teams;
+- Portuguese-first interface for Brazilian users;
+- exportable reports for meetings and validation;
+- clear degraded mode when data are stale or incomplete.
+
+Future municipal deployment requirements:
+
+- local installation option;
+- backup and restore;
+- encrypted storage for sensitive data;
+- HTTPS and secure authentication;
+- environment-specific configuration;
+- monitoring and error reporting;
+- update and migration process;
+- documented administrator operations.
+
+## Open engineering decisions
+
+These decisions should be resolved before implementation:
+
+1. Which Boletim 2026 indicators are mandatory for the first public-data release, and which should
+   remain backlog items?
+1. Will MVP 1 use direct DATASUS file transfer, TabNet exports, or a curated local extract?
+1. What is the first geographic scope: Brazil, one state, one municipality, or demonstration data?
+1. What is the first time window for indicators?
+1. Which indicators are mandatory for the first scenario classification?
+1. Which thresholds are fixed by guidelines and which are relative rankings?
+1. Which map granularity is allowed in public demonstrations?
+1. Will the first UI be a dashboard only, or dashboard plus recommendation review?
+1. Will the strategy library be stored as structured configuration, database tables, or Markdown?
+1. What user roles exist in MVP 1 if there is no patient-level data?
+1. What is the minimum validation dataset for acceptance?
+1. What deployment target is assumed for demos?
+1. Which parts of the WHO TB Digital Adaptation Kit will be adopted directly?
+1. What evidence threshold is required before adopting any hotspot model beyond transparent
+   rule-based territorial prioritization?
+1. How should cost, staff time, travel, and operational complexity be measured for strategy scoring?
+
+## Definition of done for MVP 1
+
+MVP 1 is complete only when:
+
+1. Public source contracts are documented.
+1. Data ingestion is reproducible.
+1. Canonical territory and indicator tables exist.
+1. Indicator definitions are versioned.
+1. At least one indicator can be reproduced against a public source manually.
+1. Scenario rules are transparent and configurable.
+1. Priority ranking includes explanations and caveats.
+1. Recommendations come from a structured strategy library.
+1. Dashboard displays data freshness and source caveats.
+1. Small-count and privacy rules are enforced for public outputs.
+1. Tests cover indicator calculations and scenario rules.
+1. A domain reviewer can audit why a territory was classified as priority.
+
+## Practical build recommendation
+
+The first real implementation should not try to build all layers. It should build the smallest coherent public-data product:
+
+1. Import IBGE population and territorial identifiers.
+1. Import or load selected SINAN-TB public indicators.
+1. Compute a small indicator dictionary.
+1. Classify territories with transparent rules.
+1. Link each subscenario to a strategy in the evidence library.
+1. Show a dashboard with rankings, explanations, and caveats.
+1. Validate results against manual public-source calculations.
+
+Once this is working, questionnaire workflows and municipal local-data modules can be added without changing the core architecture.

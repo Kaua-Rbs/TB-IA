@@ -10,6 +10,10 @@ The product implementation language is expected to be Python. The repository doe
 
 - `descricao_do_projeto.md`: product vision, public health scope, data assumptions, LGPD boundaries, and MVP constraints.
 - `frentes_de_desenvolvimento.md`: workstreams for scope, users, evidence, data, rules, product, architecture, governance, and validation.
+- `referencias.md`: related systems, papers, and design references for public health surveillance and TB decision support.
+- `especificacao_tecnica_do_sistema.md`: engineering-oriented specification for MVP scope, data contracts, architecture, workflows, governance, and validation.
+- `documentos/`: source PDFs and supporting reference documents used during project formulation.
+- `notebooks/`: exploratory notebooks and scripts for public-data loading and visualization.
 - `AGENTS.md`: instructions for future Codex sessions.
 - `CONTRIBUTING.md`: local setup and quality command reference.
 - `README.md`: project overview and command summary.
@@ -17,6 +21,7 @@ The product implementation language is expected to be Python. The repository doe
 - `tests/`: tests for the repository quality scripts.
 - `pyproject.toml`: Python tool configuration for linting, typing, tests, and coverage.
 - `requirements-dev.txt`: development tooling dependencies.
+- `requirements-notebook.txt`: optional dependencies for exploratory notebooks.
 - `.github/workflows/ci.yml`: GitHub Actions workflow for the standard checks.
 
 No backend, frontend, database, API, package, or deployment architecture has been selected yet. Do not invent one without an explicit task or supporting product decision.

@@ -5,6 +5,87 @@ of the TB-IA platform. The focus is not limited to tuberculosis. The most useful
 those that combine public health surveillance, territorial analysis, operational dashboards, risk
 prioritization, data quality, and human-in-the-loop decision support.
 
+## Local project reference documents
+
+The `documentos/` directory stores source PDFs used during project formulation and technical
+planning. These files should be treated as evidence and context, not as application assets.
+
+### Boletim Epidemiologico Tuberculose 2026
+
+- Local file: `documentos/boletim_epidemiologico_tuberculose_2026.pdf`
+- Domain: official Brazilian tuberculosis epidemiological and operational indicators.
+- Why it matters: this is the strongest source for the MVP 1 indicator dictionary. It defines
+  official Brazilian formulas, periods, and data sources for incidence, mortality, laboratory
+  confirmation, HIV testing, TB-HIV coinfection, contacts examined, treatment outcomes,
+  retreatment, directly observed treatment, molecular testing, culture, drug-resistant TB,
+  BPaL coverage, and preventive treatment.
+- Useful design ideas:
+  - make the MVP 1 indicator dictionary traceable to official Brazilian definitions;
+  - store numerator, denominator, source, period, exclusions, and caveats per indicator;
+  - separate Sinan indicators from SIM, IBGE, Site-TB, IL-TB/Silt/Vigilantos, and laboratory
+    network indicators;
+  - expose data freshness and source limitations on dashboards.
+
+### Original Biochallenge project scope
+
+- Local file: `documentos/Escopo - Biochallenge Brasil 2026.docx.pdf`
+- Domain: original project proposal and challenge submission.
+- Why it matters: it is the historical source for the project's product intent, beneficiaries,
+  validation feedback, initial data assumptions, and 12-week roadmap.
+- Useful design ideas:
+  - preserve the public-data-first MVP premise;
+  - keep local micro-care integration as a future partnership-dependent layer;
+  - maintain the health-safety boundary that the platform supports decision-making and does not
+    diagnose, prescribe, or replace professionals.
+
+### Effectiveness of Using AI-Driven Hotspot Mapping for Active Case Finding of Tuberculosis in Southwestern Nigeria
+
+- Local file: `documentos/tropicalmed-09-00099.pdf`
+- Link: <https://doi.org/10.3390/tropicalmed9050099>
+- Domain: TB active case-finding site selection using Bayesian hotspot mapping and a geoportal.
+- Why it matters: this is the closest direct reference for the proposed territorial AI module. It
+  combines active case-finding outputs, contextual covariates, population clusters, predictive
+  hotspot mapping, a geoportal for field teams, and a feedback loop where new screening results
+  improve future predictions.
+- Useful design ideas:
+  - start with transparent public indicators, but design the architecture so local ACF events can
+    later feed hotspot models;
+  - model hotspot recommendations as decision support for field planning, not as autonomous
+    targeting;
+  - compare model-selected areas against conventional notification-based planning;
+  - track yield, number screened, positivity, and whether the site was model-recommended.
+
+### Strengthening the TB response with artificial intelligence and the right to health
+
+- Local file: `documentos/ijtldopen25-0271.pdf`
+- Link: <https://doi.org/10.5588/ijtldopen.25.0271>
+- Domain: rights-based assessment of AI use in TB response.
+- Why it matters: this paper directly supports governance requirements for privacy,
+  confidentiality, bias, accessibility, acceptability, sustainability, informed consent, and
+  community participation.
+- Useful design ideas:
+  - evaluate AI features through availability, accessibility, acceptability, and quality;
+  - require privacy and non-discrimination review for sensitive hotspot, adherence, chatbot, and
+    community-monitoring features;
+  - treat digital literacy, connectivity, and sustainability as product constraints;
+  - keep community and professional oversight visible in the system design.
+
+### Cost-effectiveness of artificial intelligence monitoring for active tuberculosis treatment
+
+- Local file: `documentos/journal.pone.0254950.pdf`
+- Link: <https://doi.org/10.1371/journal.pone.0254950>
+- Domain: cost-effectiveness model comparing AI treatment monitoring with directly observed
+  therapy.
+- Why it matters: this is useful for future adherence and treatment-monitoring modules, not the
+  first public-data MVP. It gives a structure for comparing staff time, travel burden, video review,
+  treatment completion, costs, QALYs, and sensitivity analyses.
+- Useful design ideas:
+  - include cost and operational burden in future strategy scoring;
+  - model staff time and travel as major implementation constraints;
+  - avoid generalizing AI monitoring results beyond eligible, uncomplicated patient groups without
+    local validation;
+  - use sensitivity analysis when recommending resource-intensive interventions.
+
 ## Closest platform analogues
 
 ### InfoDengue

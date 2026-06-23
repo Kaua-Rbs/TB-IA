@@ -1,0 +1,6 @@
+jupyterlab>=4.0
+ipykernel>=6.0
+pandas>=2.2
+matplotlib>=3.8
+pyreaddbc>=2.0
+dbfread>=2.0

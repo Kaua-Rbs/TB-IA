@@ -11,6 +11,9 @@ The application is expected to be implemented in Python. The current Python tool
 - `descricao_do_projeto.md`: product vision, scope, MVP assumptions, data sources, and LGPD constraints.
 - `frentes_de_desenvolvimento.md`: workstreams for product, evidence, data, rules, interface, architecture, and validation.
 - `referencias.md`: related systems, papers, and design references for public health surveillance and TB decision support.
+- `especificacao_tecnica_do_sistema.md`: engineering-oriented specification for MVP scope, data contracts, architecture, workflows, governance, and validation.
+- `documentos/`: source PDFs and supporting reference documents used during project formulation.
+- `notebooks/`: exploratory notebooks and scripts for public-data loading and visualization.
 - `AGENTS.md`: project-specific instructions for future Codex sessions.
 - `CONTRIBUTING.md`: setup and quality command reference.
 
@@ -19,6 +22,15 @@ The application is expected to be implemented in Python. The current Python tool
 ```bash
 python -m pip install -r requirements-dev.txt
 ```
+
+## Exploratory Notebooks
+
+```bash
+python -m pip install -r requirements-notebook.txt
+jupyter lab notebooks/explorar_bases_publicas.ipynb
+```
+
+Notebook downloads and generated CSVs are written under `data/`, which is ignored by git.
 
 ## Quality Commands
 

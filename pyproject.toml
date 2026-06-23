@@ -14,7 +14,9 @@ extend-exclude = [
   ".pytest_cache",
   ".ruff_cache",
   ".venv",
+  "venv",
   "build",
+  "data",
   "dist",
   "htmlcov",
 ]
