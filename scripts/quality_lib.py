@@ -101,7 +101,10 @@ def list_files(root_directory: Path) -> list[str]:
     files: list[str] = []
 
     for path in root_directory.rglob("*"):
-        if any(part in IGNORED_DIRECTORY_NAMES for part in path.relative_to(root_directory).parts):
+        if any(
+            part in IGNORED_DIRECTORY_NAMES or part.endswith(".egg-info")
+            for part in path.relative_to(root_directory).parts
+        ):
             continue
         if path.is_file():
             files.append(to_posix(path.relative_to(root_directory)))
@@ -295,6 +298,8 @@ def resolve_local_import(importer: str, specifier: str, file_set: set[str]) -> s
     candidates = [
         f"{base_path}.py",
         f"{base_path}/__init__.py",
+        f"src/{base_path}.py",
+        f"src/{base_path}/__init__.py",
     ]
 
     return next((candidate for candidate in candidates if candidate in file_set), None)

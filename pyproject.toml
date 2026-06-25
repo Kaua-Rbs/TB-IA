@@ -3,7 +3,16 @@ name = "tb-ia"
 version = "0.1.0"
 description = "Documentation and planning workspace for an intelligent tuberculosis public health decision-support platform."
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "fastapi>=0.115",
+  "jinja2>=3.1",
+  "pandas>=2.2,<3.0",
+  "numpy>=1.26,<2.5",
+  "pyarrow>=16.0",
+  "sqlalchemy>=2.0",
+  "typer>=0.12",
+  "uvicorn[standard]>=0.30",
+]
 
 [tool.ruff]
 line-length = 100
@@ -29,7 +38,7 @@ max-complexity = 8
 
 [tool.mypy]
 python_version = "3.11"
-files = ["scripts", "tests"]
+files = ["src", "scripts", "tests"]
 check_untyped_defs = true
 disallow_incomplete_defs = true
 disallow_untyped_defs = true
@@ -40,10 +49,11 @@ warn_unused_ignores = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src", "."]
 
 [tool.coverage.run]
 branch = true
-source = ["scripts"]
+source = ["scripts", "src/tbia/domain", "src/tbia/ingest", "tbia.storage"]
 
 [tool.coverage.report]
 show_missing = true
@@ -53,3 +63,15 @@ exclude_lines = [
   "if TYPE_CHECKING:",
   "raise NotImplementedError",
 ]
+
+[[tool.mypy.overrides]]
+module = ["numpy", "numpy.*", "pyreaddbc"]
+ignore_missing_imports = true
+follow_imports = "skip"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

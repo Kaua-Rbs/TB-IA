@@ -7,30 +7,30 @@ install:
 	$(PYTHON) -m pip install -r requirements-dev.txt
 
 lint:
-	$(PYTHON) -m ruff check scripts tests
+	$(PYTHON) -m ruff check src scripts tests
 	$(PYTHON) -m scripts.validate_docs
 
 format:
-	$(PYTHON) -m ruff format scripts tests
+	$(PYTHON) -m ruff format src scripts tests
 	$(PYTHON) -m mdformat $(MARKDOWN_FILES)
 
 format-check:
-	$(PYTHON) -m ruff format --check scripts tests
+	$(PYTHON) -m ruff format --check src scripts tests
 	$(PYTHON) -m mdformat --check $(MARKDOWN_FILES)
 
 type:
-	$(PYTHON) -m mypy scripts tests
+	$(PYTHON) -m mypy src scripts tests
 
 test:
 	$(PYTHON) -m pytest
 
 coverage:
-	$(PYTHON) -m pytest --cov=scripts --cov-report=term-missing --cov-fail-under=80
+	$(PYTHON) -m pytest --cov=scripts --cov=src/tbia/domain --cov=src/tbia/ingest --cov=tbia.storage --cov-report=term-missing --cov-fail-under=80
 
 complexity:
 	$(PYTHON) -m scripts.quality_gates complexity
-	$(PYTHON) -m radon cc scripts tests -s -a
-	$(PYTHON) -m radon mi scripts tests
+	$(PYTHON) -m radon cc src scripts tests -s -a
+	$(PYTHON) -m radon mi src scripts tests
 
 deps:
 	$(PYTHON) -m scripts.quality_gates deps

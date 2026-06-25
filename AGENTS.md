@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-This repository is currently a planning and documentation workspace for a tuberculosis public health decision-support platform. The product goal is to support primary care and municipal surveillance teams with territorial analysis, operational indicators, triage support, treatment follow-up risk signals, and tuberculosis resistance vigilance.
+This repository is a planning, documentation, and MVP 1 implementation workspace for a tuberculosis public health decision-support platform. The product goal is to support primary care and municipal surveillance teams with territorial analysis, operational indicators, triage support, treatment follow-up risk signals, and tuberculosis resistance vigilance.
 
-The product implementation language is expected to be Python. The repository does not yet contain production application code. Quality gates are therefore Python-based but documentation-first today, with explicit commands reserved for future application testing, coverage, dependency architecture, complexity, and mutation testing once source code is added.
+The product implementation language is Python. The current application code implements the public-data territorial intelligence layer with ingestion, canonical storage, transparent indicator/scenario logic, recommendations, a CLI, and a local dashboard.
 
 ## Repository Structure
 
@@ -14,13 +14,15 @@ The product implementation language is expected to be Python. The repository doe
 - `especificacao_tecnica_do_sistema.md`: engineering-oriented specification for MVP scope, data contracts, architecture, workflows, governance, and validation.
 - `documentos/`: source PDFs and supporting reference documents used during project formulation.
 - `notebooks/`: exploratory notebooks and scripts for public-data loading and visualization.
+- `src/tbia/`: MVP 1 application package for public-data ingestion, indicators, scenarios, recommendations, storage, CLI, and dashboard.
 - `AGENTS.md`: instructions for future Codex sessions.
 - `CONTRIBUTING.md`: local setup and quality command reference.
 - `README.md`: project overview and command summary.
 - `scripts/`: lightweight Python repository quality scripts.
 - `tests/`: tests for the repository quality scripts.
 - `pyproject.toml`: Python tool configuration for linting, typing, tests, and coverage.
-- `requirements-dev.txt`: development tooling dependencies.
+- `requirements-app.txt`: MVP 1 runtime dependencies.
+- `requirements-dev.txt`: development tooling dependencies, including runtime dependencies for checks.
 - `requirements-notebook.txt`: optional dependencies for exploratory notebooks.
 - `.github/workflows/ci.yml`: GitHub Actions workflow for the standard checks.
 
@@ -34,7 +36,7 @@ Use Python 3.11 or newer for the current documentation/tooling quality gates.
 python -m pip install -r requirements-dev.txt
 ```
 
-If the project later adds an application stack, add stack-specific setup commands here and in `CONTRIBUTING.md`.
+The development requirements include the runtime stack through `requirements-app.txt`.
 
 ## Development Commands
 
@@ -80,7 +82,7 @@ Additional reporting gates:
 - `make deps`: local Python import cycle detection for repository tooling.
 - `make mutation`: intentionally skipped until critical application logic exists.
 
-Because this repo has no application source yet, do not add fake coverage, fake dependency layers, or fake mutation targets. Add real Python package-specific rules when the backend, data pipeline, or model logic is created.
+Coverage and dependency checks now include the MVP 1 package. Do not add fake mutation targets; configure a real mutation tool only when it is useful for critical domain logic.
 
 ## Architecture Rules
 
@@ -117,7 +119,7 @@ A task is complete only when:
 - Run `make check` before finishing whenever dependencies are available.
 - Do not weaken tests, lint rules, type checks, or health-safety language just to make checks pass.
 - Do not refactor unrelated code just because it is imperfect.
-- Do not add a backend, frontend, database, AI model, or deployment stack without a task that asks for it.
+- Do not expand beyond the selected MVP 1 stack, add patient-level data, or introduce AI models without a task that asks for it.
 - For health-domain behavior, keep recommendations transparent, auditable, and subject to human validation.
 - Explain skipped checks clearly.
 - Summarize changed files and commands run in the final response.

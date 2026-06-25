@@ -286,6 +286,69 @@ Thresholds should initially be configurable:
 - comparison against national target;
 - composite score.
 
+The current MVP 1 implementation uses an intentionally simple percentile-based composite score.
+This score is not an official Ministry of Health indicator and should not be interpreted as a
+validated epidemiological risk model. Its purpose is to produce a transparent first ranking that a
+domain reviewer can audit from the source indicators.
+
+Current rule thresholds are calculated within the selected UF and year, after small-count
+suppression removes unavailable public values:
+
+- for indicators where higher values are worse, the rule threshold is the 75th percentile (`p75`);
+- for indicators where lower values are worse, the rule threshold is the 25th percentile (`p25`).
+
+A scenario is triggered when the municipality value crosses the rule threshold:
+
+```text
+high_bad rule triggers when value >= threshold
+low_bad rule triggers when value <= threshold
+```
+
+Each triggered scenario receives a score:
+
+```text
+scenario_score = severity_weight * score_multiplier
+```
+
+Severity weights are:
+
+```text
+high = 3.0
+moderate = 2.0
+low = 1.0
+```
+
+The multiplier rewards how far the municipality is beyond the threshold while keeping every
+triggered scenario worth at least its base severity weight:
+
+```text
+high_bad score_multiplier = max(1.0, value / threshold)
+low_bad score_multiplier = max(1.0, threshold / max(value, 0.01))
+```
+
+The municipality priority score is the sum of all triggered scenario scores:
+
+```text
+municipality_score = sum(triggered scenario_score)
+```
+
+The dashboard ranking sorts municipalities by:
+
+```text
+municipality_score descending
+triggered scenario count descending
+territory name ascending
+```
+
+This formula was chosen because it satisfies the first MVP engineering criteria: it is deterministic,
+easy to explain, uses only public aggregate indicators, avoids opaque AI, and gives stronger weight
+to both more severe subscenarios and more extreme deviations from the comparison group. It was not
+selected through formal optimization, prospective validation, cost-effectiveness analysis, expert
+elicitation, or comparison against tuberculosis program outcomes. Future work should validate or
+replace this scoring model using official indicator definitions, domain-reviewer feedback,
+sensitivity analysis, historical municipal outcomes, and comparison with simpler baselines such as
+unweighted scenario counts or incidence-only ranking.
+
 A future hotspot module can follow the design pattern from the Nigeria AI-driven hotspot mapping
 study: local active case-finding events, contact investigation yield, facility screening yield, and
 contextual covariates are mapped into population clusters; a model predicts positivity or priority

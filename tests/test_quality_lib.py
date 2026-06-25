@@ -8,6 +8,7 @@ from scripts.quality_lib import (
     detect_application_roots,
     find_local_imports,
     find_trailing_whitespace_lines,
+    list_files,
     validate_documentation,
 )
 
@@ -59,6 +60,15 @@ def test_validate_documentation_reports_missing_agent_sections_and_whitespace(
     assert any("trailing whitespace" in error for error in result.errors)
 
 
+def test_list_files_ignores_editable_install_metadata(tmp_path: Path) -> None:
+    egg_info = tmp_path / "src" / "tb_ia.egg-info"
+    egg_info.mkdir(parents=True)
+    (egg_info / "SOURCES.txt").write_text("generated", encoding="utf-8")
+    (tmp_path / "README.md").write_text("# Project\n", encoding="utf-8")
+
+    assert list_files(tmp_path) == ["README.md"]
+
+
 def test_find_local_imports_returns_python_imports() -> None:
     imports = find_local_imports(
         "\n".join(
@@ -97,6 +107,18 @@ def test_dependency_report_detects_local_import_cycles(tmp_path: Path) -> None:
 
     assert len(report.cycles) == 1
     assert report.cycles[0] == ["scripts/a.py", "scripts/b.py", "scripts/a.py"]
+
+
+def test_dependency_report_resolves_src_layout_imports(tmp_path: Path) -> None:
+    package = tmp_path / "src" / "tbia"
+    package.mkdir(parents=True)
+    (package / "__init__.py").write_text("", encoding="utf-8")
+    (package / "a.py").write_text("from tbia import b\n", encoding="utf-8")
+    (package / "b.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    report = dependency_report(tmp_path)
+
+    assert report.graph["src/tbia/a.py"] == ["src/tbia/__init__.py", "src/tbia/b.py"]
 
 
 def test_detect_application_roots_ignores_tooling_and_detects_future_source_roots() -> None:

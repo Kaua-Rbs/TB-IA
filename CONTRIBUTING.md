@@ -2,13 +2,13 @@
 
 ## Current Repository State
 
-This repository currently contains product and planning documentation for a tuberculosis public health decision-support platform. It does not yet contain application source code.
+This repository contains product/planning documentation and the first MVP 1 Python implementation for a tuberculosis public health decision-support platform.
 
-The product implementation language is expected to be Python. The active quality setup is therefore Python-based but documentation-first, with lightweight repository tooling in `scripts/` and tests in `tests/`.
+The active quality setup checks the MVP 1 package in `src/tbia/`, lightweight repository tooling in `scripts/`, and tests in `tests/`.
 
 ## Setup
 
-Install Python 3.11 or newer, then install development dependencies:
+Install Python 3.11 or newer, then install development and application dependencies:
 
 ```bash
 python -m pip install -r requirements-dev.txt
@@ -25,10 +25,10 @@ make check
 `make check` runs:
 
 - Documentation hygiene checks.
-- Ruff linting for repository tooling.
+- Ruff linting for `src/`, `scripts/`, and `tests/`.
 - Ruff and mdformat formatting checks.
-- mypy type checking for repository tooling.
-- pytest tests for repository documentation rules.
+- mypy type checking for `src/`, `scripts/`, and `tests/`.
+- pytest tests for repository documentation rules and MVP 1 behavior.
 
 ## Additional Quality Commands
 
@@ -39,20 +39,21 @@ make deps
 make mutation
 ```
 
-- `make coverage` runs tests with coverage thresholds for the current tooling.
+- `make coverage` runs tests with coverage thresholds for repository tooling and critical MVP 1 logic.
 - `make complexity` reports large files and Python complexity metrics.
-- `make deps` checks the current local Python import graph for cycles.
-- `make mutation` is intentionally a no-op until critical application logic exists.
+- `make deps` checks the current local Python import graph for cycles, including `src/` layout imports.
+- `make mutation` is outside the default gate until a mutation tool is configured for critical application logic.
 
-## Adding Application Code
+## MVP 1 Commands
 
-When a Python backend, data pipeline, or model component is added:
+```bash
+python -m tbia ingest --uf CE --uf-code 23 --year 2023
+python -m tbia compute-indicators --uf CE --year 2023
+python -m tbia build-scenarios --uf CE --year 2023
+python -m tbia serve
+```
 
-- Add stack-specific linting, formatting, type checking, tests, and coverage.
-- Keep `make check` as the single fast local gate.
-- Add dependency architecture rules that match the real module layout.
-- Add mutation testing, such as mutmut, only for critical logic and keep it outside the default CI gate unless it is fast.
-- Update `AGENTS.md`, `README.md`, and this file with the new commands.
+The implementation must keep ingestion, domain indicator logic, scenario rules, storage, and presentation separated. Patient-level data and clinical decision automation remain out of scope for MVP 1.
 
 ## Definition Of Done
 

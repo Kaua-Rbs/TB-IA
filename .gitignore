@@ -16,3 +16,5 @@ build/
 .ipynb_checkpoints/
 data/raw/
 data/processed/
+data/*.db
+data/*.sqlite3
