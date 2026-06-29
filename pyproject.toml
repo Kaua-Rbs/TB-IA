@@ -4,11 +4,13 @@ version = "0.1.0"
 description = "Documentation and planning workspace for an intelligent tuberculosis public health decision-support platform."
 requires-python = ">=3.11"
 dependencies = [
+  "dbfread>=2.0",
   "fastapi>=0.115",
   "jinja2>=3.1",
   "pandas>=2.2,<3.0",
   "numpy>=1.26,<2.5",
   "pyarrow>=16.0",
+  "pyreaddbc>=2.0",
   "sqlalchemy>=2.0",
   "typer>=0.12",
   "uvicorn[standard]>=0.30",
@@ -65,7 +67,7 @@ exclude_lines = [
 ]
 
 [[tool.mypy.overrides]]
-module = ["numpy", "numpy.*", "pyreaddbc"]
+module = ["numpy", "numpy.*", "pyreaddbc", "dbfread"]
 ignore_missing_imports = true
 follow_imports = "skip"
 

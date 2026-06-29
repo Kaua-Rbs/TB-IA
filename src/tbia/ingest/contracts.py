@@ -118,6 +118,28 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
         ),
     ),
     SourceContract(
+        source_id="sinan_validation",
+        name="SINAN-TB mapping audit",
+        owner="TB-IA",
+        access_method="Generated from local DATASUS SINAN-TB DBF/DBC sample",
+        file_format="JSON",
+        grain="source-field audit report",
+        geographic_coverage="selected UF",
+        time_coverage="selected analysis year",
+        refresh_cadence="generated during ingestion",
+        required_fields=("field", "mapped_codes", "unmapped_values", "frequencies"),
+        optional_fields=("caveat",),
+        code_systems=("SINAN-TB public field codes",),
+        missingness_rules="Blank values are reported as <blank> rather than discarded.",
+        duplicate_handling="Frequency counts summarize all selected source records.",
+        privacy_level="public technical audit over public anonymized microdata",
+        validation_checks=("unmapped values reported", "record count reported"),
+        caveats=(
+            "Technical audit of current transform effects only; domain review against official "
+            "SINAN-TB dictionaries and indicator handbooks is still required."
+        ),
+    ),
+    SourceContract(
         source_id="sim",
         name="SIM mortality",
         owner="Ministry of Health / DATASUS",

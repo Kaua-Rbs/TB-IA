@@ -78,6 +78,30 @@ def read_sidra_population_payload(
     return sorted(populations, key=lambda population: population.territory_id)
 
 
+def read_sidra_values_population_payload(
+    payload: list[dict[str, str]],
+    analysis_year: int,
+    source_id: str = "ibge_population",
+) -> list[PopulationDenominator]:
+    populations: list[PopulationDenominator] = []
+    for row in payload:
+        raw_population = row.get("V")
+        municipality_code = row.get("D1C")
+        if raw_population is None or raw_population in ("-", "...", "Valor"):
+            continue
+        if not municipality_code:
+            continue
+        populations.append(
+            PopulationDenominator(
+                territory_id=municipality_code,
+                year=analysis_year,
+                population=positive_int(raw_population, "population"),
+                source_id=source_id,
+            )
+        )
+    return sorted(populations, key=lambda population: population.territory_id)
+
+
 def read_population_csv(
     path: Path, source_id: str = "ibge_population"
 ) -> list[PopulationDenominator]:

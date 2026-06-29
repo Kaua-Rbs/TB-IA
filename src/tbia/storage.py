@@ -576,6 +576,22 @@ def load_territory_scenarios(session: Session, year: int) -> list[TerritoryScena
     ]
 
 
+def load_territories(session: Session, uf: str) -> list[Territory]:
+    records = session.query(TerritoryRecord).filter_by(uf_sigla=uf).all()
+    return [
+        Territory(
+            territory_id=record.territory_id,
+            name=record.name,
+            territory_type=record.territory_type,
+            uf_code=record.uf_code,
+            uf_sigla=record.uf_sigla,
+            parent_id=record.parent_id,
+            geometry=record.geometry,
+        )
+        for record in records
+    ]
+
+
 def dashboard_context(session: Session, year: int, uf: str) -> dict[str, Any]:
     territories = {
         record.territory_id: record
@@ -652,6 +668,7 @@ def latest_import_runs(session: Session) -> list[dict[str, Any]]:
             "row_count": run.row_count,
             "finished_at": run.finished_at.isoformat() if run.finished_at else None,
             "message": run.message,
+            "caveats": source_by_id[source_id].caveats if source_id in source_by_id else "",
         }
         for source_id, run in sorted(runs.items())
     ]

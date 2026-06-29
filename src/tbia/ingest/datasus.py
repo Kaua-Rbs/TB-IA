@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from ftplib import FTP
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Any
 
 
 @dataclass(frozen=True)
@@ -18,36 +21,71 @@ class DatasusFile:
         return f"ftp://{self.host}/{self.remote_path}"
 
 
-DATASUS_DEMO_FILES: tuple[DatasusFile, ...] = (
-    DatasusFile(
-        source_id="sim",
-        label="SIM deaths CE 2023",
-        host="ftp.datasus.gov.br",
-        remote_path="dissemin/publicos/SIM/CID10/DORES/DOCE2023.dbc",
-        local_name="sim_ce_2023.dbc",
-    ),
-    DatasusFile(
-        source_id="sih_sus",
-        label="SIH/SUS reduced AIH CE Jan/2024",
-        host="ftp.datasus.gov.br",
-        remote_path="dissemin/publicos/SIHSUS/200801_/Dados/RDCE2401.dbc",
-        local_name="sih_ce_2024_01.dbc",
-    ),
-    DatasusFile(
-        source_id="cnes",
-        label="CNES establishments CE Jan/2024",
-        host="ftp.datasus.gov.br",
-        remote_path="dissemin/publicos/CNES/200508_/Dados/ST/STCE2401.dbc",
-        local_name="cnes_st_ce_2024_01.dbc",
-    ),
-    DatasusFile(
-        source_id="sinan_tb",
-        label="SINAN-TB Brazil 2023 preliminary",
-        host="ftp.datasus.gov.br",
-        remote_path="dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR23.dbc",
-        local_name="sinan_tb_br_2023.dbc",
-    ),
-)
+DATASUS_DEMO_FILES: tuple[DatasusFile, ...] = ()
+
+
+def datasus_demo_files(
+    uf: str,
+    year: int,
+    *,
+    sih_months: Sequence[int] = (1,),
+    cnes_month: int = 12,
+) -> tuple[DatasusFile, ...]:
+    uf_code = uf.upper()
+    uf_slug = uf.lower()
+    year_suffix = str(year)[-2:]
+    files: list[DatasusFile] = [
+        DatasusFile(
+            source_id="sim",
+            label=f"SIM deaths {uf_code} {year}",
+            host="ftp.datasus.gov.br",
+            remote_path=f"dissemin/publicos/SIM/CID10/DORES/DO{uf_code}{year}.dbc",
+            local_name=f"sim_{uf_slug}_{year}.dbc",
+        ),
+        DatasusFile(
+            source_id="sinan_tb",
+            label=f"SINAN-TB Brazil {year} preliminary",
+            host="ftp.datasus.gov.br",
+            remote_path=f"dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR{year_suffix}.dbc",
+            local_name=f"sinan_tb_br_{year}.dbc",
+        ),
+    ]
+
+    files.extend(
+        DatasusFile(
+            source_id="sih_sus",
+            label=f"SIH/SUS reduced AIH {uf_code} {year}-{format_month(month)}",
+            host="ftp.datasus.gov.br",
+            remote_path=(
+                "dissemin/publicos/SIHSUS/200801_/Dados/"
+                f"RD{uf_code}{year_suffix}{format_month(month)}.dbc"
+            ),
+            local_name=f"sih_{uf_slug}_{year}_{format_month(month)}.dbc",
+        )
+        for month in sih_months
+    )
+    files.append(
+        DatasusFile(
+            source_id="cnes",
+            label=f"CNES establishments {uf_code} {year}-{format_month(cnes_month)}",
+            host="ftp.datasus.gov.br",
+            remote_path=(
+                "dissemin/publicos/CNES/200508_/Dados/ST/"
+                f"ST{uf_code}{year_suffix}{format_month(cnes_month)}.dbc"
+            ),
+            local_name=f"cnes_st_{uf_slug}_{year}_{format_month(cnes_month)}.dbc",
+        )
+    )
+    return tuple(files)
+
+
+def format_month(month: int) -> str:
+    if month < 1 or month > 12:
+        raise ValueError(f"month must be between 1 and 12: {month}")
+    return f"{month:02d}"
+
+
+DATASUS_DEMO_FILES = datasus_demo_files("CE", 2023)
 
 
 def download_datasus_file(file: DatasusFile, output_dir: Path, *, timeout: int = 60) -> Path:
@@ -64,13 +102,36 @@ def download_datasus_file(file: DatasusFile, output_dir: Path, *, timeout: int =
     return output_path
 
 
-def read_dbc_with_pandas(path: Path) -> object:
+def read_datasus_records(path: Path) -> list[dict[str, Any]]:
+    if path.suffix.lower() == ".dbf":
+        return read_dbf_records(path)
+    if path.suffix.lower() == ".dbc":
+        return read_dbc_records(path)
+    raise ValueError(f"unsupported DATASUS file format: {path}")
+
+
+def read_dbf_records(path: Path) -> list[dict[str, Any]]:
+    try:
+        from dbfread import DBF
+    except ImportError as exc:
+        raise RuntimeError(
+            "Reading DBF files requires dbfread. Install application dependencies."
+        ) from exc
+
+    table = DBF(path, load=False, encoding="latin1", char_decode_errors="ignore")
+    return [dict(record) for record in table]
+
+
+def read_dbc_records(path: Path) -> list[dict[str, Any]]:
     try:
         import pyreaddbc
     except ImportError as exc:
         raise RuntimeError(
-            "Reading DBC files requires pyreaddbc. "
-            "Install notebook or app dependencies, or use canonical CSV fallback."
+            "Reading DBC files requires pyreaddbc. Install application dependencies, "
+            "or use converted DBF files."
         ) from exc
 
-    return pyreaddbc.read_dbc(str(path))
+    with TemporaryDirectory() as tmp_dir:
+        dbf_path = Path(tmp_dir) / f"{path.stem}.dbf"
+        pyreaddbc.dbc2dbf(str(path), str(dbf_path))
+        return read_dbf_records(dbf_path)

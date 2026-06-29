@@ -679,7 +679,7 @@ These decisions should be resolved before implementation:
 
 1. Which Boletim 2026 indicators are mandatory for the first public-data release, and which should
    remain backlog items?
-1. Will MVP 1 use direct DATASUS file transfer, TabNet exports, or a curated local extract?
+1. MVP 1 now supports direct DATASUS file transfer into local DBC samples, DBF/DBC ingestion, and manual CSV fallback. For CE/2023, the default denominator is IBGE Census 2022 resident population from SIDRA table 4714; rates must be labeled as 2023 events over 2022 Census population. Remaining decision: which public-source extracts become the validated acceptance dataset.
 1. What is the first geographic scope: Brazil, one state, one municipality, or demonstration data?
 1. What is the first time window for indicators?
 1. Which indicators are mandatory for the first scenario classification?
@@ -716,12 +716,13 @@ MVP 1 is complete only when:
 
 The first real implementation should not try to build all layers. It should build the smallest coherent public-data product:
 
-1. Import IBGE population and territorial identifiers.
+1. Import IBGE territorial identifiers and 2022 Census resident population denominators for CE/2023.
 1. Import or load selected SINAN-TB public indicators.
 1. Compute a small indicator dictionary.
 1. Classify territories with transparent rules.
 1. Link each subscenario to a strategy in the evidence library.
 1. Show a dashboard with rankings, explanations, and caveats.
 1. Validate results against manual public-source calculations.
+1. Generate a SINAN mapping audit report and keep SINAN-derived formulas provisional until domain review.
 
 Once this is working, questionnaire workflows and municipal local-data modules can be added without changing the core architecture.

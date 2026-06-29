@@ -47,7 +47,9 @@ make mutation
 ## MVP 1 Commands
 
 ```bash
+python -m tbia download-datasus-samples --uf CE --year 2023 --sih-all-months
 python -m tbia ingest --uf CE --uf-code 23 --year 2023
+python -m tbia validate-sinan-mappings --uf CE --uf-code 23 --year 2023
 python -m tbia compute-indicators --uf CE --year 2023
 python -m tbia build-scenarios --uf CE --year 2023
 python -m tbia serve

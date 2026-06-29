@@ -27,13 +27,15 @@ python -m pip install -r requirements-dev.txt
 ## MVP 1 Application
 
 ```bash
+python -m tbia download-datasus-samples --uf CE --year 2023 --sih-all-months
 python -m tbia ingest --uf CE --uf-code 23 --year 2023
+python -m tbia validate-sinan-mappings --uf CE --uf-code 23 --year 2023
 python -m tbia compute-indicators --uf CE --year 2023
 python -m tbia build-scenarios --uf CE --year 2023
 python -m tbia serve
 ```
 
-Manual CSV fallbacks are read from `data/raw/public_sources/manual/`. The initial canonical files are `population_denominators.csv`, `case_aggregates.csv`, `mortality_aggregates.csv`, `hospitalization_aggregates.csv`, and `facilities.csv`.
+`download-datasus-samples` stores public DATASUS DBC files under `data/raw/public_sources/datasus_samples/`; use `--sih-all-months` for the full SIH/SUS hospitalization year. MVP 1 CE/2023 uses 2022 IBGE Census resident population as the default denominator, so rates are explicitly caveated as 2023 events over 2022 Census population. `validate-sinan-mappings` writes a technical audit under `data/processed/mvp1/validation/`; it does not replace domain review against official SINAN-TB dictionaries and indicator handbooks. Manual CSV fallbacks are read from `data/raw/public_sources/manual/`.
 
 ## Exploratory Notebooks
 
