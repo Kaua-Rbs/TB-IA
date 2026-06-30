@@ -9,8 +9,12 @@ from typing import Any, TypeVar, cast
 
 from sqlalchemy.orm import Session
 
+from tbia.domain.indicator_validation import (
+    build_indicator_validation_report,
+    write_indicator_validation_report,
+)
 from tbia.domain.indicators import INDICATOR_DEFINITIONS, compute_indicator_values
-from tbia.domain.models import ImportRun, PopulationDenominator, Territory
+from tbia.domain.models import ImportRun, IndicatorValue, PopulationDenominator, Territory
 from tbia.domain.recommendations import STRATEGIES, build_recommendations
 from tbia.domain.scenarios import DEFAULT_SCENARIO_RULES, build_territory_scenarios
 from tbia.ingest.contracts import SOURCE_CONTRACTS
@@ -661,7 +665,50 @@ def compute_and_store_indicators(session: Session, config: Mvp1Config) -> int:
         minimum_count=config.minimum_count,
     )
     save_indicator_values(session, values, config.year)
+    record_indicator_validation_report(session, config, values)
     return len(values)
+
+
+def record_indicator_validation_report(
+    session: Session,
+    config: Mvp1Config,
+    values: Sequence[IndicatorValue],
+) -> None:
+    started_at = datetime.now(UTC)
+    try:
+        report = build_indicator_validation_report(values, year=config.year)
+        output_path = write_indicator_validation_report(report, config.validation_dir)
+    except Exception as exc:
+        save_import_run(
+            session,
+            ImportRun(
+                source_id="indicator_validation",
+                status="failed",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                message=str(exc),
+            ),
+        )
+        return
+
+    violation_count = int(report["violation_count"])
+    warning_count = int(report.get("warning_count", 0))
+    message = f"indicator sanity report: {output_path}"
+    if violation_count:
+        message = f"{message}; {violation_count} invariant violation(s) found"
+    if warning_count:
+        message = f"{message}; {warning_count} warning(s) found"
+    save_import_run(
+        session,
+        ImportRun(
+            source_id="indicator_validation",
+            status=str(report["status"]),
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+            row_count=int(report["indicator_count"]),
+            message=message,
+        ),
+    )
 
 
 def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int, int]:

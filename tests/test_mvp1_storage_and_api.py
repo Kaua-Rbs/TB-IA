@@ -17,6 +17,7 @@ from tbia.storage import (
     create_session_factory,
     dashboard_context,
     initialize_database,
+    load_cases,
     load_territories,
     save_case_aggregates,
     save_mortalities,
@@ -24,6 +25,31 @@ from tbia.storage import (
     save_territories,
 )
 from tbia.web.app import create_app
+
+
+def test_public_aggregate_savers_replace_year_rows(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    with session_factory() as session:
+        save_case_aggregates(
+            session,
+            [
+                CaseAggregate(territory_id="2304400", year=2023, notified_cases=1),
+                CaseAggregate(territory_id="2303709", year=2023, notified_cases=1),
+            ],
+        )
+        session.commit()
+        save_case_aggregates(
+            session,
+            [CaseAggregate(territory_id="2304400", year=2023, notified_cases=2)],
+        )
+        session.commit()
+        rows = load_cases(session, 2023)
+    engine.dispose()
+
+    assert [(row.territory_id, row.notified_cases) for row in rows] == [("2304400", 2)]
 
 
 def test_storage_pipeline_persists_dashboard_context(tmp_path: Path) -> None:
@@ -35,10 +61,14 @@ def test_storage_pipeline_persists_dashboard_context(tmp_path: Path) -> None:
     with session_factory() as session:
         context = dashboard_context(session, 2023, "CE")
 
-    assert context["territory_count"] == 3
+    assert context["territory_count"] == 6
     assert context["indicator_count"] > 0
     assert context["scenario_count"] > 0
     assert context["ranking"][0]["territory_id"] == "2304400"
+    validation_source = next(
+        source for source in context["sources"] if source["source_id"] == "indicator_validation"
+    )
+    assert validation_source["status"] == "success"
 
     with session_factory() as session:
         territories = load_territories(session, "CE")
@@ -53,11 +83,17 @@ def test_public_api_returns_aggregate_indicators_and_ranking(tmp_path: Path) -> 
         indicators = client.get("/api/indicators?uf=CE&year=2023")
         rankings = client.get("/api/rankings?uf=CE&year=2023")
         report = client.get("/api/territories/2304400/report?year=2023")
+        missing_report = client.get("/api/territories/9999999/report?year=2023")
 
     assert indicators.status_code == 200
     assert rankings.status_code == 200
     assert report.status_code == 200
-    assert any(row["indicator_id"] == "tb_incidence_per_100k" for row in indicators.json())
+    assert missing_report.status_code == 404
+    incidence = next(
+        row for row in indicators.json() if row["indicator_id"] == "tb_incidence_per_100k"
+    )
+    assert incidence["unit"] == "per_100k"
+    assert incidence["direction"] == "high_bad"
     assert rankings.json()[0]["territory_id"] == "2304400"
     assert report.json()["territory_name"] == "Fortaleza"
 
@@ -72,7 +108,7 @@ def test_public_api_returns_geometry_and_enriched_map_properties(tmp_path: Path)
     assert geometry.status_code == 200
     assert map_response.status_code == 200
     geometry_features = geometry.json()["features"]
-    assert len(geometry_features) == 3
+    assert len(geometry_features) == 6
     assert "indicators" not in geometry_features[0]["properties"]
 
     map_features = {
@@ -88,10 +124,18 @@ def test_public_api_returns_geometry_and_enriched_map_properties(tmp_path: Path)
     assert fortaleza["top_severity"] in {"high", "moderate"}
     assert fortaleza["data_status"] == "complete"
     assert "tb_incidence_per_100k" in fortaleza["indicators"]
+    assert fortaleza["indicators"]["tb_incidence_per_100k"]["unit"] == "per_100k"
+    assert fortaleza["indicators"]["cure_proportion"]["direction"] == "low_bad"
+
+    metadata = map_response.json()["metadata"]
+    assert metadata["feature_count"] == 6
+    assert metadata["drawable_geometry_count"] == 6
+    assert metadata["layers"]["cure_proportion"]["direction"] == "low_bad"
 
     mortality = caucaia["indicators"]["tb_mortality_per_100k"]
     assert mortality["value"] is None
     assert mortality["is_suppressed"] is True
+    assert caucaia["data_status"] == "partial"
     assert sobral["data_status"] == "missing"
 
 
@@ -106,6 +150,9 @@ def test_dashboard_renders_map_panel_and_existing_sections(tmp_path: Path) -> No
     assert 'id="municipality-map"' in html
     assert 'id="map-layer"' in html
     assert "https://unpkg.com/leaflet" in html
+    assert 'id="map-status"' in html
+    assert "Map legend" in html
+    assert "Leaflet CDN" in html
     assert "Priority ranking" in html
     assert "Source freshness" in html
 
@@ -157,13 +204,40 @@ def populate_database(database_url: str) -> None:
                     "CE",
                     geometry=fixture_geometry(0.4),
                 ),
+                Territory(
+                    "2304202",
+                    "Crato",
+                    "municipality",
+                    "23",
+                    "CE",
+                    geometry=fixture_geometry(0.6),
+                ),
+                Territory(
+                    "2307304",
+                    "Juazeiro do Norte",
+                    "municipality",
+                    "23",
+                    "CE",
+                    geometry=fixture_geometry(0.8),
+                ),
+                Territory(
+                    "2306405",
+                    "Itapipoca",
+                    "municipality",
+                    "23",
+                    "CE",
+                    geometry=fixture_geometry(1.0),
+                ),
             ],
         )
         save_populations(
             session,
             [
-                PopulationDenominator("2304400", 2023, 1_000_000, "ibge_population"),
+                PopulationDenominator("2304400", 2023, 100_000, "ibge_population"),
                 PopulationDenominator("2303709", 2023, 100_000, "ibge_population"),
+                PopulationDenominator("2304202", 2023, 130_000, "ibge_population"),
+                PopulationDenominator("2307304", 2023, 270_000, "ibge_population"),
+                PopulationDenominator("2306405", 2023, 130_000, "ibge_population"),
             ],
         )
         save_case_aggregates(
@@ -203,6 +277,57 @@ def populate_database(database_url: str) -> None:
                     retreatment_pulmonary_cases=3,
                     culture_retreated_cases=2,
                 ),
+                CaseAggregate(
+                    territory_id="2304202",
+                    year=2023,
+                    notified_cases=35,
+                    new_cases=30,
+                    closed_cases=20,
+                    cured_cases=15,
+                    treatment_interruption_cases=5,
+                    retreatment_cases=5,
+                    new_pulmonary_cases=28,
+                    lab_confirmed_pulmonary_cases=25,
+                    hiv_tested_cases=24,
+                    tb_hiv_cases=5,
+                    trm_tb_cases=20,
+                    retreatment_pulmonary_cases=5,
+                    culture_retreated_cases=5,
+                ),
+                CaseAggregate(
+                    territory_id="2307304",
+                    year=2023,
+                    notified_cases=55,
+                    new_cases=50,
+                    closed_cases=30,
+                    cured_cases=20,
+                    treatment_interruption_cases=5,
+                    retreatment_cases=5,
+                    new_pulmonary_cases=45,
+                    lab_confirmed_pulmonary_cases=35,
+                    hiv_tested_cases=40,
+                    tb_hiv_cases=6,
+                    trm_tb_cases=32,
+                    retreatment_pulmonary_cases=5,
+                    culture_retreated_cases=5,
+                ),
+                CaseAggregate(
+                    territory_id="2306405",
+                    year=2023,
+                    notified_cases=30,
+                    new_cases=25,
+                    closed_cases=20,
+                    cured_cases=10,
+                    treatment_interruption_cases=6,
+                    retreatment_cases=5,
+                    new_pulmonary_cases=20,
+                    lab_confirmed_pulmonary_cases=10,
+                    hiv_tested_cases=18,
+                    tb_hiv_cases=5,
+                    trm_tb_cases=12,
+                    retreatment_pulmonary_cases=5,
+                    culture_retreated_cases=5,
+                ),
             ],
         )
         save_mortalities(
@@ -210,6 +335,9 @@ def populate_database(database_url: str) -> None:
             [
                 MortalityAggregate("2304400", 2023, 15),
                 MortalityAggregate("2303709", 2023, 1),
+                MortalityAggregate("2304202", 2023, 5),
+                MortalityAggregate("2307304", 2023, 6),
+                MortalityAggregate("2306405", 2023, 5),
             ],
         )
         compute_and_store_indicators(session, Mvp1Config(year=2023, minimum_count=5))

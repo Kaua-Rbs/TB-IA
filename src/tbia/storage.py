@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import Any, cast
 
@@ -428,7 +428,12 @@ def save_populations(session: Session, populations: Iterable[PopulationDenominat
 
 
 def save_case_aggregates(session: Session, aggregates: Iterable[CaseAggregate]) -> None:
-    for aggregate in aggregates:
+    rows = list(aggregates)
+    if not rows:
+        return
+    years = {aggregate.year for aggregate in rows}
+    session.execute(delete(CaseAggregateRecord).where(CaseAggregateRecord.year.in_(years)))
+    for aggregate in rows:
         session.merge(
             CaseAggregateRecord(
                 territory_id=aggregate.territory_id,
@@ -452,7 +457,14 @@ def save_case_aggregates(session: Session, aggregates: Iterable[CaseAggregate]) 
 
 
 def save_mortalities(session: Session, mortalities: Iterable[MortalityAggregate]) -> None:
-    for mortality in mortalities:
+    rows = list(mortalities)
+    if not rows:
+        return
+    years = {mortality.year for mortality in rows}
+    session.execute(
+        delete(MortalityAggregateRecord).where(MortalityAggregateRecord.year.in_(years))
+    )
+    for mortality in rows:
         session.merge(
             MortalityAggregateRecord(
                 territory_id=mortality.territory_id,
@@ -467,7 +479,14 @@ def save_hospitalizations(
     session: Session,
     hospitalizations: Iterable[HospitalizationAggregate],
 ) -> None:
-    for hospitalization in hospitalizations:
+    rows = list(hospitalizations)
+    if not rows:
+        return
+    years = {hospitalization.year for hospitalization in rows}
+    session.execute(
+        delete(HospitalizationAggregateRecord).where(HospitalizationAggregateRecord.year.in_(years))
+    )
+    for hospitalization in rows:
         session.merge(
             HospitalizationAggregateRecord(
                 territory_id=hospitalization.territory_id,
@@ -1113,6 +1132,8 @@ def api_indicator_rows(session: Session, year: int, uf: str) -> list[dict[str, A
                 "numerator_value": record.numerator_value,
                 "denominator_value": record.denominator_value,
                 "caveats": record.caveats,
+                "unit": definition.unit if definition else None,
+                "direction": definition.direction if definition else None,
             }
         )
     return rows
@@ -1255,12 +1276,19 @@ def map_geojson_for_municipalities(session: Session, year: int, uf: str) -> dict
         session.query(TerritoryRecord).filter_by(uf_sigla=uf).order_by(TerritoryRecord.name).all()
     )
     territory_ids = {territory.territory_id for territory in territories}
+    definitions = {
+        record.indicator_id: record for record in session.query(IndicatorDefinitionRecord).all()
+    }
     indicators = map_indicator_rows_by_territory(session, year, territory_ids)
     scenarios = map_scenario_summary_by_territory(session, year, territory_ids)
     features = [
         map_municipality_feature(territory, indicators, scenarios) for territory in territories
     ]
-    return {"type": "FeatureCollection", "features": features}
+    return {
+        "type": "FeatureCollection",
+        "metadata": map_geojson_metadata(uf, year, features, definitions),
+        "features": features,
+    }
 
 
 def map_municipality_feature(
@@ -1307,6 +1335,7 @@ def map_indicator_rows_by_territory(
             "value": None if record.is_suppressed else record.value,
             "is_suppressed": record.is_suppressed,
             "unit": definition.unit if definition is not None else None,
+            "direction": definition.direction if definition is not None else None,
         }
     return indicators
 
@@ -1360,10 +1389,58 @@ def top_explanations(scored_explanations: list[tuple[float, str]]) -> list[str]:
     ]
 
 
+def map_geojson_metadata(
+    uf: str,
+    year: int,
+    features: Sequence[dict[str, Any]],
+    definitions: dict[str, IndicatorDefinitionRecord],
+) -> dict[str, Any]:
+    return {
+        "uf": uf,
+        "year": year,
+        "feature_count": len(features),
+        "drawable_geometry_count": sum(
+            1 for feature in features if feature["geometry"] is not None
+        ),
+        "layers": map_layer_definitions(definitions),
+    }
+
+
+def map_layer_definitions(
+    definitions: dict[str, IndicatorDefinitionRecord],
+) -> dict[str, dict[str, str | None]]:
+    layers: dict[str, dict[str, str | None]] = {
+        "priority_score": {
+            "label": "Priority score",
+            "kind": "property",
+            "unit": "score",
+            "direction": IndicatorDirection.HIGH_BAD.value,
+        },
+        "scenario_count": {
+            "label": "Scenario count",
+            "kind": "property",
+            "unit": IndicatorUnit.COUNT.value,
+            "direction": IndicatorDirection.HIGH_BAD.value,
+        },
+    }
+    for indicator_id in sorted(MAP_LAYER_INDICATOR_IDS):
+        definition = definitions.get(indicator_id)
+        layers[indicator_id] = {
+            "label": definition.name if definition is not None else indicator_id,
+            "kind": "indicator",
+            "unit": definition.unit if definition is not None else None,
+            "direction": definition.direction if definition is not None else None,
+        }
+    return layers
+
+
 def map_data_status(indicators: dict[str, dict[str, Any]]) -> str:
-    if not indicators:
+    required = {
+        indicator_id: indicators.get(indicator_id) for indicator_id in MAP_LAYER_INDICATOR_IDS
+    }
+    if all(value is None for value in required.values()):
         return "missing"
-    if MAP_LAYER_INDICATOR_IDS.issubset(indicators):
+    if all(value is not None and not value["is_suppressed"] for value in required.values()):
         return "complete"
     return "partial"
 

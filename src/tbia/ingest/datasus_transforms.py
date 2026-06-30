@@ -13,6 +13,10 @@ from tbia.domain.models import (
 )
 
 Record = Mapping[str, Any]
+NEW_CASE_ENTRY_TYPES = frozenset({"1", "4", "6"})
+RETREATMENT_ENTRY_TYPES = frozenset({"2", "3"})
+OUTCOME_DENOMINATOR_CLOSURES = frozenset({"1", "2", "3", "4", "5", "10"})
+TREATMENT_INTERRUPTION_CLOSURES = frozenset({"2", "10"})
 
 
 def build_datasus_municipality_map(territories: Iterable[Territory]) -> dict[str, str]:
@@ -71,41 +75,51 @@ def apply_sinan_record_metrics(metrics: dict[str, int], record: Record) -> None:
     entry_type = record_text(record, "TRATAMENTO")
     closure = record_text(record, "SITUA_ENCE")
     pulmonary = is_pulmonary_tb(record)
+    new_case = is_new_case_entry_type(entry_type)
 
     metrics["notified_cases"] += 1
     increment_entry_type_metrics(metrics, entry_type)
-    increment_closure_metrics(metrics, closure)
-    increment_hiv_metrics(metrics, record)
 
-    if entry_type == "1" and pulmonary:
+    if new_case:
+        increment_closure_metrics(metrics, closure)
+        increment_hiv_metrics(metrics, record)
+
+    if new_case and pulmonary:
         increment_new_pulmonary_metrics(metrics, record)
-    if entry_type in {"2", "3"} and pulmonary:
+    if is_retreatment_entry_type(entry_type) and pulmonary:
         increment_retreatment_pulmonary_metrics(metrics, record)
 
 
 def increment_entry_type_metrics(metrics: dict[str, int], entry_type: str) -> None:
-    if entry_type == "1":
+    if is_new_case_entry_type(entry_type):
         metrics["new_cases"] += 1
-    if entry_type in {"2", "3"}:
+    if is_retreatment_entry_type(entry_type):
         metrics["retreatment_cases"] += 1
 
 
 def increment_closure_metrics(metrics: dict[str, int], closure: str) -> None:
-    if closure:
+    if closure in OUTCOME_DENOMINATOR_CLOSURES:
         metrics["closed_cases"] += 1
     if closure == "1":
         metrics["cured_cases"] += 1
-    if closure == "2":
+    if closure in TREATMENT_INTERRUPTION_CLOSURES:
         metrics["treatment_interruption_cases"] += 1
 
 
 def increment_hiv_metrics(metrics: dict[str, int], record: Record) -> None:
     hiv = record_text(record, "HIV")
-    aids = record_text(record, "AGRAVAIDS")
     if hiv in {"1", "2"}:
         metrics["hiv_tested_cases"] += 1
-    if hiv == "1" or aids == "1":
+    if hiv == "1":
         metrics["tb_hiv_cases"] += 1
+
+
+def is_new_case_entry_type(entry_type: str) -> bool:
+    return entry_type in NEW_CASE_ENTRY_TYPES
+
+
+def is_retreatment_entry_type(entry_type: str) -> bool:
+    return entry_type in RETREATMENT_ENTRY_TYPES
 
 
 def increment_new_pulmonary_metrics(metrics: dict[str, int], record: Record) -> None:

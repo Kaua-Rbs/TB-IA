@@ -30,6 +30,10 @@ make check
 - mypy type checking for `src/`, `scripts/`, and `tests/`.
 - pytest tests for repository documentation rules and MVP 1 behavior.
 
+## Commit Messages
+
+Use Conventional Commit subjects for all commits, such as `feat(mvp1): add map validation`, `fix(api): return 404 for missing territories`, or `docs: update setup notes`. Keep the subject concise and use a scope when it clarifies the affected area.
+
 ## Additional Quality Commands
 
 ```bash

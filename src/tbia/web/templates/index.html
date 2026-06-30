@@ -98,6 +98,13 @@
         gap: 16px;
       }
 
+      .map-frame {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
       #municipality-map {
         height: 480px;
         min-height: 360px;
@@ -114,6 +121,49 @@
         padding: 14px;
         overflow: auto;
         background: #fbfcfd;
+      }
+
+      .map-status {
+        border: 1px solid #bcccdc;
+        border-radius: 6px;
+        background: #fff;
+        color: #52606d;
+        padding: 10px 12px;
+        font-size: 14px;
+      }
+
+      .map-status.hidden {
+        display: none;
+      }
+
+      .map-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px 14px;
+        color: #52606d;
+        font-size: 13px;
+      }
+
+      .legend-item {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .legend-swatch {
+        width: 16px;
+        height: 12px;
+        border: 1px solid #52606d;
+        border-radius: 2px;
+        background: #d9e2ec;
+      }
+
+      .legend-swatch.low { background: #dcfce7; }
+      .legend-swatch.mid { background: #facc15; }
+      .legend-swatch.high { background: #b91c1c; }
+      .legend-swatch.suppressed {
+        background: #f3f4f6;
+        border-style: dashed;
       }
 
       .detail-section {
@@ -237,7 +287,17 @@
           </label>
         </div>
         <div class="map-shell">
-          <div id="municipality-map" role="img" aria-label="Municipality choropleth map"></div>
+          <div class="map-frame">
+            <div id="municipality-map" role="img" aria-label="Municipality choropleth map"></div>
+            <div id="map-status" class="map-status hidden" aria-live="polite"></div>
+            <div class="map-legend" aria-label="Map legend">
+              <span class="legend-item"><span class="legend-swatch low"></span>lower concern</span>
+              <span class="legend-item"><span class="legend-swatch mid"></span>moderate concern</span>
+              <span class="legend-item"><span class="legend-swatch high"></span>higher concern</span>
+              <span class="legend-item"><span class="legend-swatch"></span>missing</span>
+              <span class="legend-item"><span class="legend-swatch suppressed"></span>suppressed</span>
+            </div>
+          </div>
           <aside id="map-detail" class="map-detail" aria-live="polite">
             <h3>Municipality detail</h3>
             <p class="empty">Select a municipality.</p>
@@ -309,56 +369,109 @@
       const MAP_YEAR = {{ year | tojson }};
       const layerSelect = document.getElementById("map-layer");
       const detailPanel = document.getElementById("map-detail");
-      const layerDefinitions = {
-        priority_score: { label: "Priority score", kind: "property", unit: "score" },
-        scenario_count: { label: "Scenario count", kind: "property", unit: "count" },
-        tb_incidence_per_100k: { label: "TB incidence", kind: "indicator", unit: "per_100k" },
-        tb_mortality_per_100k: { label: "TB mortality", kind: "indicator", unit: "per_100k" },
-        cure_proportion: { label: "Cure proportion", kind: "indicator", unit: "percent" },
+      const mapStatus = document.getElementById("map-status");
+      const defaultLayerDefinitions = {
+        priority_score: {
+          label: "Priority score",
+          kind: "property",
+          unit: "score",
+          direction: "high_bad"
+        },
+        scenario_count: {
+          label: "Scenario count",
+          kind: "property",
+          unit: "count",
+          direction: "high_bad"
+        },
+        tb_incidence_per_100k: {
+          label: "TB incidence",
+          kind: "indicator",
+          unit: "per_100k",
+          direction: "high_bad"
+        },
+        tb_mortality_per_100k: {
+          label: "TB mortality",
+          kind: "indicator",
+          unit: "per_100k",
+          direction: "high_bad"
+        },
+        cure_proportion: {
+          label: "Cure proportion",
+          kind: "indicator",
+          unit: "percent",
+          direction: "low_bad"
+        },
         treatment_interruption_proportion: {
           label: "Treatment interruption proportion",
           kind: "indicator",
-          unit: "percent"
+          unit: "percent",
+          direction: "high_bad"
         },
         laboratory_confirmation_proportion: {
           label: "Laboratory confirmation proportion",
           kind: "indicator",
-          unit: "percent"
+          unit: "percent",
+          direction: "low_bad"
         }
       };
 
+      let layerDefinitions = { ...defaultLayerDefinitions };
       let mapData = { type: "FeatureCollection", features: [] };
       let municipalityLayer = null;
-      const map = L.map("municipality-map", {
-        attributionControl: false,
-        zoomControl: true
-      });
-      map.setView([-5.2, -39.5], 7);
+      let map = null;
 
-      fetch(`/api/map/municipalities?uf=${encodeURIComponent(MAP_UF)}&year=${MAP_YEAR}`)
-        .then((response) => response.json())
-        .then((payload) => {
-          mapData = payload;
-          renderMap();
-        })
-        .catch(() => {
-          detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Map data unavailable.</p>';
+      if (!window.L) {
+        showMapStatus("Map renderer unavailable. Check access to the Leaflet CDN.");
+        detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Map renderer unavailable.</p>';
+      } else {
+        initMap();
+      }
+
+      function initMap() {
+        map = L.map("municipality-map", {
+          attributionControl: false,
+          zoomControl: true
         });
+        map.setView([-5.2, -39.5], 7);
 
-      layerSelect.addEventListener("change", () => {
-        if (municipalityLayer) {
-          municipalityLayer.setStyle(styleFeature);
-          municipalityLayer.eachLayer((layer) => {
-            layer.setTooltipContent(tooltipText(layer.feature.properties));
+        fetch(`/api/map/municipalities?uf=${encodeURIComponent(MAP_UF)}&year=${MAP_YEAR}`)
+          .then((response) => {
+            if (!response.ok) throw new Error(`Map API returned ${response.status}`);
+            return response.json();
+          })
+          .then((payload) => {
+            mapData = payload;
+            layerDefinitions = {
+              ...layerDefinitions,
+              ...((payload.metadata && payload.metadata.layers) || {})
+            };
+            renderMap();
+          })
+          .catch(() => {
+            showMapStatus("Map data unavailable. Run ingestion and verify cached IBGE Malhas geometry.");
+            detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Map data unavailable.</p>';
           });
-        }
-      });
+
+        layerSelect.addEventListener("change", () => {
+          if (municipalityLayer) {
+            municipalityLayer.setStyle(styleFeature);
+            municipalityLayer.eachLayer((layer) => {
+              layer.setTooltipContent(tooltipText(layer.feature.properties));
+            });
+          }
+        });
+      }
 
       function renderMap() {
         const drawable = {
           type: "FeatureCollection",
           features: mapData.features.filter((feature) => feature.geometry)
         };
+        if (!drawable.features.length) {
+          showMapStatus("No municipality geometries available. Run ingestion to cache IBGE Malhas data.");
+          return;
+        }
+        hideMapStatus();
         municipalityLayer = L.geoJSON(drawable, {
           style: styleFeature,
           onEachFeature: bindFeature
@@ -378,55 +491,60 @@
       }
 
       function styleFeature(feature) {
-        const props = feature.properties;
-        const state = layerState(props);
-        const missing = props.data_status === "missing" || state.value === null;
+        const state = layerState(feature.properties);
+        const missing = state.value === null;
         return {
           color: state.suppressed ? "#6b7280" : "#52606d",
           weight: state.suppressed ? 1.7 : 0.9,
           dashArray: state.suppressed ? "4 3" : "",
-          fillColor: missing ? "#d9e2ec" : colorForValue(state.value, layerMaximum()),
+          fillColor: missing ? "#d9e2ec" : colorForValue(state.value, layerStats(), state.direction),
           fillOpacity: missing ? 0.45 : 0.78
         };
       }
 
       function layerState(props) {
         const layerKey = layerSelect.value;
-        const definition = layerDefinitions[layerKey];
+        const definition = layerDefinitions[layerKey] || defaultLayerDefinitions[layerKey];
         if (definition.kind === "indicator") {
-          const indicator = props.indicators[layerKey];
+          const indicator = (props.indicators || {})[layerKey];
           return {
-            value: indicator && !indicator.is_suppressed ? indicator.value : null,
+            value: indicator && !indicator.is_suppressed ? Number(indicator.value) : null,
             suppressed: Boolean(indicator && indicator.is_suppressed),
-            unit: definition.unit
+            unit: (indicator && indicator.unit) || definition.unit,
+            direction: (indicator && indicator.direction) || definition.direction
           };
         }
         const rawValue = props[layerKey];
         return {
           value: rawValue === null || rawValue === undefined ? null : Number(rawValue),
           suppressed: false,
-          unit: definition.unit
+          unit: definition.unit,
+          direction: definition.direction
         };
       }
 
-      function layerMaximum() {
+      function layerStats() {
         const values = mapData.features
           .map((feature) => layerState(feature.properties).value)
           .filter((value) => value !== null && Number.isFinite(value));
-        return Math.max(...values, 1);
+        if (!values.length) return { min: 0, max: 1 };
+        return { min: Math.min(...values), max: Math.max(...values) };
       }
 
-      function colorForValue(value, maximum) {
-        const ratio = Math.max(0, Math.min(1, value / maximum));
-        if (ratio >= 0.75) return "#0f766e";
-        if (ratio >= 0.5) return "#2dd4bf";
-        if (ratio >= 0.25) return "#a7f3d0";
-        return "#ecfdf5";
+      function colorForValue(value, stats, direction) {
+        const spread = stats.max - stats.min;
+        const baseRatio = spread === 0 ? 0.5 : (value - stats.min) / spread;
+        const concernRatio = direction === "low_bad" ? 1 - baseRatio : baseRatio;
+        const ratio = Math.max(0, Math.min(1, concernRatio));
+        if (ratio >= 0.75) return "#b91c1c";
+        if (ratio >= 0.5) return "#f97316";
+        if (ratio >= 0.25) return "#facc15";
+        return "#dcfce7";
       }
 
       function tooltipText(props) {
         const state = layerState(props);
-        const label = layerDefinitions[layerSelect.value].label;
+        const label = (layerDefinitions[layerSelect.value] || defaultLayerDefinitions[layerSelect.value]).label;
         return `${props.name}<br>${label}: ${formatValue(state.value, state.unit, state.suppressed)}`;
       }
 
@@ -443,7 +561,10 @@
       function loadTerritoryDetail(territoryId) {
         detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Loading...</p>';
         fetch(`/api/territories/${encodeURIComponent(territoryId)}/report?year=${MAP_YEAR}`)
-          .then((response) => response.json())
+          .then((response) => {
+            if (!response.ok) throw new Error(`Detail API returned ${response.status}`);
+            return response.json();
+          })
           .then(renderDetail)
           .catch(() => {
             detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Detail unavailable.</p>';
@@ -451,17 +572,17 @@
       }
 
       function renderDetail(report) {
-        const indicatorRows = report.indicators.map((row) => `
+        const indicatorRows = (report.indicators || []).map((row) => `
           <tr>
             <td>${escapeHtml(row.indicator_name)}</td>
             <td>${formatValue(row.value, reportUnit(row), row.is_suppressed)}</td>
             <td>${escapeHtml(row.caveats)}</td>
           </tr>
         `).join("");
-        const scenarios = report.scenarios.map((row) =>
+        const scenarios = (report.scenarios || []).map((row) =>
           `<li>${escapeHtml(row.severity)}: ${escapeHtml(row.explanation)}</li>`
         ).join("");
-        const recommendations = report.recommendations.map((row) =>
+        const recommendations = (report.recommendations || []).map((row) =>
           `<li>${escapeHtml(row.priority)}: ${escapeHtml(row.explanation)}</li>`
         ).join("");
         detailPanel.innerHTML = `
@@ -491,11 +612,22 @@
       }
 
       function reportUnit(row) {
+        if (row.unit) return row.unit;
         const layer = layerDefinitions[row.indicator_id];
         if (layer) return layer.unit;
         if (row.indicator_id.endsWith("_proportion")) return "percent";
         if (row.indicator_id.endsWith("_per_100k")) return "per_100k";
         return "score";
+      }
+
+      function showMapStatus(message) {
+        mapStatus.textContent = message;
+        mapStatus.classList.remove("hidden");
+      }
+
+      function hideMapStatus() {
+        mapStatus.textContent = "";
+        mapStatus.classList.add("hidden");
       }
 
       function escapeHtml(value) {

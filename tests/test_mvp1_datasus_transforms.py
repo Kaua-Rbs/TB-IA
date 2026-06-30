@@ -60,13 +60,59 @@ def test_transform_sinan_tb_records_builds_case_aggregates() -> None:
     assert aggregate.notified_cases == 2
     assert aggregate.new_cases == 1
     assert aggregate.cured_cases == 1
-    assert aggregate.treatment_interruption_cases == 1
+    assert aggregate.treatment_interruption_cases == 0
     assert aggregate.retreatment_cases == 1
     assert aggregate.new_pulmonary_cases == 1
     assert aggregate.lab_confirmed_pulmonary_cases == 1
     assert aggregate.trm_tb_cases == 1
-    assert aggregate.tb_hiv_cases == 2
+    assert aggregate.hiv_tested_cases == 1
+    assert aggregate.tb_hiv_cases == 1
     assert aggregate.culture_retreated_cases == 1
+
+
+def test_transform_sinan_tb_records_restricts_hiv_and_outcomes_to_new_case_universe() -> None:
+    records = [
+        {
+            "NU_ANO": "2023",
+            "ID_MN_RESI": "230440",
+            "TRATAMENTO": "4",
+            "FORMA": "2",
+            "SITUA_ENCE": "10",
+            "HIV": "2",
+            "AGRAVAIDS": "2",
+        },
+        {
+            "NU_ANO": "2023",
+            "ID_MN_RESI": "230440",
+            "TRATAMENTO": "6",
+            "FORMA": "1",
+            "SITUA_ENCE": "7",
+            "HIV": "1",
+            "AGRAVAIDS": "2",
+        },
+        {
+            "NU_ANO": "2023",
+            "ID_MN_RESI": "230440",
+            "TRATAMENTO": "2",
+            "FORMA": "1",
+            "SITUA_ENCE": "2",
+            "HIV": "1",
+            "AGRAVAIDS": "1",
+        },
+    ]
+
+    aggregates = transform_sinan_tb_records(records, municipality_map(), year=2023)
+
+    aggregate = aggregates[0]
+    assert aggregate.notified_cases == 3
+    assert aggregate.new_cases == 2
+    assert aggregate.retreatment_cases == 1
+    assert aggregate.closed_cases == 1
+    assert aggregate.treatment_interruption_cases == 1
+    assert aggregate.hiv_tested_cases == 2
+    assert aggregate.tb_hiv_cases == 1
+    assert aggregate.new_pulmonary_cases == 1
+    assert aggregate.retreatment_pulmonary_cases == 1
 
 
 def test_transform_sim_records_filters_tb_deaths_by_residence() -> None:

@@ -107,6 +107,13 @@ def register_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:
     register_health_route(app)
 
 
+def territory_report_or_404(session: Session, territory_id: str, year: int) -> dict[str, Any]:
+    try:
+        return territory_report(session, territory_id, year)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 def register_mvp1_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:
     @app.get("/api/sources")
     def sources() -> list[dict[str, Any]]:
@@ -132,7 +139,7 @@ def register_mvp1_api_routes(app: FastAPI, session_factory: SessionProvider) -> 
         year: int = Query(2023, ge=2000, le=2100),
     ) -> dict[str, Any]:
         with session_factory() as session:
-            return territory_report(session, territory_id, year)
+            return territory_report_or_404(session, territory_id, year)
 
     @app.get("/api/geo/municipalities")
     def municipality_geojson(uf: str = Query("CE", min_length=2, max_length=2)) -> dict[str, Any]:

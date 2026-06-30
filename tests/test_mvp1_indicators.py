@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from tbia.domain.indicator_validation import build_indicator_validation_report
 from tbia.domain.indicators import MANDATORY_INDICATOR_IDS, compute_indicator_values
 from tbia.domain.models import CaseAggregate, MortalityAggregate, PopulationDenominator
 
@@ -55,3 +56,70 @@ def test_mandatory_indicator_set_excludes_non_public_restricted_indicators() -> 
     assert "drug_resistant_tb_burden" not in MANDATORY_INDICATOR_IDS
     assert "preventive_treatment_initiation" not in MANDATORY_INDICATOR_IDS
     assert "tb_incidence_per_100k" in MANDATORY_INDICATOR_IDS
+
+
+def test_bounded_proportion_with_numerator_above_denominator_is_suppressed() -> None:
+    values = compute_indicator_values(
+        populations=[PopulationDenominator("2304400", 2023, 1_000_000, "ibge_population")],
+        cases=[
+            CaseAggregate(
+                territory_id="2304400",
+                year=2023,
+                notified_cases=8,
+                new_cases=4,
+                hiv_tested_cases=8,
+            )
+        ],
+        mortalities=[],
+        year=2023,
+        minimum_count=1,
+    )
+    by_key = {value.indicator_id: value for value in values}
+
+    hiv_testing = by_key["hiv_testing_proportion"]
+    assert hiv_testing.value is None
+    assert hiv_testing.is_suppressed is True
+    assert "numerator exceeds denominator" in hiv_testing.caveats
+
+
+def test_indicator_validation_report_flags_invalid_bounded_proportion() -> None:
+    values = compute_indicator_values(
+        populations=[PopulationDenominator("2304400", 2023, 1_000_000, "ibge_population")],
+        cases=[
+            CaseAggregate(
+                territory_id="2304400",
+                year=2023,
+                notified_cases=8,
+                new_cases=4,
+                hiv_tested_cases=8,
+            )
+        ],
+        mortalities=[],
+        year=2023,
+        minimum_count=1,
+    )
+
+    hiv_testing = next(value for value in values if value.indicator_id == "hiv_testing_proportion")
+    report = build_indicator_validation_report([hiv_testing], year=2023)
+
+    assert report["status"] == "failed"
+    assert report["violation_count"] == 1
+    assert report["violations"][0]["check"] == "bounded_proportion_numerator_exceeds_denominator"
+
+
+def test_indicator_validation_report_treats_zero_over_zero_as_warning() -> None:
+    values = compute_indicator_values(
+        populations=[PopulationDenominator("2304400", 2023, 1_000_000, "ibge_population")],
+        cases=[CaseAggregate(territory_id="2304400", year=2023, notified_cases=1)],
+        mortalities=[],
+        year=2023,
+        minimum_count=1,
+    )
+    cure = next(value for value in values if value.indicator_id == "cure_proportion")
+
+    report = build_indicator_validation_report([cure], year=2023)
+
+    assert report["status"] == "success"
+    assert report["violation_count"] == 0
+    assert report["warning_count"] == 1
+    assert report["warnings"][0]["check"] == "zero_denominator"

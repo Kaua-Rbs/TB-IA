@@ -247,8 +247,8 @@ Starter indicators for MVP 1:
 | Treatment interruption proportion | Obtainable | cases closed as abandonment/interruption | cases with closure status | SINAN-TB public DBC/TabNet | Requires official closure-status mapping; label should follow the current Brazilian indicator terminology. |
 | Retreatment proportion | Obtainable | retreatment cases | notified TB cases | SINAN-TB public DBC/TabNet | Use entry type categories such as recurrence and re-entry after abandonment according to the official dictionary. |
 | Laboratory confirmation proportion | Obtainable with transformation | pulmonary cases confirmed by smear microscopy, rapid molecular test, or culture | new pulmonary TB cases | SINAN-TB public DBC | Prefer DBC-derived transformation because the numerator combines multiple lab fields and should avoid double counting. |
-| HIV testing proportion | Obtainable | new TB cases tested for HIV | new TB cases | SINAN-TB public DBC/TabNet | Requires mapping tested, positive, negative, in-progress, and not-performed categories. |
-| TB-HIV burden | Obtainable | TB cases with HIV positive or AIDS/coinfection marker | new TB cases | SINAN-TB public DBC/TabNet | Define whether the official indicator uses HIV test result, AIDS comorbidity, or both. |
+| HIV testing proportion | Obtainable | new TB cases tested for HIV | new TB cases | SINAN-TB public DBC/TabNet | MVP 1 counts completed positive or negative HIV results inside the new-case universe. |
+| TB-HIV burden | Obtainable | new TB cases with positive HIV result | new TB cases | SINAN-TB public DBC/TabNet | MVP 1 uses HIV-positive result for the public indicator; AIDS comorbidity remains in the mapping audit until domain review. |
 | Contacts examined proportion | Conditional, requires validation | examined contacts of lab-confirmed new pulmonary TB cases | identified contacts of lab-confirmed new pulmonary TB cases | SINAN-TB public DBC fields, not TabNet-ready | Public DBC contains contact count fields, but public TabNet notes contact indicators cannot be calculated there; keep out of mandatory MVP until validated against the official indicator handbook. |
 | TRM-TB use proportion | Obtainable | new pulmonary TB cases with rapid molecular test | new pulmonary TB cases | SINAN-TB public DBC/TabNet | Requires mapping the rapid molecular test field and excluding non-applicable categories. |
 | Culture use among retreatment | Obtainable with transformation | retreatment pulmonary TB cases with sputum culture | retreatment pulmonary TB cases | SINAN-TB public DBC | Requires combining entry type, pulmonary form, and culture fields. |
@@ -260,6 +260,8 @@ Starter indicators for MVP 1:
 Mandatory MVP 1 indicators should be limited to the rows marked `Obtainable` or `Obtainable with transformation`. Rows marked `Conditional` require explicit validation before they affect scenario
 classification. Rows marked `Not publicly obtainable` must remain outside the public-data MVP unless
 there is institutional authorization, a curated local extract, or a specific public report.
+
+Current MVP 1 SINAN transform choices are provisional but explicit: case type codes `1`, `4`, and `6` form the new-case universe, matching the Boletim 2026 note for caso novo, não sabe, and pós-óbito; case type codes `2` and `3` form the retreatment universe. Treatment outcome proportions are calculated only among new cases with outcome denominator closures for cure, interruption, death, ignored, or not evaluated; diagnosis change, TB-DR, regimen change, and failure-style closure codes are excluded pending domain review. Bounded proportions with numerator greater than denominator are suppressed in public outputs and reported as validation violations; zero-over-zero denominators are reported as missingness warnings.
 
 ### Scenario and prioritization engine
 
@@ -735,6 +737,6 @@ The first real implementation should not try to build all layers. It should buil
 1. Link each subscenario to a strategy in the evidence library.
 1. Show a dashboard with rankings, explanations, and caveats.
 1. Validate results against manual public-source calculations.
-1. Generate a SINAN mapping audit report and keep SINAN-derived formulas provisional until domain review.
+1. Generate SINAN mapping and indicator sanity validation reports, and keep SINAN-derived formulas provisional until domain review.
 
 Once this is working, questionnaire workflows and municipal local-data modules can be added without changing the core architecture.

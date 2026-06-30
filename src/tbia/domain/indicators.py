@@ -98,10 +98,13 @@ INDICATOR_DEFINITIONS: tuple[IndicatorDefinition, ...] = (
         unit=IndicatorUnit.PERCENT,
         direction=IndicatorDirection.HIGH_BAD,
         public_data_status=PublicDataStatus.OBTAINABLE,
-        numerator="TB cases with HIV positive or TB-HIV marker",
+        numerator="New TB cases with positive HIV result",
         denominator="New TB cases",
         sources=("sinan_tb",),
-        caveats="Definition must state whether it uses HIV result, AIDS comorbidity, or both.",
+        caveats=(
+            "Uses HIV-positive result among the new-case universe; "
+            "AIDS comorbidity is audited separately."
+        ),
     ),
     IndicatorDefinition(
         indicator_id="trm_tb_use_proportion",
@@ -320,11 +323,19 @@ def build_value(
     minimum_count: int,
 ) -> IndicatorValue:
     definition = get_indicator_definition(indicator_id)
-    suppressed = denominator <= 0 or numerator < minimum_count
+    bounded_proportion_violation = (
+        definition.unit == IndicatorUnit.PERCENT and denominator > 0 and numerator > denominator
+    )
+    suppressed = denominator <= 0 or numerator < minimum_count or bounded_proportion_violation
     value = None if suppressed else numerator / denominator * scale
     caveats = definition.caveats
     if denominator <= 0:
         caveats = f"{caveats} Denominator unavailable or zero."
+    elif bounded_proportion_violation:
+        caveats = (
+            f"{caveats} Suppressed for public output because numerator exceeds "
+            "denominator for a bounded proportion."
+        )
     elif numerator < minimum_count:
         caveats = f"{caveats} Suppressed for public output because count is below {minimum_count}."
 

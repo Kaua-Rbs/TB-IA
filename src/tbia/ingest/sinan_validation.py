@@ -28,17 +28,20 @@ CURRENT_MAPPING_EFFECTS: dict[str, dict[str, str]] = {
         "1": "counted as new case",
         "2": "counted as retreatment",
         "3": "counted as retreatment",
+        "4": "counted as new case",
+        "6": "counted as new case",
     },
     "SITUA_ENCE": {
-        "1": "counted as cure and closed case",
-        "2": "counted as treatment interruption and closed case",
-        "3": "counted as closed case only",
-        "4": "counted as closed case only",
-        "5": "counted as closed case only",
-        "7": "counted as closed case only",
-        "8": "counted as closed case only",
-        "9": "counted as closed case only",
-        "10": "counted as closed case only",
+        "1": "counted as cure and outcome denominator",
+        "2": "counted as treatment interruption and outcome denominator",
+        "3": "counted as outcome denominator only",
+        "4": "counted as outcome denominator only",
+        "5": "counted as outcome denominator only",
+        "6": "excluded from outcome denominator",
+        "7": "excluded from outcome denominator",
+        "8": "excluded from outcome denominator",
+        "9": "excluded from outcome denominator",
+        "10": "counted as treatment interruption and outcome denominator",
     },
     "FORMA": {
         "1": "counted as pulmonary",
@@ -46,13 +49,13 @@ CURRENT_MAPPING_EFFECTS: dict[str, dict[str, str]] = {
         "3": "counted as pulmonary",
     },
     "HIV": {
-        "1": "counted as HIV tested and TB-HIV burden",
-        "2": "counted as HIV tested",
+        "1": "counted as HIV tested and TB-HIV burden only inside the new-case universe",
+        "2": "counted as HIV tested only inside the new-case universe",
         "3": "not counted as HIV tested",
         "4": "not counted as HIV tested",
     },
     "AGRAVAIDS": {
-        "1": "counted as TB-HIV burden",
+        "1": "audited as AIDS comorbidity; not counted in TB-HIV burden indicator",
         "2": "not counted as TB-HIV burden",
         "9": "not counted as TB-HIV burden",
     },
@@ -77,18 +80,21 @@ CURRENT_MAPPING_EFFECTS: dict[str, dict[str, str]] = {
 
 FIELD_CAVEATS: dict[str, str] = {
     "TRATAMENTO": (
-        "Current effects must be compared with the official SINAN-TB entry-type dictionary."
+        "Current effects count case type codes 1, 4, and 6 as the new-case universe, "
+        "following the Boletim 2026 note for caso novo, não sabe, and pós-óbito."
     ),
     "SITUA_ENCE": (
-        "Current effects must be compared with the official closure-status dictionary "
-        "and cohort definition."
+        "Current effects include cure, interruption, death, ignored, and not evaluated in "
+        "the outcome denominator, and exclude diagnosis change, TB-DR, regimen change, "
+        "and failure-style closures pending domain review."
     ),
     "FORMA": (
         "Current effects assume pulmonary and mixed forms are included in pulmonary indicators."
     ),
-    "HIV": "Current effects distinguish tested from not tested using provisional code categories.",
+    "HIV": "Current effects count positive and negative HIV results only within new TB cases.",
     "AGRAVAIDS": (
-        "Current effects combine AIDS comorbidity with HIV-positive result for TB-HIV burden."
+        "Current effects audit AIDS comorbidity but the TB-HIV burden indicator uses "
+        "HIV-positive result."
     ),
     "BACILOSC_E": "Current effects use initial sputum smear as one lab-confirmation component.",
     "CULTURA_ES": (

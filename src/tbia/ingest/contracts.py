@@ -162,6 +162,42 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
         ),
     ),
     SourceContract(
+        source_id="indicator_validation",
+        name="MVP1 indicator sanity validation",
+        owner="TB-IA",
+        access_method="Generated after MVP1 indicator computation",
+        file_format="JSON",
+        grain="indicator invariant report",
+        geographic_coverage="selected analysis scope",
+        time_coverage="selected analysis year",
+        refresh_cadence="generated during indicator computation",
+        required_fields=(
+            "status",
+            "indicator_count",
+            "violation_count",
+            "warning_count",
+            "violations",
+            "warnings",
+        ),
+        optional_fields=("caveats",),
+        code_systems=("TB-IA indicator IDs",),
+        missingness_rules=(
+            "Suppressed public values remain null but retain numerator and denominator metadata."
+        ),
+        duplicate_handling="One report per analysis year is overwritten on recomputation.",
+        privacy_level="public aggregate validation metadata",
+        validation_checks=(
+            "non-negative counts",
+            "zero denominators reported",
+            "bounded proportions do not exceed their denominator",
+            "unsuppressed percentages remain between 0 and 100",
+        ),
+        caveats=(
+            "Mechanical invariant report only; formula and dictionary choices still require "
+            "public health domain review."
+        ),
+    ),
+    SourceContract(
         source_id="sim",
         name="SIM mortality",
         owner="Ministry of Health / DATASUS",

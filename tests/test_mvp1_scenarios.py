@@ -25,9 +25,13 @@ def test_build_territory_scenarios_uses_transparent_percentile_rules() -> None:
             indicator("2304400", "tb_incidence_per_100k", 90),
             indicator("2303709", "tb_incidence_per_100k", 30),
             indicator("2312908", "tb_incidence_per_100k", 20),
+            indicator("2305001", "tb_incidence_per_100k", 50),
+            indicator("2306009", "tb_incidence_per_100k", 40),
             indicator("2304400", "cure_proportion", 60),
             indicator("2303709", "cure_proportion", 90),
             indicator("2312908", "cure_proportion", 95),
+            indicator("2305001", "cure_proportion", 75),
+            indicator("2306009", "cure_proportion", 80),
         ]
     )
 
@@ -44,9 +48,13 @@ def test_build_priority_ranking_and_recommendations_are_deterministic() -> None:
             indicator("2304400", "tb_incidence_per_100k", 90),
             indicator("2303709", "tb_incidence_per_100k", 30),
             indicator("2312908", "tb_incidence_per_100k", 20),
+            indicator("2305001", "tb_incidence_per_100k", 50),
+            indicator("2306009", "tb_incidence_per_100k", 40),
             indicator("2304400", "treatment_interruption_proportion", 20),
             indicator("2303709", "treatment_interruption_proportion", 10),
             indicator("2312908", "treatment_interruption_proportion", 5),
+            indicator("2305001", "treatment_interruption_proportion", 15),
+            indicator("2306009", "treatment_interruption_proportion", 12),
         ]
     )
     ranking = build_priority_ranking(scenarios)
@@ -55,3 +63,16 @@ def test_build_priority_ranking_and_recommendations_are_deterministic() -> None:
     assert ranking[0][0] == "2304400"
     assert recommendations[0].territory_id == "2304400"
     assert "professional review" in recommendations[0].explanation
+
+
+def test_build_territory_scenarios_skips_thresholds_with_small_comparison_group() -> None:
+    scenarios = build_territory_scenarios(
+        [
+            indicator("2304400", "tb_incidence_per_100k", 90),
+            indicator("2303709", "tb_incidence_per_100k", 30),
+            indicator("2312908", "tb_incidence_per_100k", 20),
+            indicator("2305001", "tb_incidence_per_100k", 50),
+        ]
+    )
+
+    assert scenarios == []

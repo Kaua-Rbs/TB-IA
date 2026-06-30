@@ -167,7 +167,7 @@ def threshold_for_rule(
     rule: ScenarioRule,
 ) -> float | None:
     raw_values = sorted(value.value for value in values if value.value is not None)
-    if not raw_values:
+    if len(raw_values) < rule.minimum_count:
         return None
 
     if rule.threshold_method == "p75":
