@@ -2,9 +2,9 @@
 
 ## Current Repository State
 
-This repository contains product/planning documentation and the first MVP 1 Python implementation for a tuberculosis public health decision-support platform.
+This repository contains product/planning documentation, the MVP 1 public-data Python implementation, and the MVP 2 synthetic municipal operational pilot for a tuberculosis public health decision-support platform.
 
-The active quality setup checks the MVP 1 package in `src/tbia/`, lightweight repository tooling in `scripts/`, and tests in `tests/`.
+The active quality setup checks the MVP package in `src/tbia/`, lightweight repository tooling in `scripts/`, and tests in `tests/`.
 
 ## Setup
 
@@ -56,6 +56,17 @@ python -m tbia serve
 ```
 
 The implementation must keep ingestion, domain indicator logic, scenario rules, storage, and presentation separated. Patient-level data and clinical decision automation remain out of scope for MVP 1.
+
+## MVP 2 Synthetic Municipal Demo
+
+```bash
+python -m tbia generate-mvp2-sample-data --output-dir data/raw/municipal_demo
+python -m tbia ingest-local --raw-dir data/raw/municipal_demo --year 2023
+python -m tbia build-operational-alerts --year 2023 --reference-date 2026-06-29
+python -m tbia serve
+```
+
+MVP 2 currently accepts only synthetic or already pseudonymized municipal CSVs. Do not add CPF, CNS, person names, addresses, phone numbers, patient-level maps, task assignment, authentication, or clinical automation unless a future task explicitly changes the governed scope. The operational dashboard is `/mvp2`; the CSV schemas and alert rules are documented in `mvp2_municipal_contracts.md`.
 
 ## Definition Of Done
 

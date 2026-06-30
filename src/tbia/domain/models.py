@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any
 
@@ -29,6 +29,17 @@ class ScenarioSeverity(StrEnum):
     LOW = "low"
     MODERATE = "moderate"
     HIGH = "high"
+
+
+class OperationalAlertSeverity(StrEnum):
+    MODERATE = "moderate"
+    HIGH = "high"
+
+
+class OperationalAlertStatus(StrEnum):
+    OPEN = "open"
+    RESOLVED = "resolved"
+    DISMISSED = "dismissed"
 
 
 @dataclass(frozen=True)
@@ -118,6 +129,115 @@ class Facility:
     facility_type: str
     sus_linked: bool
     source_id: str = "cnes"
+
+
+@dataclass(frozen=True)
+class LocalTerritory:
+    territory_id: str
+    name: str
+    territory_type: str
+    uf_code: str
+    uf_sigla: str
+    parent_id: str | None = None
+    facility_id: str | None = None
+    team_id: str | None = None
+
+
+@dataclass(frozen=True)
+class LocalTeam:
+    team_id: str
+    facility_id: str
+    name: str
+    team_type: str
+    active: bool
+
+
+@dataclass(frozen=True)
+class LocalTbCase:
+    local_case_id: str
+    pseudonymized_patient_id: str
+    territory_id: str
+    facility_id: str
+    team_id: str
+    year: int
+    notification_date: date
+    diagnosis_date: date | None
+    treatment_start_date: date | None
+    entry_type: str
+    clinical_form: str
+    closure_status: str
+    closure_date: date | None
+    rifampicin_resistance: bool
+    retreatment: bool
+    previous_treatment_failure: bool
+
+
+@dataclass(frozen=True)
+class LocalLabEvent:
+    local_lab_id: str
+    local_case_id: str
+    pseudonymized_patient_id: str
+    test_type: str
+    year: int
+    request_date: date
+    collection_date: date | None
+    result_date: date | None
+    result: str
+    status: str
+
+
+@dataclass(frozen=True)
+class MedicationDispensing:
+    dispensing_id: str
+    local_case_id: str
+    pseudonymized_patient_id: str
+    dispensing_date: date
+    days_supplied: int
+    medication_group: str
+    year: int
+
+
+@dataclass(frozen=True)
+class ContactInvestigation:
+    contact_id: str
+    index_case_id: str
+    pseudonymized_contact_id: str
+    identified_date: date
+    evaluation_date: date | None
+    symptomatic: bool
+    tpt_started_date: date | None
+    status: str
+    year: int
+
+
+@dataclass(frozen=True)
+class ResourceInventory:
+    facility_id: str
+    year: int
+    sputum_collection: bool
+    rapid_molecular_access: bool
+    xray_access: bool
+    sample_transport: bool
+    pharmacy_tb_meds: bool
+    chw_count: int
+
+
+@dataclass(frozen=True)
+class OperationalAlert:
+    alert_id: str
+    year: int
+    alert_type: str
+    severity: OperationalAlertSeverity
+    status: OperationalAlertStatus
+    local_case_id: str
+    territory_id: str
+    facility_id: str
+    team_id: str
+    related_entity_id: str
+    reference_date: date
+    generated_at: datetime
+    message: str
+    due_date: date | None = None
 
 
 @dataclass(frozen=True)

@@ -83,9 +83,11 @@ Core sources:
 Core outputs:
 
 - municipality-level TB indicator dashboard;
+- municipality-level public aggregate choropleth using cached IBGE Malhas geometry;
 - incidence, mortality, cure, treatment interruption, retreatment, laboratory confirmation, TB-HIV, and demographic profiles;
 - scenario and subscenario classification;
 - priority territory ranking;
+- no patient-level, address-level, or MVP 2 operational alert-point maps in the MVP 1 public view;
 - recommendation summary linked to a strategy library;
 - data-quality warnings and source freshness indicators.
 
@@ -117,6 +119,16 @@ Core outputs:
 - contact investigation pending lists;
 - unit-level operational indicators;
 - drug-resistance vigilance alerts based on retreatment, treatment failure, rifampicin resistance, missing culture, or missing drug susceptibility testing.
+
+Current first implementation slice:
+
+- use synthetic, pseudonymized municipal CSVs under `data/raw/municipal_demo/`;
+- reject obvious identifiable columns before local operational ingestion;
+- persist local teams, TB cases, lab events, pharmacy dispensing events, contact investigations, resource inventory, and generated operational alerts;
+- generate transparent alert queues for pending lab results, delayed medication pickup, pending contact evaluation, and resistance vigilance;
+- expose `/mvp2` and `/api/mvp2/*` for local operations review without patient-level maps, task assignment, authentication, or RBAC.
+
+This starter slice is a workflow and data-contract pilot. It is not authorization to load real municipal patient data. Real exports require institutional approval, governance, local deployment controls, auditability, and role-based access decisions before production use.
 
 ### MVP 3: micro-care decision support
 
@@ -419,7 +431,7 @@ Dashboards should be separated by user role.
 Manager dashboard:
 
 - territory ranking;
-- scenario map;
+- municipality-level public aggregate scenario map;
 - trend indicators;
 - data freshness;
 - resource capacity;
@@ -483,7 +495,7 @@ Example contract summary:
 | SIH/SUS | UF-month hospital admission records | FTP DBC files such as `SIHSUS/200801_/Dados/RDCE2401.dbc` | TB-related hospitalization burden and severity proxy |
 | CNES | facility and service capacity snapshots by module, UF, and month | FTP DBC files by submodule, for example `CNES/200508_/Dados/ST/STCE2401.dbc` | facility inventory, SUS linkage, establishment type, selected service/capacity proxies |
 | IBGE population | territory-year demographics | SIDRA/API JSON, CSV/XLSX export | denominators for incidence, mortality, hospitalizations, and capacity ratios |
-| IBGE malhas | territorial geometry | GeoJSON, TopoJSON, SHP, GPKG | maps |
+| IBGE malhas | municipality territorial geometry | GeoJSON from the Malhas API, cached during ingestion | MVP 1 public aggregate municipality maps only |
 | SIA/SUS | UF-month ambulatory production records | FTP DBC files by SIA layout/module; procedure interpretation requires SIGTAP | optional diagnostic/ambulatory production proxies, not a required first release source |
 | SIGTAP | procedure terminology and attributes | public tables/downloads | procedure-code dictionary for SIA/SUS and selected SIH/SUS analyses |
 | SISAB/e-Gestor APS | aggregate APS production and coverage | public reports, CSV/XLSX/ODS where available | optional APS context; not required for first public-data MVP |

@@ -1,15 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from datetime import datetime
-from typing import Any
+from datetime import date, datetime
+from typing import Any, cast
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, Integer, String, Text, create_engine, delete
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    Date,
+    DateTime,
+    Float,
+    Integer,
+    String,
+    Text,
+    create_engine,
+    delete,
+)
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
 
 from tbia.domain.models import (
     CaseAggregate,
+    ContactInvestigation,
     DataSource,
     Facility,
     HospitalizationAggregate,
@@ -18,10 +30,19 @@ from tbia.domain.models import (
     IndicatorDirection,
     IndicatorUnit,
     IndicatorValue,
+    LocalLabEvent,
+    LocalTbCase,
+    LocalTeam,
+    LocalTerritory,
+    MedicationDispensing,
     MortalityAggregate,
+    OperationalAlert,
+    OperationalAlertSeverity,
+    OperationalAlertStatus,
     PopulationDenominator,
     PublicDataStatus,
     Recommendation,
+    ResourceInventory,
     ScenarioRule,
     ScenarioSeverity,
     Strategy,
@@ -130,6 +151,123 @@ class FacilityRecord(Base):
     facility_type: Mapped[str] = mapped_column(String(120))
     sus_linked: Mapped[bool] = mapped_column(Boolean, default=True)
     source_id: Mapped[str] = mapped_column(String(80), default="cnes")
+
+
+class LocalTerritoryRecord(Base):
+    __tablename__ = "local_territories"
+
+    territory_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    name: Mapped[str] = mapped_column(String(200), index=True)
+    territory_type: Mapped[str] = mapped_column(String(80), index=True)
+    uf_code: Mapped[str] = mapped_column(String(10), index=True)
+    uf_sigla: Mapped[str] = mapped_column(String(2), index=True)
+    parent_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    facility_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    team_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+
+
+class LocalTeamRecord(Base):
+    __tablename__ = "local_teams"
+
+    team_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    facility_id: Mapped[str] = mapped_column(String(80), index=True)
+    name: Mapped[str] = mapped_column(String(200))
+    team_type: Mapped[str] = mapped_column(String(80))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class LocalTbCaseRecord(Base):
+    __tablename__ = "local_tb_cases"
+
+    local_case_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    pseudonymized_patient_id: Mapped[str] = mapped_column(String(120))
+    territory_id: Mapped[str] = mapped_column(String(80), index=True)
+    facility_id: Mapped[str] = mapped_column(String(80), index=True)
+    team_id: Mapped[str] = mapped_column(String(80), index=True)
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    notification_date: Mapped[date] = mapped_column(Date)
+    diagnosis_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    treatment_start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    entry_type: Mapped[str] = mapped_column(String(80))
+    clinical_form: Mapped[str] = mapped_column(String(80))
+    closure_status: Mapped[str] = mapped_column(String(80))
+    closure_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    rifampicin_resistance: Mapped[bool] = mapped_column(Boolean, default=False)
+    retreatment: Mapped[bool] = mapped_column(Boolean, default=False)
+    previous_treatment_failure: Mapped[bool] = mapped_column(Boolean, default=False)
+
+
+class LocalLabEventRecord(Base):
+    __tablename__ = "local_lab_events"
+
+    local_lab_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    local_case_id: Mapped[str] = mapped_column(String(80), index=True)
+    pseudonymized_patient_id: Mapped[str] = mapped_column(String(120))
+    test_type: Mapped[str] = mapped_column(String(120))
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    request_date: Mapped[date] = mapped_column(Date)
+    collection_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    result_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    result: Mapped[str] = mapped_column(String(120), default="")
+    status: Mapped[str] = mapped_column(String(80))
+
+
+class MedicationDispensingRecord(Base):
+    __tablename__ = "medication_dispensings"
+
+    dispensing_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    local_case_id: Mapped[str] = mapped_column(String(80), index=True)
+    pseudonymized_patient_id: Mapped[str] = mapped_column(String(120))
+    dispensing_date: Mapped[date] = mapped_column(Date)
+    days_supplied: Mapped[int] = mapped_column(Integer)
+    medication_group: Mapped[str] = mapped_column(String(120))
+    year: Mapped[int] = mapped_column(Integer, index=True)
+
+
+class ContactInvestigationRecord(Base):
+    __tablename__ = "contact_investigations"
+
+    contact_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    index_case_id: Mapped[str] = mapped_column(String(80), index=True)
+    pseudonymized_contact_id: Mapped[str] = mapped_column(String(120))
+    identified_date: Mapped[date] = mapped_column(Date)
+    evaluation_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    symptomatic: Mapped[bool] = mapped_column(Boolean, default=False)
+    tpt_started_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    status: Mapped[str] = mapped_column(String(80))
+    year: Mapped[int] = mapped_column(Integer, index=True)
+
+
+class ResourceInventoryRecord(Base):
+    __tablename__ = "resource_inventories"
+
+    facility_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    sputum_collection: Mapped[bool] = mapped_column(Boolean, default=False)
+    rapid_molecular_access: Mapped[bool] = mapped_column(Boolean, default=False)
+    xray_access: Mapped[bool] = mapped_column(Boolean, default=False)
+    sample_transport: Mapped[bool] = mapped_column(Boolean, default=False)
+    pharmacy_tb_meds: Mapped[bool] = mapped_column(Boolean, default=False)
+    chw_count: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class OperationalAlertRecord(Base):
+    __tablename__ = "operational_alerts"
+
+    alert_id: Mapped[str] = mapped_column(String(200), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, index=True)
+    alert_type: Mapped[str] = mapped_column(String(80), index=True)
+    severity: Mapped[str] = mapped_column(String(40), index=True)
+    status: Mapped[str] = mapped_column(String(40), index=True)
+    local_case_id: Mapped[str] = mapped_column(String(80), index=True)
+    territory_id: Mapped[str] = mapped_column(String(80), index=True)
+    facility_id: Mapped[str] = mapped_column(String(80), index=True)
+    team_id: Mapped[str] = mapped_column(String(80), index=True)
+    related_entity_id: Mapped[str] = mapped_column(String(80))
+    reference_date: Mapped[date] = mapped_column(Date)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    message: Mapped[str] = mapped_column(Text)
 
 
 class IndicatorDefinitionRecord(Base):
@@ -350,6 +488,170 @@ def save_facilities(session: Session, facilities: Iterable[Facility]) -> None:
                 facility_type=facility.facility_type,
                 sus_linked=facility.sus_linked,
                 source_id=facility.source_id,
+            )
+        )
+
+
+def clear_local_dimensions(session: Session) -> None:
+    session.execute(delete(LocalTerritoryRecord))
+    session.execute(delete(LocalTeamRecord))
+
+
+def clear_local_data_for_year(session: Session, year: int) -> None:
+    session.execute(delete(LocalTbCaseRecord).where(LocalTbCaseRecord.year == year))
+    session.execute(delete(LocalLabEventRecord).where(LocalLabEventRecord.year == year))
+    session.execute(
+        delete(MedicationDispensingRecord).where(MedicationDispensingRecord.year == year)
+    )
+    session.execute(
+        delete(ContactInvestigationRecord).where(ContactInvestigationRecord.year == year)
+    )
+    session.execute(delete(ResourceInventoryRecord).where(ResourceInventoryRecord.year == year))
+    session.execute(delete(OperationalAlertRecord).where(OperationalAlertRecord.year == year))
+
+
+def save_local_territories(session: Session, territories: Iterable[LocalTerritory]) -> None:
+    for territory in territories:
+        session.merge(
+            LocalTerritoryRecord(
+                territory_id=territory.territory_id,
+                name=territory.name,
+                territory_type=territory.territory_type,
+                parent_id=territory.parent_id,
+                uf_code=territory.uf_code,
+                uf_sigla=territory.uf_sigla,
+                facility_id=territory.facility_id,
+                team_id=territory.team_id,
+            )
+        )
+
+
+def save_local_teams(session: Session, teams: Iterable[LocalTeam]) -> None:
+    for team in teams:
+        session.merge(
+            LocalTeamRecord(
+                team_id=team.team_id,
+                facility_id=team.facility_id,
+                name=team.name,
+                team_type=team.team_type,
+                active=team.active,
+            )
+        )
+
+
+def save_local_tb_cases(session: Session, cases: Iterable[LocalTbCase]) -> None:
+    for case in cases:
+        session.merge(
+            LocalTbCaseRecord(
+                local_case_id=case.local_case_id,
+                pseudonymized_patient_id=case.pseudonymized_patient_id,
+                territory_id=case.territory_id,
+                facility_id=case.facility_id,
+                team_id=case.team_id,
+                year=case.year,
+                notification_date=case.notification_date,
+                diagnosis_date=case.diagnosis_date,
+                treatment_start_date=case.treatment_start_date,
+                entry_type=case.entry_type,
+                clinical_form=case.clinical_form,
+                closure_status=case.closure_status,
+                closure_date=case.closure_date,
+                rifampicin_resistance=case.rifampicin_resistance,
+                retreatment=case.retreatment,
+                previous_treatment_failure=case.previous_treatment_failure,
+            )
+        )
+
+
+def save_local_lab_events(session: Session, lab_events: Iterable[LocalLabEvent]) -> None:
+    for event in lab_events:
+        session.merge(
+            LocalLabEventRecord(
+                local_lab_id=event.local_lab_id,
+                local_case_id=event.local_case_id,
+                pseudonymized_patient_id=event.pseudonymized_patient_id,
+                test_type=event.test_type,
+                year=event.year,
+                request_date=event.request_date,
+                collection_date=event.collection_date,
+                result_date=event.result_date,
+                result=event.result,
+                status=event.status,
+            )
+        )
+
+
+def save_medication_dispensings(
+    session: Session, dispensings: Iterable[MedicationDispensing]
+) -> None:
+    for dispensing in dispensings:
+        session.merge(
+            MedicationDispensingRecord(
+                dispensing_id=dispensing.dispensing_id,
+                local_case_id=dispensing.local_case_id,
+                pseudonymized_patient_id=dispensing.pseudonymized_patient_id,
+                dispensing_date=dispensing.dispensing_date,
+                days_supplied=dispensing.days_supplied,
+                medication_group=dispensing.medication_group,
+                year=dispensing.year,
+            )
+        )
+
+
+def save_contact_investigations(session: Session, contacts: Iterable[ContactInvestigation]) -> None:
+    for contact in contacts:
+        session.merge(
+            ContactInvestigationRecord(
+                contact_id=contact.contact_id,
+                index_case_id=contact.index_case_id,
+                pseudonymized_contact_id=contact.pseudonymized_contact_id,
+                identified_date=contact.identified_date,
+                evaluation_date=contact.evaluation_date,
+                symptomatic=contact.symptomatic,
+                tpt_started_date=contact.tpt_started_date,
+                status=contact.status,
+                year=contact.year,
+            )
+        )
+
+
+def save_resource_inventories(session: Session, resources: Iterable[ResourceInventory]) -> None:
+    for resource in resources:
+        session.merge(
+            ResourceInventoryRecord(
+                facility_id=resource.facility_id,
+                year=resource.year,
+                sputum_collection=resource.sputum_collection,
+                rapid_molecular_access=resource.rapid_molecular_access,
+                xray_access=resource.xray_access,
+                sample_transport=resource.sample_transport,
+                pharmacy_tb_meds=resource.pharmacy_tb_meds,
+                chw_count=resource.chw_count,
+            )
+        )
+
+
+def save_operational_alerts(
+    session: Session, alerts: Iterable[OperationalAlert], year: int
+) -> None:
+    session.execute(delete(OperationalAlertRecord).where(OperationalAlertRecord.year == year))
+    for alert in alerts:
+        session.merge(
+            OperationalAlertRecord(
+                alert_id=alert.alert_id,
+                year=alert.year,
+                alert_type=alert.alert_type,
+                severity=alert.severity.value,
+                status=alert.status.value,
+                local_case_id=alert.local_case_id,
+                territory_id=alert.territory_id,
+                facility_id=alert.facility_id,
+                team_id=alert.team_id,
+                related_entity_id=alert.related_entity_id,
+                reference_date=alert.reference_date,
+                generated_at=alert.generated_at,
+                due_date=alert.due_date,
+                message=alert.message,
             )
         )
 
@@ -592,6 +894,167 @@ def load_territories(session: Session, uf: str) -> list[Territory]:
     ]
 
 
+def load_local_territories(session: Session) -> list[LocalTerritory]:
+    records = session.query(LocalTerritoryRecord).order_by(LocalTerritoryRecord.territory_id).all()
+    return [
+        LocalTerritory(
+            territory_id=record.territory_id,
+            name=record.name,
+            territory_type=record.territory_type,
+            parent_id=record.parent_id,
+            uf_code=record.uf_code,
+            uf_sigla=record.uf_sigla,
+            facility_id=record.facility_id,
+            team_id=record.team_id,
+        )
+        for record in records
+    ]
+
+
+def load_local_teams(session: Session) -> list[LocalTeam]:
+    records = session.query(LocalTeamRecord).order_by(LocalTeamRecord.team_id).all()
+    return [
+        LocalTeam(
+            team_id=record.team_id,
+            facility_id=record.facility_id,
+            name=record.name,
+            team_type=record.team_type,
+            active=record.active,
+        )
+        for record in records
+    ]
+
+
+def load_local_tb_cases(session: Session, year: int) -> list[LocalTbCase]:
+    records = session.query(LocalTbCaseRecord).filter_by(year=year).all()
+    return [
+        LocalTbCase(
+            local_case_id=record.local_case_id,
+            pseudonymized_patient_id=record.pseudonymized_patient_id,
+            territory_id=record.territory_id,
+            facility_id=record.facility_id,
+            team_id=record.team_id,
+            year=record.year,
+            notification_date=record.notification_date,
+            diagnosis_date=record.diagnosis_date,
+            treatment_start_date=record.treatment_start_date,
+            entry_type=record.entry_type,
+            clinical_form=record.clinical_form,
+            closure_status=record.closure_status,
+            closure_date=record.closure_date,
+            rifampicin_resistance=record.rifampicin_resistance,
+            retreatment=record.retreatment,
+            previous_treatment_failure=record.previous_treatment_failure,
+        )
+        for record in records
+    ]
+
+
+def load_local_lab_events(session: Session, year: int) -> list[LocalLabEvent]:
+    records = session.query(LocalLabEventRecord).filter_by(year=year).all()
+    return [
+        LocalLabEvent(
+            local_lab_id=record.local_lab_id,
+            local_case_id=record.local_case_id,
+            pseudonymized_patient_id=record.pseudonymized_patient_id,
+            test_type=record.test_type,
+            year=record.year,
+            request_date=record.request_date,
+            collection_date=record.collection_date,
+            result_date=record.result_date,
+            result=record.result,
+            status=record.status,
+        )
+        for record in records
+    ]
+
+
+def load_medication_dispensings(session: Session, year: int) -> list[MedicationDispensing]:
+    records = session.query(MedicationDispensingRecord).filter_by(year=year).all()
+    return [
+        MedicationDispensing(
+            dispensing_id=record.dispensing_id,
+            local_case_id=record.local_case_id,
+            pseudonymized_patient_id=record.pseudonymized_patient_id,
+            dispensing_date=record.dispensing_date,
+            days_supplied=record.days_supplied,
+            medication_group=record.medication_group,
+            year=record.year,
+        )
+        for record in records
+    ]
+
+
+def load_contact_investigations(session: Session, year: int) -> list[ContactInvestigation]:
+    records = session.query(ContactInvestigationRecord).filter_by(year=year).all()
+    return [
+        ContactInvestigation(
+            contact_id=record.contact_id,
+            index_case_id=record.index_case_id,
+            pseudonymized_contact_id=record.pseudonymized_contact_id,
+            identified_date=record.identified_date,
+            evaluation_date=record.evaluation_date,
+            symptomatic=record.symptomatic,
+            tpt_started_date=record.tpt_started_date,
+            status=record.status,
+            year=record.year,
+        )
+        for record in records
+    ]
+
+
+def load_resource_inventories(session: Session, year: int) -> list[ResourceInventory]:
+    records = session.query(ResourceInventoryRecord).filter_by(year=year).all()
+    return [
+        ResourceInventory(
+            facility_id=record.facility_id,
+            year=record.year,
+            sputum_collection=record.sputum_collection,
+            rapid_molecular_access=record.rapid_molecular_access,
+            xray_access=record.xray_access,
+            sample_transport=record.sample_transport,
+            pharmacy_tb_meds=record.pharmacy_tb_meds,
+            chw_count=record.chw_count,
+        )
+        for record in records
+    ]
+
+
+def load_operational_alerts(session: Session, year: int) -> list[OperationalAlert]:
+    records = session.query(OperationalAlertRecord).filter_by(year=year).all()
+    return [
+        OperationalAlert(
+            alert_id=record.alert_id,
+            year=record.year,
+            alert_type=record.alert_type,
+            severity=OperationalAlertSeverity(record.severity),
+            status=OperationalAlertStatus(record.status),
+            local_case_id=record.local_case_id,
+            territory_id=record.territory_id,
+            facility_id=record.facility_id,
+            team_id=record.team_id,
+            related_entity_id=record.related_entity_id,
+            reference_date=record.reference_date,
+            generated_at=record.generated_at,
+            message=record.message,
+            due_date=record.due_date,
+        )
+        for record in records
+    ]
+
+
+MAP_LAYER_INDICATOR_IDS = frozenset(
+    {
+        "tb_incidence_per_100k",
+        "tb_mortality_per_100k",
+        "cure_proportion",
+        "treatment_interruption_proportion",
+        "laboratory_confirmation_proportion",
+    }
+)
+SEVERITY_ORDER = {"low": 1, "moderate": 2, "high": 3}
+
+
 def dashboard_context(session: Session, year: int, uf: str) -> dict[str, Any]:
     territories = {
         record.territory_id: record
@@ -785,6 +1248,312 @@ def geojson_for_territories(session: Session, uf: str) -> dict[str, Any]:
             }
         )
     return {"type": "FeatureCollection", "features": features}
+
+
+def map_geojson_for_municipalities(session: Session, year: int, uf: str) -> dict[str, Any]:
+    territories = (
+        session.query(TerritoryRecord).filter_by(uf_sigla=uf).order_by(TerritoryRecord.name).all()
+    )
+    territory_ids = {territory.territory_id for territory in territories}
+    indicators = map_indicator_rows_by_territory(session, year, territory_ids)
+    scenarios = map_scenario_summary_by_territory(session, year, territory_ids)
+    features = [
+        map_municipality_feature(territory, indicators, scenarios) for territory in territories
+    ]
+    return {"type": "FeatureCollection", "features": features}
+
+
+def map_municipality_feature(
+    territory: TerritoryRecord,
+    indicators: dict[str, dict[str, dict[str, Any]]],
+    scenarios: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    territory_indicators = indicators.get(territory.territory_id, {})
+    scenario_summary = scenarios.get(territory.territory_id, empty_map_scenario_summary())
+    return {
+        "type": "Feature",
+        "properties": {
+            "territory_id": territory.territory_id,
+            "name": territory.name,
+            "uf": territory.uf_sigla,
+            "priority_score": scenario_summary["priority_score"],
+            "scenario_count": scenario_summary["scenario_count"],
+            "top_severity": scenario_summary["top_severity"],
+            "top_explanations": scenario_summary["top_explanations"],
+            "data_status": map_data_status(territory_indicators),
+            "indicators": territory_indicators,
+        },
+        "geometry": territory.geometry,
+    }
+
+
+def map_indicator_rows_by_territory(
+    session: Session,
+    year: int,
+    territory_ids: set[str],
+) -> dict[str, dict[str, dict[str, Any]]]:
+    definitions = {
+        record.indicator_id: record for record in session.query(IndicatorDefinitionRecord).all()
+    }
+    indicators: dict[str, dict[str, dict[str, Any]]] = {}
+    records = session.query(IndicatorValueRecord).filter_by(year=year).all()
+    for record in records:
+        if record.territory_id not in territory_ids:
+            continue
+        definition = definitions.get(record.indicator_id)
+        territory_indicators = indicators.setdefault(record.territory_id, {})
+        territory_indicators[record.indicator_id] = {
+            "name": definition.name if definition is not None else record.indicator_id,
+            "value": None if record.is_suppressed else record.value,
+            "is_suppressed": record.is_suppressed,
+            "unit": definition.unit if definition is not None else None,
+        }
+    return indicators
+
+
+def map_scenario_summary_by_territory(
+    session: Session,
+    year: int,
+    territory_ids: set[str],
+) -> dict[str, dict[str, Any]]:
+    summaries: dict[str, dict[str, Any]] = {}
+    records = session.query(TerritoryScenarioRecord).filter_by(year=year).all()
+    for record in records:
+        if record.territory_id not in territory_ids:
+            continue
+        summary = summaries.setdefault(record.territory_id, empty_map_scenario_summary())
+        summary["priority_score"] = round(float(summary["priority_score"]) + record.score, 4)
+        summary["scenario_count"] = int(summary["scenario_count"]) + 1
+        summary["top_severity"] = highest_severity(
+            cast(str | None, summary["top_severity"]), record.severity
+        )
+        summary["scored_explanations"].append((record.score, record.explanation))
+
+    for summary in summaries.values():
+        summary["top_explanations"] = top_explanations(summary["scored_explanations"])
+        del summary["scored_explanations"]
+    return summaries
+
+
+def empty_map_scenario_summary() -> dict[str, Any]:
+    return {
+        "priority_score": 0.0,
+        "scenario_count": 0,
+        "top_severity": None,
+        "top_explanations": [],
+        "scored_explanations": [],
+    }
+
+
+def highest_severity(current: str | None, candidate: str) -> str:
+    if current is None:
+        return candidate
+    if SEVERITY_ORDER.get(candidate, 0) > SEVERITY_ORDER.get(current, 0):
+        return candidate
+    return current
+
+
+def top_explanations(scored_explanations: list[tuple[float, str]]) -> list[str]:
+    return [
+        explanation
+        for _, explanation in sorted(scored_explanations, key=lambda item: (-item[0], item[1]))[:3]
+    ]
+
+
+def map_data_status(indicators: dict[str, dict[str, Any]]) -> str:
+    if not indicators:
+        return "missing"
+    if MAP_LAYER_INDICATOR_IDS.issubset(indicators):
+        return "complete"
+    return "partial"
+
+
+def mvp2_alert_rows(
+    session: Session,
+    year: int,
+    *,
+    alert_type: str | None = None,
+    severity: str | None = None,
+    facility_id: str | None = None,
+    team_id: str | None = None,
+    status: str | None = None,
+) -> list[dict[str, Any]]:
+    teams = {record.team_id: record for record in session.query(LocalTeamRecord).all()}
+    records = filtered_operational_alert_records(
+        session,
+        year,
+        alert_type=alert_type,
+        severity=severity,
+        facility_id=facility_id,
+        team_id=team_id,
+        status=status,
+    )
+    return [operational_alert_row(record, teams.get(record.team_id)) for record in records]
+
+
+def filtered_operational_alert_records(
+    session: Session,
+    year: int,
+    *,
+    alert_type: str | None,
+    severity: str | None,
+    facility_id: str | None,
+    team_id: str | None,
+    status: str | None,
+) -> list[OperationalAlertRecord]:
+    records = (
+        session.query(OperationalAlertRecord)
+        .filter_by(year=year)
+        .order_by(
+            OperationalAlertRecord.facility_id,
+            OperationalAlertRecord.team_id,
+            OperationalAlertRecord.alert_type,
+            OperationalAlertRecord.local_case_id,
+        )
+        .all()
+    )
+    return [
+        record
+        for record in records
+        if matches_optional(record.alert_type, alert_type)
+        and matches_optional(record.severity, severity)
+        and matches_optional(record.facility_id, facility_id)
+        and matches_optional(record.team_id, team_id)
+        and matches_optional(record.status, status)
+    ]
+
+
+def operational_alert_row(
+    record: OperationalAlertRecord, team: LocalTeamRecord | None
+) -> dict[str, Any]:
+    return {
+        "alert_id": record.alert_id,
+        "year": record.year,
+        "alert_type": record.alert_type,
+        "severity": record.severity,
+        "status": record.status,
+        "local_case_id": record.local_case_id,
+        "territory_id": record.territory_id,
+        "facility_id": record.facility_id,
+        "team_id": record.team_id,
+        "team_name": team.name if team is not None else record.team_id,
+        "related_entity_id": record.related_entity_id,
+        "reference_date": record.reference_date.isoformat(),
+        "generated_at": record.generated_at.isoformat(),
+        "due_date": record.due_date.isoformat() if record.due_date else None,
+        "message": record.message,
+    }
+
+
+def mvp2_alert_detail(session: Session, alert_id: str) -> dict[str, Any] | None:
+    record = session.get(OperationalAlertRecord, alert_id)
+    if record is None:
+        return None
+    team = session.get(LocalTeamRecord, record.team_id)
+    return operational_alert_row(record, team)
+
+
+def mvp2_summary(session: Session, year: int) -> dict[str, Any]:
+    alerts = mvp2_alert_rows(session, year)
+    return {
+        "year": year,
+        "case_count": session.query(LocalTbCaseRecord).filter_by(year=year).count(),
+        "alert_count": len(alerts),
+        "open_alert_count": sum(1 for row in alerts if row["status"] == "open"),
+        "by_type": count_rows(alerts, "alert_type"),
+        "by_severity": count_rows(alerts, "severity"),
+        "by_status": count_rows(alerts, "status"),
+        "by_facility_team": facility_team_summary_rows(alerts),
+    }
+
+
+def mvp2_dashboard_context(
+    session: Session,
+    year: int,
+    *,
+    alert_type: str | None = None,
+    severity: str | None = None,
+    facility_id: str | None = None,
+    team_id: str | None = None,
+    status: str | None = None,
+) -> dict[str, Any]:
+    alerts = mvp2_alert_rows(
+        session,
+        year,
+        alert_type=alert_type,
+        severity=severity,
+        facility_id=facility_id,
+        team_id=team_id,
+        status=status,
+    )
+    all_alerts = mvp2_alert_rows(session, year)
+    return {
+        "year": year,
+        "alerts": alerts,
+        "summary": mvp2_summary(session, year),
+        "filters": {
+            "alert_type": alert_type or "",
+            "severity": severity or "",
+            "facility_id": facility_id or "",
+            "team_id": team_id or "",
+            "status": status or "",
+        },
+        "filter_options": mvp2_filter_options(all_alerts),
+        "caveat": (
+            "Synthetic/pseudonymized operational pilot. Alerts are transparent review queues "
+            "and do not diagnose, prescribe, or replace professional judgment."
+        ),
+    }
+
+
+def mvp2_filter_options(alerts: list[dict[str, Any]]) -> dict[str, list[str]]:
+    return {
+        "alert_types": unique_filter_values(alerts, "alert_type"),
+        "severities": unique_filter_values(alerts, "severity"),
+        "facilities": unique_filter_values(alerts, "facility_id"),
+        "teams": unique_filter_values(alerts, "team_id"),
+        "statuses": unique_filter_values(alerts, "status"),
+    }
+
+
+def count_rows(rows: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        value = str(row[key])
+        counts[value] = counts.get(value, 0) + 1
+    return [{key: value, "count": count} for value, count in sorted(counts.items())]
+
+
+def facility_team_summary_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    summary: dict[tuple[str, str], dict[str, Any]] = {}
+    for row in rows:
+        key = (str(row["facility_id"]), str(row["team_id"]))
+        item = summary.setdefault(
+            key,
+            {
+                "facility_id": row["facility_id"],
+                "team_id": row["team_id"],
+                "team_name": row["team_name"],
+                "alert_count": 0,
+                "high": 0,
+                "moderate": 0,
+                "open": 0,
+            },
+        )
+        item["alert_count"] = int(item["alert_count"]) + 1
+        if row["severity"] in {"high", "moderate"}:
+            item[str(row["severity"])] = int(item[str(row["severity"])]) + 1
+        if row["status"] == "open":
+            item["open"] = int(item["open"]) + 1
+    return sorted(summary.values(), key=lambda item: (-int(item["alert_count"]), item["team_id"]))
+
+
+def unique_filter_values(rows: list[dict[str, Any]], key: str) -> list[str]:
+    return sorted({str(row[key]) for row in rows if row.get(key)})
+
+
+def matches_optional(value: str, expected: str | None) -> bool:
+    return expected in (None, "") or value == expected
 
 
 def hydrate_indicator_definition(record: IndicatorDefinitionRecord) -> IndicatorDefinition:

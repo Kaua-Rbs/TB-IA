@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, cast
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -19,6 +19,11 @@ from tbia.storage import (
     geojson_for_territories,
     initialize_database,
     latest_import_runs,
+    map_geojson_for_municipalities,
+    mvp2_alert_detail,
+    mvp2_alert_rows,
+    mvp2_dashboard_context,
+    mvp2_summary,
     territory_report,
 )
 
@@ -69,8 +74,40 @@ def register_dashboard_routes(app: FastAPI, session_factory: SessionProvider) ->
             {"request": request, **context},
         )
 
+    @app.get("/mvp2", response_class=HTMLResponse)
+    def mvp2(
+        request: Request,
+        year: int = Query(2023, ge=2000, le=2100),
+        alert_type: str | None = Query(None),
+        severity: str | None = Query(None),
+        facility_id: str | None = Query(None),
+        team_id: str | None = Query(None),
+        status: str | None = Query(None),
+    ) -> HTMLResponse:
+        with session_factory() as session:
+            context = mvp2_dashboard_context(
+                session,
+                year,
+                alert_type=alert_type,
+                severity=severity,
+                facility_id=facility_id,
+                team_id=team_id,
+                status=status,
+            )
+        return templates.TemplateResponse(
+            request,
+            "mvp2.html",
+            {"request": request, **context},
+        )
+
 
 def register_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:
+    register_mvp1_api_routes(app, session_factory)
+    register_mvp2_api_routes(app, session_factory)
+    register_health_route(app)
+
+
+def register_mvp1_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:
     @app.get("/api/sources")
     def sources() -> list[dict[str, Any]]:
         with session_factory() as session:
@@ -102,6 +139,14 @@ def register_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:
         with session_factory() as session:
             return geojson_for_territories(session, uf.upper())
 
+    @app.get("/api/map/municipalities")
+    def municipality_map_geojson(
+        uf: str = Query("CE", min_length=2, max_length=2),
+        year: int = Query(2023, ge=2000, le=2100),
+    ) -> dict[str, Any]:
+        with session_factory() as session:
+            return map_geojson_for_municipalities(session, year, uf.upper())
+
     @app.get("/api/rankings")
     def rankings(
         uf: str = Query("CE", min_length=2, max_length=2),
@@ -112,6 +157,43 @@ def register_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:
                 list[dict[str, Any]], dashboard_context(session, year, uf.upper())["ranking"]
             )
 
+
+def register_mvp2_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:
+    @app.get("/api/mvp2/summary")
+    def mvp2_summary_endpoint(year: int = Query(2023, ge=2000, le=2100)) -> dict[str, Any]:
+        with session_factory() as session:
+            return mvp2_summary(session, year)
+
+    @app.get("/api/mvp2/alerts")
+    def mvp2_alerts_endpoint(
+        year: int = Query(2023, ge=2000, le=2100),
+        alert_type: str | None = Query(None),
+        severity: str | None = Query(None),
+        facility_id: str | None = Query(None),
+        team_id: str | None = Query(None),
+        status: str | None = Query(None),
+    ) -> list[dict[str, Any]]:
+        with session_factory() as session:
+            return mvp2_alert_rows(
+                session,
+                year,
+                alert_type=alert_type,
+                severity=severity,
+                facility_id=facility_id,
+                team_id=team_id,
+                status=status,
+            )
+
+    @app.get("/api/mvp2/alerts/{alert_id}")
+    def mvp2_alert_endpoint(alert_id: str) -> dict[str, Any]:
+        with session_factory() as session:
+            row = mvp2_alert_detail(session, alert_id)
+        if row is None:
+            raise HTTPException(status_code=404, detail="alert not found")
+        return row
+
+
+def register_health_route(app: FastAPI) -> None:
     @app.get("/health")
     def health() -> dict[str, str]:
         return {"status": "ok"}

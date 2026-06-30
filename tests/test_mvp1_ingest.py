@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from pytest import MonkeyPatch
+
+from tbia.domain.models import Territory
 from tbia.ingest.datasus import datasus_demo_files, format_month
 from tbia.ingest.readers import (
     read_case_aggregates_csv,
+    read_ibge_malhas_municipality_geometries,
     read_ibge_municipalities,
     read_sidra_population_payload,
     read_sidra_values_population_payload,
@@ -13,9 +17,20 @@ from tbia.ingest.tabnet import parse_tabnet_prn_html
 from tbia.pipeline import (
     Mvp1Config,
     datasus_source_candidates,
+    ibge_malhas_url,
     ibge_population_url,
+    ingest_ibge_malhas_geometries,
     population_source_year,
+    preserve_existing_geometries,
     select_existing_datasus_paths,
+)
+from tbia.storage import (
+    create_engine_for_url,
+    create_session_factory,
+    initialize_database,
+    latest_import_runs,
+    load_territories,
+    save_territories,
 )
 
 
@@ -46,6 +61,26 @@ def test_population_source_year_defaults_to_2022_census() -> None:
     assert ibge_population_url("23", 2022) == (
         "https://apisidra.ibge.gov.br/values/t/4714/n6/in%20n3%2023/v/93/p/2022"
     )
+
+
+def test_preserve_existing_geometries_keeps_cached_map_geometry() -> None:
+    geometry = {"type": "Polygon", "coordinates": []}
+
+    territories = preserve_existing_geometries(
+        [Territory("2304400", "Fortaleza", "municipality", "23", "CE")],
+        [
+            Territory(
+                "2304400",
+                "Fortaleza",
+                "municipality",
+                "23",
+                "CE",
+                geometry=geometry,
+            )
+        ],
+    )
+
+    assert territories[0].geometry == geometry
 
 
 def test_read_sidra_population_payload_extracts_municipality_year() -> None:
@@ -171,3 +206,126 @@ def test_select_existing_datasus_paths_prefers_dbf_over_dbc(tmp_path: Path) -> N
     selected = select_existing_datasus_paths((dbc_path, dbf_path, other_dbc_path))
 
     assert selected == [dbf_path, other_dbc_path]
+
+
+def test_read_ibge_malhas_geometries_extracts_codarea() -> None:
+    geometry = {"type": "Polygon", "coordinates": [[[-39.0, -5.0], [-38.9, -5.0], [-39.0, -5.0]]]}
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "id": "ignored",
+                "properties": {"codarea": "2304400"},
+                "geometry": geometry,
+            }
+        ],
+    }
+
+    territories = read_ibge_malhas_municipality_geometries(
+        payload, [Territory("2304400", "Fortaleza", "municipality", "23", "CE")]
+    )
+
+    assert len(territories) == 1
+    assert territories[0].territory_id == "2304400"
+    assert territories[0].geometry == geometry
+
+
+def test_read_ibge_malhas_geometries_uses_feature_id_fallback() -> None:
+    geometry = {"type": "MultiPolygon", "coordinates": []}
+    payload = {
+        "type": "FeatureCollection",
+        "features": [{"type": "Feature", "id": 2303709, "properties": {}, "geometry": geometry}],
+    }
+
+    territories = read_ibge_malhas_municipality_geometries(
+        payload, [Territory("2303709", "Caucaia", "municipality", "23", "CE")]
+    )
+
+    assert [territory.territory_id for territory in territories] == ["2303709"]
+    assert territories[0].geometry == geometry
+
+
+def test_read_ibge_malhas_geometries_skips_unmatched_or_missing_geometry() -> None:
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"codarea": "9999999"},
+                "geometry": {"type": "Polygon", "coordinates": []},
+            },
+            {"type": "Feature", "properties": {"codarea": "2304400"}},
+        ],
+    }
+
+    territories = read_ibge_malhas_municipality_geometries(
+        payload, [Territory("2304400", "Fortaleza", "municipality", "23", "CE")]
+    )
+
+    assert territories == []
+
+
+def test_ingest_ibge_malhas_records_import_and_persists_geometry(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    geometry = {"type": "Polygon", "coordinates": [[[-39.0, -5.0], [-38.9, -5.0], [-39.0, -5.0]]]}
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {"codarea": "2304400"},
+                "geometry": geometry,
+            }
+        ],
+    }
+
+    def fake_fetch_json(url: str) -> object:
+        assert url == ibge_malhas_url("23")
+        return payload
+
+    monkeypatch.setattr("tbia.pipeline.fetch_json", fake_fetch_json)
+    with session_factory() as session:
+        save_territories(session, [Territory("2304400", "Fortaleza", "municipality", "23", "CE")])
+        ingest_ibge_malhas_geometries(session, Mvp1Config(uf="CE", uf_code="23", raw_dir=tmp_path))
+        session.commit()
+        territory = load_territories(session, "CE")[0]
+        runs = latest_import_runs(session)
+
+    engine.dispose()
+
+    assert territory.geometry == geometry
+    assert (tmp_path / "ibge_malhas" / "ce_23_municipios.geojson").exists()
+    assert runs[0]["source_id"] == "ibge_malhas"
+    assert runs[0]["status"] == "success"
+    assert runs[0]["row_count"] == 1
+
+
+def test_ingest_ibge_malhas_failure_records_failed_run(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+
+    def fake_fetch_json(_: str) -> object:
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr("tbia.pipeline.fetch_json", fake_fetch_json)
+    with session_factory() as session:
+        save_territories(session, [Territory("2304400", "Fortaleza", "municipality", "23", "CE")])
+        ingest_ibge_malhas_geometries(session, Mvp1Config(uf="CE", uf_code="23", raw_dir=tmp_path))
+        session.commit()
+        runs = latest_import_runs(session)
+
+    engine.dispose()
+
+    assert runs[0]["source_id"] == "ibge_malhas"
+    assert runs[0]["status"] == "failed"
+    assert "offline" in runs[0]["message"]

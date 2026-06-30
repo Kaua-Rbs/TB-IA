@@ -1,11 +1,21 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from typing import Annotated
 
 import typer
+from click import BadParameter
 
 from tbia.ingest.datasus import datasus_demo_files, download_datasus_file
+from tbia.mvp2 import (
+    Mvp2Config,
+    build_and_store_operational_alerts,
+    ingest_local_data,
+)
+from tbia.mvp2 import (
+    generate_mvp2_sample_data as write_mvp2_sample_data,
+)
 from tbia.pipeline import (
     Mvp1Config,
     build_and_store_scenarios,
@@ -15,7 +25,7 @@ from tbia.pipeline import (
 )
 from tbia.storage import create_engine_for_url, create_session_factory, initialize_database
 
-app = typer.Typer(help="TB-IA MVP 1 public-data pipeline.")
+app = typer.Typer(help="TB-IA MVP public-data and municipal pilot pipeline.")
 
 UfOption = Annotated[str, typer.Option(help="UF abbreviation for the demo scope.")]
 UfCodeOption = Annotated[str, typer.Option(help="IBGE UF code.")]
@@ -31,9 +41,20 @@ SihAllMonthsOption = Annotated[
     bool,
     typer.Option(help="Download all 12 SIH monthly files instead of only January."),
 ]
+ReferenceDateOption = Annotated[str, typer.Option(help="Reference date for alert rules.")]
+OutputDirOption = Annotated[Path, typer.Option(help="Output directory for generated files.")]
 
 DEFAULT_RAW_DIR = Path("data/raw/public_sources")
+DEFAULT_MVP2_RAW_DIR = Path("data/raw/municipal_demo")
 DEFAULT_DATABASE_URL = "sqlite:///data/tbia_mvp1.sqlite3"
+DEFAULT_REFERENCE_DATE = "2026-06-29"
+
+
+def parse_reference_date(value: str) -> date:
+    try:
+        return date.fromisoformat(value)
+    except ValueError as exc:
+        raise BadParameter("reference date must use YYYY-MM-DD") from exc
 
 
 def build_config(
@@ -154,6 +175,48 @@ def build_scenarios(
         session.commit()
     engine.dispose()
     typer.echo(f"Built {scenario_count} scenarios and {recommendation_count} recommendations.")
+
+
+@app.command("generate-mvp2-sample-data")
+def generate_mvp2_sample_data(
+    output_dir: OutputDirOption = DEFAULT_MVP2_RAW_DIR,
+) -> None:
+    paths = write_mvp2_sample_data(output_dir)
+    typer.echo(f"Generated {len(paths)} MVP2 sample CSV files under {output_dir}.")
+
+
+@app.command("ingest-local")
+def ingest_local(
+    raw_dir: RawDirOption = DEFAULT_MVP2_RAW_DIR,
+    year: YearOption = 2023,
+    database_url: DatabaseUrlOption = DEFAULT_DATABASE_URL,
+) -> None:
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    with session_factory() as session:
+        counts = ingest_local_data(session, Mvp2Config(year=year, raw_dir=raw_dir))
+        session.commit()
+    engine.dispose()
+    typer.echo(f"Loaded MVP2 local sources: {sum(counts.values())} rows.")
+
+
+@app.command("build-operational-alerts")
+def build_operational_alerts_command(
+    year: YearOption = 2023,
+    reference_date: ReferenceDateOption = DEFAULT_REFERENCE_DATE,
+    database_url: DatabaseUrlOption = DEFAULT_DATABASE_URL,
+) -> None:
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    with session_factory() as session:
+        count = build_and_store_operational_alerts(
+            session, Mvp2Config(year=year), parse_reference_date(reference_date)
+        )
+        session.commit()
+    engine.dispose()
+    typer.echo(f"Generated {count} MVP2 operational alerts.")
 
 
 @app.command()

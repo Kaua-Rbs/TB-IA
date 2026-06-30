@@ -3,7 +3,8 @@ from __future__ import annotations
 import csv
 import gzip
 import json
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, TypeVar
 from urllib.request import Request, urlopen
@@ -51,6 +52,51 @@ def read_ibge_municipalities(payload: Iterable[dict[str, Any]], uf_sigla: str) -
             )
         )
     return sorted(territories, key=lambda territory: territory.territory_id)
+
+
+def read_ibge_malhas_municipality_geometries(
+    payload: object,
+    territories: Sequence[Territory],
+) -> list[Territory]:
+    if not isinstance(payload, dict):
+        return []
+
+    territory_by_id = {territory.territory_id: territory for territory in territories}
+    matched: dict[str, Territory] = {}
+    features = payload.get("features", [])
+    if not isinstance(features, list):
+        return []
+
+    for feature in features:
+        if not isinstance(feature, dict):
+            continue
+        municipality_code = ibge_malhas_feature_code(feature)
+        if municipality_code is None:
+            continue
+        territory = territory_by_id.get(municipality_code)
+        geometry = feature.get("geometry")
+        if territory is None or not is_geojson_geometry(geometry):
+            continue
+        matched[municipality_code] = replace(territory, geometry=geometry)
+
+    return sorted(matched.values(), key=lambda territory: territory.territory_id)
+
+
+def ibge_malhas_feature_code(feature: dict[str, Any]) -> str | None:
+    properties = feature.get("properties", {})
+    raw_code: object | None = None
+    if isinstance(properties, dict):
+        raw_code = properties.get("codarea")
+    if raw_code in (None, ""):
+        raw_code = feature.get("id")
+    if raw_code in (None, ""):
+        return None
+    code = str(raw_code).strip()
+    return code or None
+
+
+def is_geojson_geometry(value: object) -> bool:
+    return isinstance(value, dict) and isinstance(value.get("type"), str)
 
 
 def read_sidra_population_payload(

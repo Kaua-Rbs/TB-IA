@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>TB-IA MVP 1</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <style>
       body {
         margin: 0;
@@ -29,6 +30,11 @@
       h1 {
         margin: 0 0 8px;
         font-size: 28px;
+      }
+
+      h2,
+      h3 {
+        margin-top: 0;
       }
 
       .meta {
@@ -57,6 +63,78 @@
         margin-bottom: 4px;
       }
 
+      .map-panel {
+        margin-bottom: 24px;
+      }
+
+      .map-toolbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        margin-bottom: 12px;
+      }
+
+      .map-toolbar label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #52606d;
+        font-size: 14px;
+      }
+
+      .map-toolbar select {
+        min-width: 220px;
+        border: 1px solid #bcccdc;
+        border-radius: 6px;
+        padding: 8px 10px;
+        background: #fff;
+        color: #1f2933;
+      }
+
+      .map-shell {
+        display: grid;
+        grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+        gap: 16px;
+      }
+
+      #municipality-map {
+        height: 480px;
+        min-height: 360px;
+        width: 100%;
+        border: 1px solid #d9e2ec;
+        border-radius: 8px;
+        background: #eef2f6;
+      }
+
+      .map-detail {
+        min-height: 480px;
+        border: 1px solid #d9e2ec;
+        border-radius: 8px;
+        padding: 14px;
+        overflow: auto;
+        background: #fbfcfd;
+      }
+
+      .detail-section {
+        margin-top: 16px;
+      }
+
+      .detail-list {
+        margin: 8px 0 0;
+        padding-left: 18px;
+      }
+
+      .status-pill {
+        display: inline-block;
+        border: 1px solid #bcccdc;
+        border-radius: 999px;
+        padding: 2px 8px;
+        color: #52606d;
+        font-size: 12px;
+        text-transform: uppercase;
+      }
+
       table {
         width: 100%;
         border-collapse: collapse;
@@ -77,6 +155,12 @@
         font-size: 13px;
       }
 
+      .compact-table th,
+      .compact-table td {
+        padding: 8px;
+        font-size: 13px;
+      }
+
       .caveat {
         border-left: 4px solid #9fb3c8;
         background: #fff;
@@ -86,6 +170,27 @@
 
       .empty {
         color: #7b8794;
+      }
+
+      .leaflet-container {
+        font: inherit;
+      }
+
+      @media (max-width: 860px) {
+        header,
+        .map-toolbar {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .map-shell {
+          grid-template-columns: 1fr;
+        }
+
+        #municipality-map,
+        .map-detail {
+          min-height: 340px;
+        }
       }
     </style>
   </head>
@@ -112,6 +217,31 @@
         <div class="metric">
           <strong>{{ scenario_count }}</strong>
           triggered scenarios
+        </div>
+      </section>
+
+      <section class="panel map-panel" aria-label="Territorial map">
+        <div class="map-toolbar">
+          <h2>Territorial map</h2>
+          <label for="map-layer">
+            Layer
+            <select id="map-layer">
+              <option value="priority_score" selected>Priority score</option>
+              <option value="scenario_count">Scenario count</option>
+              <option value="tb_incidence_per_100k">TB incidence</option>
+              <option value="tb_mortality_per_100k">TB mortality</option>
+              <option value="cure_proportion">Cure proportion</option>
+              <option value="treatment_interruption_proportion">Treatment interruption proportion</option>
+              <option value="laboratory_confirmation_proportion">Laboratory confirmation proportion</option>
+            </select>
+          </label>
+        </div>
+        <div class="map-shell">
+          <div id="municipality-map" role="img" aria-label="Municipality choropleth map"></div>
+          <aside id="map-detail" class="map-detail" aria-live="polite">
+            <h3>Municipality detail</h3>
+            <p class="empty">Select a municipality.</p>
+          </aside>
         </div>
       </section>
 
@@ -173,5 +303,210 @@
         {% endif %}
       </section>
     </main>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+      const MAP_UF = {{ uf | tojson }};
+      const MAP_YEAR = {{ year | tojson }};
+      const layerSelect = document.getElementById("map-layer");
+      const detailPanel = document.getElementById("map-detail");
+      const layerDefinitions = {
+        priority_score: { label: "Priority score", kind: "property", unit: "score" },
+        scenario_count: { label: "Scenario count", kind: "property", unit: "count" },
+        tb_incidence_per_100k: { label: "TB incidence", kind: "indicator", unit: "per_100k" },
+        tb_mortality_per_100k: { label: "TB mortality", kind: "indicator", unit: "per_100k" },
+        cure_proportion: { label: "Cure proportion", kind: "indicator", unit: "percent" },
+        treatment_interruption_proportion: {
+          label: "Treatment interruption proportion",
+          kind: "indicator",
+          unit: "percent"
+        },
+        laboratory_confirmation_proportion: {
+          label: "Laboratory confirmation proportion",
+          kind: "indicator",
+          unit: "percent"
+        }
+      };
+
+      let mapData = { type: "FeatureCollection", features: [] };
+      let municipalityLayer = null;
+      const map = L.map("municipality-map", {
+        attributionControl: false,
+        zoomControl: true
+      });
+      map.setView([-5.2, -39.5], 7);
+
+      fetch(`/api/map/municipalities?uf=${encodeURIComponent(MAP_UF)}&year=${MAP_YEAR}`)
+        .then((response) => response.json())
+        .then((payload) => {
+          mapData = payload;
+          renderMap();
+        })
+        .catch(() => {
+          detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Map data unavailable.</p>';
+        });
+
+      layerSelect.addEventListener("change", () => {
+        if (municipalityLayer) {
+          municipalityLayer.setStyle(styleFeature);
+          municipalityLayer.eachLayer((layer) => {
+            layer.setTooltipContent(tooltipText(layer.feature.properties));
+          });
+        }
+      });
+
+      function renderMap() {
+        const drawable = {
+          type: "FeatureCollection",
+          features: mapData.features.filter((feature) => feature.geometry)
+        };
+        municipalityLayer = L.geoJSON(drawable, {
+          style: styleFeature,
+          onEachFeature: bindFeature
+        }).addTo(map);
+        if (municipalityLayer.getLayers().length) {
+          map.fitBounds(municipalityLayer.getBounds(), { padding: [16, 16] });
+        }
+      }
+
+      function bindFeature(feature, layer) {
+        layer.bindTooltip(tooltipText(feature.properties), { sticky: true });
+        layer.on({
+          mouseover: () => layer.setStyle({ weight: 2.5, color: "#1d4ed8" }),
+          mouseout: () => municipalityLayer.resetStyle(layer),
+          click: () => loadTerritoryDetail(feature.properties.territory_id)
+        });
+      }
+
+      function styleFeature(feature) {
+        const props = feature.properties;
+        const state = layerState(props);
+        const missing = props.data_status === "missing" || state.value === null;
+        return {
+          color: state.suppressed ? "#6b7280" : "#52606d",
+          weight: state.suppressed ? 1.7 : 0.9,
+          dashArray: state.suppressed ? "4 3" : "",
+          fillColor: missing ? "#d9e2ec" : colorForValue(state.value, layerMaximum()),
+          fillOpacity: missing ? 0.45 : 0.78
+        };
+      }
+
+      function layerState(props) {
+        const layerKey = layerSelect.value;
+        const definition = layerDefinitions[layerKey];
+        if (definition.kind === "indicator") {
+          const indicator = props.indicators[layerKey];
+          return {
+            value: indicator && !indicator.is_suppressed ? indicator.value : null,
+            suppressed: Boolean(indicator && indicator.is_suppressed),
+            unit: definition.unit
+          };
+        }
+        const rawValue = props[layerKey];
+        return {
+          value: rawValue === null || rawValue === undefined ? null : Number(rawValue),
+          suppressed: false,
+          unit: definition.unit
+        };
+      }
+
+      function layerMaximum() {
+        const values = mapData.features
+          .map((feature) => layerState(feature.properties).value)
+          .filter((value) => value !== null && Number.isFinite(value));
+        return Math.max(...values, 1);
+      }
+
+      function colorForValue(value, maximum) {
+        const ratio = Math.max(0, Math.min(1, value / maximum));
+        if (ratio >= 0.75) return "#0f766e";
+        if (ratio >= 0.5) return "#2dd4bf";
+        if (ratio >= 0.25) return "#a7f3d0";
+        return "#ecfdf5";
+      }
+
+      function tooltipText(props) {
+        const state = layerState(props);
+        const label = layerDefinitions[layerSelect.value].label;
+        return `${props.name}<br>${label}: ${formatValue(state.value, state.unit, state.suppressed)}`;
+      }
+
+      function formatValue(value, unit, suppressed = false) {
+        if (suppressed) return "suppressed";
+        if (value === null || value === undefined || !Number.isFinite(Number(value))) return "missing";
+        const numeric = Number(value);
+        if (unit === "percent") return `${numeric.toFixed(1)}%`;
+        if (unit === "per_100k") return `${numeric.toFixed(1)} per 100k`;
+        if (unit === "count") return String(Math.round(numeric));
+        return numeric.toFixed(2);
+      }
+
+      function loadTerritoryDetail(territoryId) {
+        detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Loading...</p>';
+        fetch(`/api/territories/${encodeURIComponent(territoryId)}/report?year=${MAP_YEAR}`)
+          .then((response) => response.json())
+          .then(renderDetail)
+          .catch(() => {
+            detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Detail unavailable.</p>';
+          });
+      }
+
+      function renderDetail(report) {
+        const indicatorRows = report.indicators.map((row) => `
+          <tr>
+            <td>${escapeHtml(row.indicator_name)}</td>
+            <td>${formatValue(row.value, reportUnit(row), row.is_suppressed)}</td>
+            <td>${escapeHtml(row.caveats)}</td>
+          </tr>
+        `).join("");
+        const scenarios = report.scenarios.map((row) =>
+          `<li>${escapeHtml(row.severity)}: ${escapeHtml(row.explanation)}</li>`
+        ).join("");
+        const recommendations = report.recommendations.map((row) =>
+          `<li>${escapeHtml(row.priority)}: ${escapeHtml(row.explanation)}</li>`
+        ).join("");
+        detailPanel.innerHTML = `
+          <h3>${escapeHtml(report.territory_name)}</h3>
+          <div class="meta">${escapeHtml(report.uf)} ${report.year}</div>
+          <div class="detail-section">
+            <span class="status-pill">public aggregate</span>
+          </div>
+          <div class="detail-section">
+            <h4>Indicators</h4>
+            ${indicatorRows ? `
+              <table class="compact-table">
+                <thead><tr><th>Indicator</th><th>Value</th><th>Caveat</th></tr></thead>
+                <tbody>${indicatorRows}</tbody>
+              </table>
+            ` : '<p class="empty">No indicator values.</p>'}
+          </div>
+          <div class="detail-section">
+            <h4>Scenarios</h4>
+            ${scenarios ? `<ul class="detail-list">${scenarios}</ul>` : '<p class="empty">No scenarios.</p>'}
+          </div>
+          <div class="detail-section">
+            <h4>Recommendations</h4>
+            ${recommendations ? `<ul class="detail-list">${recommendations}</ul>` : '<p class="empty">No recommendations.</p>'}
+          </div>
+        `;
+      }
+
+      function reportUnit(row) {
+        const layer = layerDefinitions[row.indicator_id];
+        if (layer) return layer.unit;
+        if (row.indicator_id.endsWith("_proportion")) return "percent";
+        if (row.indicator_id.endsWith("_per_100k")) return "per_100k";
+        return "score";
+      }
+
+      function escapeHtml(value) {
+        return String(value ?? "").replace(/[&<>"']/g, (character) => ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;"
+        }[character]));
+      }
+    </script>
   </body>
 </html>

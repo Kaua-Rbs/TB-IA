@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, TypeVar, cast
@@ -9,7 +10,7 @@ from typing import Any, TypeVar, cast
 from sqlalchemy.orm import Session
 
 from tbia.domain.indicators import INDICATOR_DEFINITIONS, compute_indicator_values
-from tbia.domain.models import ImportRun, PopulationDenominator
+from tbia.domain.models import ImportRun, PopulationDenominator, Territory
 from tbia.domain.recommendations import STRATEGIES, build_recommendations
 from tbia.domain.scenarios import DEFAULT_SCENARIO_RULES, build_territory_scenarios
 from tbia.ingest.contracts import SOURCE_CONTRACTS
@@ -26,6 +27,7 @@ from tbia.ingest.readers import (
     read_case_aggregates_csv,
     read_facilities_csv,
     read_hospitalization_aggregates_csv,
+    read_ibge_malhas_municipality_geometries,
     read_ibge_municipalities,
     read_mortality_aggregates_csv,
     read_population_csv,
@@ -85,6 +87,13 @@ class Mvp1Config:
     def validation_dir(self) -> Path:
         return self.processed_dir / "validation"
 
+    @property
+    def ibge_malhas_dir(self) -> Path:
+        return self.raw_dir / "ibge_malhas"
+
+    def ibge_malhas_geojson(self) -> Path:
+        return self.ibge_malhas_dir / f"{self.uf.lower()}_{self.uf_code}_municipios.geojson"
+
     def manual_csv(self, filename: str) -> Path:
         return self.manual_dir / filename
 
@@ -99,6 +108,7 @@ def seed_reference_data(session: Session) -> None:
 def ingest_public_data(session: Session, config: Mvp1Config) -> None:
     seed_reference_data(session)
     ingest_ibge_territories(session, config)
+    ingest_ibge_malhas_geometries(session, config)
     loaded_sources: set[str] = set()
     if ingest_ibge_population(session, config):
         loaded_sources.add("ibge_population")
@@ -112,7 +122,10 @@ def ingest_ibge_territories(session: Session, config: Mvp1Config) -> None:
     url = f"https://servicodados.ibge.gov.br/api/v1/localidades/estados/{config.uf_code}/municipios"
     try:
         payload = fetch_json(url)
-        territories = read_ibge_municipalities(payload, config.uf)
+        territories = preserve_existing_geometries(
+            read_ibge_municipalities(payload, config.uf),
+            load_territories(session, config.uf),
+        )
         save_territories(session, territories)
         save_import_run(
             session,
@@ -136,6 +149,80 @@ def ingest_ibge_territories(session: Session, config: Mvp1Config) -> None:
                 message=str(exc),
             ),
         )
+
+
+def ingest_ibge_malhas_geometries(session: Session, config: Mvp1Config) -> None:
+    started_at = datetime.now(UTC)
+    territories = load_territories(session, config.uf)
+    if not territories:
+        save_import_run(
+            session,
+            ImportRun(
+                source_id="ibge_malhas",
+                status="skipped",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                message="no territories available for geometry matching",
+            ),
+        )
+        return
+
+    url = ibge_malhas_url(config.uf_code)
+    cache_path = config.ibge_malhas_geojson()
+    try:
+        payload = fetch_json(url)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        cache_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        territories_with_geometry = read_ibge_malhas_municipality_geometries(payload, territories)
+        save_territories(session, territories_with_geometry)
+        save_import_run(
+            session,
+            ImportRun(
+                source_id="ibge_malhas",
+                status="success",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                row_count=len(territories_with_geometry),
+                message=f"{url}; cached raw GeoJSON at {cache_path}",
+            ),
+        )
+    except Exception as exc:
+        save_import_run(
+            session,
+            ImportRun(
+                source_id="ibge_malhas",
+                status="failed",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                message=f"{url}: {exc}",
+            ),
+        )
+
+
+def ibge_malhas_url(uf_code: str) -> str:
+    return (
+        f"https://servicodados.ibge.gov.br/api/v3/malhas/estados/{uf_code}"
+        "?intrarregiao=municipio"
+        "&formato=application/vnd.geo+json"
+        "&qualidade=minima"
+    )
+
+
+def preserve_existing_geometries(
+    territories: Sequence[Territory],
+    existing_territories: Sequence[Territory],
+) -> list[Territory]:
+    geometry_by_id = {
+        territory.territory_id: territory.geometry
+        for territory in existing_territories
+        if territory.geometry is not None
+    }
+    return [
+        replace(territory, geometry=geometry_by_id[territory.territory_id])
+        if territory.territory_id in geometry_by_id
+        else territory
+        for territory in territories
+    ]
 
 
 def ingest_ibge_population(session: Session, config: Mvp1Config) -> bool:
