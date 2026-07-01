@@ -64,7 +64,16 @@ def test_storage_pipeline_persists_dashboard_context(tmp_path: Path) -> None:
     assert context["territory_count"] == 6
     assert context["indicator_count"] > 0
     assert context["scenario_count"] > 0
+    readiness = context["readiness"]
+    assert readiness["public_sources"]["expected_count"] > 0
+    assert readiness["geometry"]["geometry_count"] == 6
+    assert readiness["geometry"]["territory_count"] == 6
+    assert readiness["geometry"]["status"] == "ready"
+    assert readiness["indicator_validation"]["source_status"] == "success"
+    assert readiness["indicator_validation"]["warning_count"] >= 0
+    assert readiness["generated_scenarios"]["scenario_count"] == context["scenario_count"]
     assert context["ranking"][0]["territory_id"] == "2304400"
+    assert context["ranking"][0]["top_scenarios"]
     validation_source = next(
         source for source in context["sources"] if source["source_id"] == "indicator_validation"
     )
@@ -83,11 +92,13 @@ def test_public_api_returns_aggregate_indicators_and_ranking(tmp_path: Path) -> 
         indicators = client.get("/api/indicators?uf=CE&year=2023")
         rankings = client.get("/api/rankings?uf=CE&year=2023")
         report = client.get("/api/territories/2304400/report?year=2023")
+        report_pt = client.get("/api/territories/2304400/report?year=2023&lang=pt")
         missing_report = client.get("/api/territories/9999999/report?year=2023")
 
     assert indicators.status_code == 200
     assert rankings.status_code == 200
     assert report.status_code == 200
+    assert report_pt.status_code == 200
     assert missing_report.status_code == 404
     incidence = next(
         row for row in indicators.json() if row["indicator_id"] == "tb_incidence_per_100k"
@@ -96,6 +107,13 @@ def test_public_api_returns_aggregate_indicators_and_ranking(tmp_path: Path) -> 
     assert incidence["direction"] == "high_bad"
     assert rankings.json()[0]["territory_id"] == "2304400"
     assert report.json()["territory_name"] == "Fortaleza"
+    incidence_pt = next(
+        row
+        for row in report_pt.json()["indicators"]
+        if row["indicator_id"] == "tb_incidence_per_100k"
+    )
+    assert incidence_pt["indicator_name"] == "Incidência de TB"
+    assert "Recomendado porque" in report_pt.json()["recommendations"][0]["explanation"]
 
 
 def test_public_api_returns_geometry_and_enriched_map_properties(tmp_path: Path) -> None:
@@ -104,9 +122,11 @@ def test_public_api_returns_geometry_and_enriched_map_properties(tmp_path: Path)
     with TestClient(create_app(database_url)) as client:
         geometry = client.get("/api/geo/municipalities?uf=CE")
         map_response = client.get("/api/map/municipalities?uf=CE&year=2023")
+        map_response_pt = client.get("/api/map/municipalities?uf=CE&year=2023&lang=pt")
 
     assert geometry.status_code == 200
     assert map_response.status_code == 200
+    assert map_response_pt.status_code == 200
     geometry_features = geometry.json()["features"]
     assert len(geometry_features) == 6
     assert "indicators" not in geometry_features[0]["properties"]
@@ -122,6 +142,11 @@ def test_public_api_returns_geometry_and_enriched_map_properties(tmp_path: Path)
     assert fortaleza["priority_score"] > 0
     assert fortaleza["scenario_count"] > 0
     assert fortaleza["top_severity"] in {"high", "moderate"}
+    assert fortaleza["top_scenarios"]
+    assert {"rule_id", "indicator_id", "severity", "score", "explanation"}.issubset(
+        fortaleza["top_scenarios"][0]
+    )
+    assert fortaleza["top_explanations"][0] == fortaleza["top_scenarios"][0]["explanation"]
     assert fortaleza["data_status"] == "complete"
     assert "tb_incidence_per_100k" in fortaleza["indicators"]
     assert fortaleza["indicators"]["tb_incidence_per_100k"]["unit"] == "per_100k"
@@ -131,30 +156,68 @@ def test_public_api_returns_geometry_and_enriched_map_properties(tmp_path: Path)
     assert metadata["feature_count"] == 6
     assert metadata["drawable_geometry_count"] == 6
     assert metadata["layers"]["cure_proportion"]["direction"] == "low_bad"
+    metadata_pt = map_response_pt.json()["metadata"]
+    assert metadata_pt["layers"]["tb_incidence_per_100k"]["label"] == "Incidência de TB"
+    fortaleza_pt = {
+        feature["properties"]["territory_id"]: feature
+        for feature in map_response_pt.json()["features"]
+    }["2304400"]["properties"]
+    assert "limiar" in fortaleza_pt["top_scenarios"][0]["explanation"]
 
     mortality = caucaia["indicators"]["tb_mortality_per_100k"]
     assert mortality["value"] is None
     assert mortality["is_suppressed"] is True
     assert caucaia["data_status"] == "partial"
     assert sobral["data_status"] == "missing"
+    assert sobral["top_scenarios"] == []
 
 
-def test_dashboard_renders_map_panel_and_existing_sections(tmp_path: Path) -> None:
+def test_dashboard_renders_workbench_controls_and_existing_sections(tmp_path: Path) -> None:
     database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
     populate_database(database_url)
     with TestClient(create_app(database_url)) as client:
         response = client.get("/?uf=CE&year=2023")
+        english_response = client.get("/?uf=CE&year=2023&lang=en")
 
     assert response.status_code == 200
+    assert english_response.status_code == 200
     html = response.text
+    english_html = english_response.text
+    assert "MVP1 Territorial" in html
+    assert "MVP2 Operações" in html
+    assert "English" in html
+    assert 'id="uf-control"' in html
+    assert 'id="year-control"' in html
+    assert "dado público agregado" in html
+    assert "Prontidão dos dados" in html
+    assert "Fontes públicas" in html
+    assert "Geometria" in html
+    assert "Validação dos indicadores" in html
+    assert "Cenários gerados" in html
+    assert "MVP2 Operations" in english_html
+    assert "public aggregate" in english_html
+    assert "Data readiness" in english_html
+    assert "Why flagged" in english_html
     assert 'id="municipality-map"' in html
     assert 'id="map-layer"' in html
+    assert 'id="municipality-search"' in html
+    assert 'id="severity-filter"' in html
+    assert 'id="data-status-filter"' in html
+    assert 'id="ranking-body"' in html
     assert "https://unpkg.com/leaflet" in html
     assert 'id="map-status"' in html
-    assert "Map legend" in html
-    assert "Leaflet CDN" in html
-    assert "Priority ranking" in html
-    assert "Source freshness" in html
+    assert "Legenda do mapa" in html
+    assert "CDN do Leaflet" in html
+    assert "Ranking de prioridade" in html
+    assert "Atualização das fontes" in html
+    assert "selectTerritory" in html
+    assert "highlightRankingRow" in html
+    assert "highlightPolygon" in html
+    assert "searchMunicipality" in html
+    assert "Por que foi sinalizado" in html
+    assert "Resposta recomendada" in html
+    assert "Indicadores" in html
+    assert "Ressalvas" in html
 
 
 def fixture_geometry(offset: float) -> dict[str, Any]:

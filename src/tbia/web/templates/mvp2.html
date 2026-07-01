@@ -1,22 +1,44 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ html_lang }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TB-IA MVP 2 operations</title>
+    <title>{{ tr.mvp2.title }}</title>
     <style>
+      :root {
+        --bg: #f6f7f9;
+        --panel: #ffffff;
+        --line: #d9e2ec;
+        --line-strong: #bcccdc;
+        --text: #1f2933;
+        --muted: #52606d;
+        --blue: #0f609b;
+        --blue-soft: #e7f5ff;
+        --green: #13795b;
+        --green-soft: #e3fcef;
+        --yellow: #8d6b00;
+        --yellow-soft: #fff7d6;
+        --red: #ab091e;
+        --red-soft: #ffe3e3;
+        --neutral-soft: #f0f4f8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: #1f2933;
-        background: #f6f7f9;
+        color: var(--text);
+        background: var(--bg);
       }
 
       header,
       main {
         max-width: 1200px;
         margin: 0 auto;
-        padding: 24px;
+        padding: 20px 24px;
       }
 
       header {
@@ -42,13 +64,70 @@
       }
 
       a {
-        color: #0f609b;
+        color: var(--blue);
         text-decoration: none;
       }
 
+      .top-nav {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        margin-bottom: 14px;
+      }
+
+      .top-nav a {
+        border-radius: 6px;
+        color: var(--muted);
+        padding: 7px 10px;
+        font-size: 13px;
+        font-weight: 650;
+      }
+
+      .top-nav a[aria-current="page"] {
+        background: var(--blue-soft);
+        color: #0b4f7a;
+      }
+
       .meta {
-        color: #52606d;
+        color: var(--muted);
         font-size: 14px;
+      }
+
+      .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        padding: 2px 8px;
+        background: #fff;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .badge.synthetic {
+        border-color: #9ec5fe;
+        background: var(--blue-soft);
+        color: #0b4f7a;
+      }
+
+      .badge.scope {
+        border-color: #8fc7ad;
+        background: var(--green-soft);
+        color: var(--green);
       }
 
       .caveat {
@@ -67,8 +146,8 @@
 
       .metric,
       .panel {
-        background: #fff;
-        border: 1px solid #d9e2ec;
+        background: var(--panel);
+        border: 1px solid var(--line);
         border-radius: 8px;
         padding: 16px;
       }
@@ -89,23 +168,23 @@
       label {
         display: grid;
         gap: 4px;
-        color: #52606d;
+        color: var(--muted);
         font-size: 13px;
       }
 
       select,
       button {
         min-height: 36px;
-        border: 1px solid #bcccdc;
+        border: 1px solid var(--line-strong);
         border-radius: 6px;
         background: #fff;
-        color: #1f2933;
+        color: var(--text);
         font: inherit;
         padding: 6px 10px;
       }
 
       button {
-        background: #1f2933;
+        background: var(--text);
         color: #fff;
         cursor: pointer;
       }
@@ -114,7 +193,7 @@
         width: 100%;
         border-collapse: collapse;
         background: #fff;
-        border: 1px solid #d9e2ec;
+        border: 1px solid var(--line);
       }
 
       th,
@@ -126,7 +205,7 @@
       }
 
       th {
-        background: #f0f4f8;
+        background: var(--neutral-soft);
         font-size: 13px;
       }
 
@@ -135,27 +214,42 @@
       }
 
       .severity-high {
-        color: #ab091e;
+        color: var(--red);
         font-weight: 700;
       }
 
       .severity-moderate {
-        color: #8d2b0b;
+        color: var(--yellow);
         font-weight: 700;
       }
 
       .empty {
         color: #7b8794;
       }
+
+      @media (max-width: 760px) {
+        header {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+      }
     </style>
   </head>
   <body>
     <header>
       <div>
-        <h1>TB-IA MVP2 operations</h1>
-        <div class="meta">{{ year }} synthetic municipal operational pilot</div>
+        <nav class="top-nav" aria-label="{{ tr.nav_label }}">
+          <a href="/?year={{ year }}&lang={{ lang }}">{{ tr.mvp1_nav }}</a>
+          <a href="/mvp2?year={{ year }}&lang={{ lang }}" aria-current="page">{{ tr.mvp2_nav }}</a>
+          <a href="/mvp2?year={{ year }}&alert_type={{ filters.alert_type }}&severity={{ filters.severity }}&facility_id={{ filters.facility_id }}&team_id={{ filters.team_id }}&status={{ filters.status }}&lang={{ other_lang }}" aria-label="{{ tr.language_label }}: {{ tr.other_language_name }}">{{ tr.other_language_name }}</a>
+        </nav>
+        <h1>{{ tr.mvp2.title }}</h1>
+        <div class="meta">{{ year }} {{ tr.mvp2.subtitle }}</div>
+        <div class="badge-row" aria-label="{{ tr.mvp1.scope_label }}">
+          <span class="badge synthetic">{{ tr.mvp2.badge_synthetic }}</span>
+          <span class="badge scope">{{ year }}</span>
+        </div>
       </div>
-      <div class="meta"><a href="/">MVP1 public dashboard</a></div>
     </header>
     <main>
       <div class="caveat">{{ caveat }}</div>
@@ -163,83 +257,84 @@
       <section class="grid" aria-label="Summary metrics">
         <div class="metric">
           <strong>{{ summary.case_count }}</strong>
-          local cases
+          {{ tr.mvp2.local_cases }}
         </div>
         <div class="metric">
           <strong>{{ summary.alert_count }}</strong>
-          total alerts
+          {{ tr.mvp2.total_alerts }}
         </div>
         <div class="metric">
           <strong>{{ summary.open_alert_count }}</strong>
-          open alerts
+          {{ tr.mvp2.open_alerts }}
         </div>
       </section>
 
       <section class="panel">
-        <h2>Filters</h2>
+        <h2>{{ tr.mvp2.filters }}</h2>
         <form method="get" action="/mvp2">
           <input type="hidden" name="year" value="{{ year }}">
+          <input type="hidden" name="lang" value="{{ lang }}">
           <label>
-            Type
+            {{ tr.mvp2.type }}
             <select name="alert_type">
-              <option value="">All</option>
+              <option value="">{{ tr.all }}</option>
               {% for value in filter_options.alert_types %}
-                <option value="{{ value }}" {% if filters.alert_type == value %}selected{% endif %}>{{ value.replace("_", " ") }}</option>
+                <option value="{{ value }}" {% if filters.alert_type == value %}selected{% endif %}>{{ tr.alert_types.get(value, value.replace("_", " ")) }}</option>
               {% endfor %}
             </select>
           </label>
           <label>
-            Severity
+            {{ tr.mvp2.severity }}
             <select name="severity">
-              <option value="">All</option>
+              <option value="">{{ tr.all }}</option>
               {% for value in filter_options.severities %}
-                <option value="{{ value }}" {% if filters.severity == value %}selected{% endif %}>{{ value }}</option>
+                <option value="{{ value }}" {% if filters.severity == value %}selected{% endif %}>{{ tr.severity_labels.get(value, value) }}</option>
               {% endfor %}
             </select>
           </label>
           <label>
-            Facility
+            {{ tr.mvp2.facility }}
             <select name="facility_id">
-              <option value="">All</option>
+              <option value="">{{ tr.all }}</option>
               {% for value in filter_options.facilities %}
                 <option value="{{ value }}" {% if filters.facility_id == value %}selected{% endif %}>{{ value }}</option>
               {% endfor %}
             </select>
           </label>
           <label>
-            Team
+            {{ tr.mvp2.team }}
             <select name="team_id">
-              <option value="">All</option>
+              <option value="">{{ tr.all }}</option>
               {% for value in filter_options.teams %}
                 <option value="{{ value }}" {% if filters.team_id == value %}selected{% endif %}>{{ value }}</option>
               {% endfor %}
             </select>
           </label>
           <label>
-            Status
+            {{ tr.mvp2.status }}
             <select name="status">
-              <option value="">All</option>
+              <option value="">{{ tr.all }}</option>
               {% for value in filter_options.statuses %}
-                <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ value }}</option>
+                <option value="{{ value }}" {% if filters.status == value %}selected{% endif %}>{{ tr.status_labels.get(value, value) }}</option>
               {% endfor %}
             </select>
           </label>
-          <button type="submit">Apply</button>
+          <button type="submit">{{ tr.apply }}</button>
         </form>
       </section>
 
       <section class="panel">
-        <h2>Queues by UBS/team</h2>
+        <h2>{{ tr.mvp2.queues }}</h2>
         {% if summary.by_facility_team %}
           <table>
             <thead>
               <tr>
-                <th>Facility</th>
-                <th>Team</th>
-                <th>Alerts</th>
-                <th>High</th>
-                <th>Moderate</th>
-                <th>Open</th>
+                <th>{{ tr.mvp2.facility }}</th>
+                <th>{{ tr.mvp2.team }}</th>
+                <th>{{ tr.mvp2.alerts }}</th>
+                <th>{{ tr.mvp2.high }}</th>
+                <th>{{ tr.mvp2.moderate }}</th>
+                <th>{{ tr.mvp2.open }}</th>
               </tr>
             </thead>
             <tbody>
@@ -256,43 +351,43 @@
             </tbody>
           </table>
         {% else %}
-          <p class="empty">No operational alerts generated yet.</p>
+          <p class="empty">{{ tr.mvp2.no_operational_alerts }}</p>
         {% endif %}
       </section>
 
       <section class="panel">
-        <h2>Alert queue</h2>
+        <h2>{{ tr.mvp2.alert_queue }}</h2>
         {% if alerts %}
           <table>
             <thead>
               <tr>
-                <th>Type</th>
-                <th>Severity</th>
-                <th>Status</th>
-                <th>Facility</th>
-                <th>Team</th>
-                <th>Case</th>
-                <th>Due</th>
-                <th>Signal</th>
+                <th>{{ tr.mvp2.type }}</th>
+                <th>{{ tr.mvp2.severity }}</th>
+                <th>{{ tr.mvp2.status }}</th>
+                <th>{{ tr.mvp2.facility }}</th>
+                <th>{{ tr.mvp2.team }}</th>
+                <th>{{ tr.mvp2.case }}</th>
+                <th>{{ tr.mvp2.due }}</th>
+                <th>{{ tr.mvp2.signal }}</th>
               </tr>
             </thead>
             <tbody>
               {% for row in alerts %}
                 <tr>
-                  <td>{{ row.alert_type.replace("_", " ") }}</td>
-                  <td class="severity-{{ row.severity }}">{{ row.severity }}</td>
-                  <td>{{ row.status }}</td>
+                  <td>{{ row.alert_type_label }}</td>
+                  <td class="severity-{{ row.severity }}">{{ row.severity_label }}</td>
+                  <td>{{ row.status_label }}</td>
                   <td>{{ row.facility_id }}</td>
                   <td>{{ row.team_name }}</td>
                   <td>{{ row.local_case_id }}</td>
                   <td>{{ row.due_date or "-" }}</td>
-                  <td>{{ row.message }}</td>
+                  <td>{{ row.message_label }}</td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         {% else %}
-          <p class="empty">No alerts match the selected filters.</p>
+          <p class="empty">{{ tr.mvp2.no_alert_matches }}</p>
         {% endif %}
       </section>
     </main>

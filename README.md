@@ -38,7 +38,7 @@ python -m tbia serve
 
 `download-datasus-samples` stores public DATASUS DBC files under `data/raw/public_sources/datasus_samples/`; use `--sih-all-months` for the full SIH/SUS hospitalization year. MVP 1 CE/2023 uses 2022 IBGE Census resident population as the default denominator, so rates are explicitly caveated as 2023 events over 2022 Census population. `ingest` also caches simplified municipality GeoJSON from IBGE Malhas under `data/raw/public_sources/ibge_malhas/` for the dashboard choropleth map. `validate-sinan-mappings` writes a technical audit under `data/processed/mvp1/validation/`; it does not replace domain review against official SINAN-TB dictionaries and indicator handbooks. `compute-indicators` writes `indicator_validation_<year>.json` in the same validation directory and records `indicator_validation` in source freshness; a failed status means mechanical invariants such as bounded proportions need review, while warning-only zero denominators document expected missingness and suppressed public values remain `null`. Manual CSV fallbacks are read from `data/raw/public_sources/manual/`.
 
-The local dashboard at `/` includes a municipality-level public aggregate map, priority ranking, source freshness, and territory detail reports. The map does not use external tile providers and does not display patient-level, address-level, or MVP 2 operational alert locations. If the map panel is blank, first verify that `ingest` recorded a successful `ibge_malhas` run and that `/api/map/municipalities?uf=CE&year=2023` has non-null geometries; if geometries exist, check whether the browser can load the Leaflet CDN assets.
+The local dashboard at `/` is a public aggregate territorial workbench with Portuguese default UI text, optional English via `?lang=en`, data readiness tiles, UF/year scope controls, municipality search, map/ranking selection sync, source freshness, and grouped territory detail reports. The ranking is built from the same enriched map payload used by the choropleth, including `top_scenarios`, severity, priority score, and data status. The map does not use external tile providers and does not display patient-level, address-level, or MVP 2 operational alert locations. If the map panel is blank, first verify that `ingest` recorded a successful `ibge_malhas` run and that `/api/map/municipalities?uf=CE&year=2023` has non-null geometries; if geometries exist, check whether the browser can load the Leaflet CDN assets.
 
 ## MVP 2 Synthetic Municipal Demo
 
@@ -49,7 +49,7 @@ python -m tbia build-operational-alerts --year 2023 --reference-date 2026-06-29
 python -m tbia serve
 ```
 
-The MVP 2 demo uses synthetic, pseudonymized local CSVs only. It rejects obvious identifiable columns in patient-level files and exposes operational alert queues at `/mvp2` plus `/api/mvp2/summary`, `/api/mvp2/alerts`, and `/api/mvp2/alerts/{alert_id}`. See `mvp2_municipal_contracts.md` for schemas and alert rules.
+The MVP 2 demo uses synthetic, pseudonymized local CSVs only. It rejects obvious identifiable columns in patient-level files and exposes operational alert queues at `/mvp2` plus `/api/mvp2/summary`, `/api/mvp2/alerts`, and `/api/mvp2/alerts/{alert_id}`. The MVP 2 dashboard keeps this synthetic/pseudonymized demo scope visible in the shared navigation shell and follows the same `lang=pt` / `lang=en` language switch. See `mvp2_municipal_contracts.md` for schemas and alert rules.
 
 ## Exploratory Notebooks
 

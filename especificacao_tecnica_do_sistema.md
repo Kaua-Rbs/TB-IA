@@ -91,6 +91,8 @@ Core outputs:
 - recommendation summary linked to a strategy library;
 - data-quality warnings and source freshness indicators.
 
+Current MVP 1 UI implementation note: the dashboard is a public aggregate, demo-oriented workbench. It is Portuguese-first with optional English through a `lang` query parameter, and exposes data readiness, UF/year scope controls, municipality search, map/ranking synchronization, transparent scenario explanations, recommendations, indicators, caveats, and source freshness without patient-level maps or clinical automation.
+
 This should be the first engineering target for a buildable platform.
 
 ### MVP 2: municipal operational integration
@@ -123,6 +125,7 @@ Core outputs:
 Current first implementation slice:
 
 - use synthetic, pseudonymized municipal CSVs under `data/raw/municipal_demo/`;
+- keep the MVP 2 dashboard visibly labeled as synthetic/pseudonymized until authorized local-data governance, integration, and validation exist;
 - reject obvious identifiable columns before local operational ingestion;
 - persist local teams, TB cases, lab events, pharmacy dispensing events, contact investigations, resource inventory, and generated operational alerts;
 - generate transparent alert queues for pending lab results, delayed medication pickup, pending contact evaluation, and resistance vigilance;

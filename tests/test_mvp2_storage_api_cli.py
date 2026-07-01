@@ -46,14 +46,21 @@ def test_mvp2_storage_and_api_expose_operational_alerts_without_patient_pseudony
         summary_response = client.get("/api/mvp2/summary?year=2023")
         alerts_response = client.get("/api/mvp2/alerts?year=2023&severity=high")
         page_response = client.get("/mvp2?year=2023&severity=high")
+        english_page_response = client.get("/mvp2?year=2023&severity=high&lang=en")
 
     assert summary_response.status_code == 200
     assert alerts_response.status_code == 200
     assert page_response.status_code == 200
+    assert english_page_response.status_code == 200
     assert summary_response.json()["alert_count"] == len(alerts)
     assert all(row["severity"] == "high" for row in alerts_response.json())
     assert "pseudonymized_patient_id" not in alerts_response.text
     assert "PAT-" not in alerts_response.text
+    assert "MVP1 Territorial" in page_response.text
+    assert "MVP2 Operações" in page_response.text
+    assert "demonstração sintética/pseudonimizada" in page_response.text
+    assert "MVP2 Operations" in english_page_response.text
+    assert "synthetic/pseudonymized demo" in english_page_response.text
 
     first_alert_id = alerts_response.json()[0]["alert_id"]
     with TestClient(create_app(database_url)) as client:

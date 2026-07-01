@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Sequence
 from datetime import date, datetime
 from typing import Any, cast
@@ -1072,6 +1073,14 @@ MAP_LAYER_INDICATOR_IDS = frozenset(
     }
 )
 SEVERITY_ORDER = {"low": 1, "moderate": 2, "high": 3}
+CORE_PUBLIC_SOURCE_IDS = (
+    "ibge_localidades",
+    "ibge_population",
+    "sinan_tb",
+    "sim",
+    "sih_sus",
+    "cnes",
+)
 
 
 def dashboard_context(session: Session, year: int, uf: str) -> dict[str, Any]:
@@ -1091,12 +1100,20 @@ def dashboard_context(session: Session, year: int, uf: str) -> dict[str, Any]:
     ]
     source_runs = latest_import_runs(session)
     ranking = ranking_rows(territories, scenarios)
+    geometry_count = sum(1 for territory in territories.values() if territory.geometry is not None)
     return {
         "uf": uf,
         "year": year,
         "territory_count": len(territories),
         "indicator_count": len(indicators),
         "scenario_count": len(scenarios),
+        "readiness": dashboard_readiness(
+            territory_count=len(territories),
+            geometry_count=geometry_count,
+            indicator_count=len(indicators),
+            scenarios=scenarios,
+            source_runs=source_runs,
+        ),
         "ranking": ranking,
         "sources": source_runs,
         "caveat": (
@@ -1174,12 +1191,24 @@ def ranking_rows(
                 "territory_name": territory.name,
                 "score": 0.0,
                 "scenario_count": 0,
+                "top_severity": None,
+                "scored_scenarios": [],
                 "top_explanations": [],
+                "top_scenarios": [],
             },
         )
         row["score"] = round(float(row["score"]) + scenario.score, 4)
         row["scenario_count"] = int(row["scenario_count"]) + 1
-        row["top_explanations"].append(scenario.explanation)
+        row["top_severity"] = highest_severity(
+            cast(str | None, row["top_severity"]), scenario.severity
+        )
+        row["scored_scenarios"].append(scenario_api_row(scenario))
+
+    for row in totals.values():
+        top_scenarios = top_scenario_rows(cast(list[dict[str, Any]], row["scored_scenarios"]))
+        row["top_scenarios"] = top_scenarios
+        row["top_explanations"] = [scenario["explanation"] for scenario in top_scenarios]
+        del row["scored_scenarios"]
 
     return sorted(
         totals.values(),
@@ -1215,15 +1244,7 @@ def territory_report(session: Session, territory_id: str, year: int) -> dict[str
         if row["territory_id"] == territory_id
     ]
     scenarios = [
-        {
-            "rule_id": record.rule_id,
-            "severity": record.severity,
-            "score": record.score,
-            "explanation": record.explanation,
-            "indicator_id": record.indicator_id,
-            "indicator_value": record.indicator_value,
-            "threshold_value": record.threshold_value,
-        }
+        scenario_api_row(record)
         for record in session.query(TerritoryScenarioRecord).filter_by(
             territory_id=territory_id,
             year=year,
@@ -1308,11 +1329,119 @@ def map_municipality_feature(
             "scenario_count": scenario_summary["scenario_count"],
             "top_severity": scenario_summary["top_severity"],
             "top_explanations": scenario_summary["top_explanations"],
+            "top_scenarios": scenario_summary["top_scenarios"],
             "data_status": map_data_status(territory_indicators),
             "indicators": territory_indicators,
         },
         "geometry": territory.geometry,
     }
+
+
+def dashboard_readiness(
+    *,
+    territory_count: int,
+    geometry_count: int,
+    indicator_count: int,
+    scenarios: Sequence[TerritoryScenarioRecord],
+    source_runs: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    source_by_id = {str(row["source_id"]): row for row in source_runs}
+    public_source_runs = [source_by_id.get(source_id) for source_id in CORE_PUBLIC_SOURCE_IDS]
+    public_success_count = sum(
+        1 for row in public_source_runs if row is not None and row["status"] == "success"
+    )
+    public_failed_count = sum(
+        1 for row in public_source_runs if row is not None and row["status"] == "failed"
+    )
+    validation_run = source_by_id.get("indicator_validation")
+    scenario_territory_count = len({scenario.territory_id for scenario in scenarios})
+    warning_count = validation_warning_count(validation_run)
+
+    return {
+        "public_sources": {
+            "label": "Public sources",
+            "status": public_sources_readiness_status(
+                success_count=public_success_count,
+                failed_count=public_failed_count,
+            ),
+            "success_count": public_success_count,
+            "expected_count": len(CORE_PUBLIC_SOURCE_IDS),
+            "detail": (
+                f"{public_success_count}/{len(CORE_PUBLIC_SOURCE_IDS)} core public "
+                "source runs successful"
+            ),
+        },
+        "geometry": {
+            "label": "Geometry",
+            "status": coverage_readiness_status(geometry_count, territory_count),
+            "geometry_count": geometry_count,
+            "territory_count": territory_count,
+            "detail": f"{geometry_count}/{territory_count} municipalities with geometry",
+        },
+        "indicator_validation": {
+            "label": "Indicator validation",
+            "status": validation_readiness_status(validation_run),
+            "source_status": validation_run["status"] if validation_run is not None else "missing",
+            "warning_count": warning_count,
+            "indicator_count": indicator_count,
+            "detail": indicator_validation_detail(validation_run, warning_count),
+        },
+        "generated_scenarios": {
+            "label": "Generated scenarios",
+            "status": "ready" if scenarios else "missing",
+            "scenario_count": len(scenarios),
+            "territory_count": scenario_territory_count,
+            "detail": f"{len(scenarios)} scenarios in {scenario_territory_count} territories",
+        },
+    }
+
+
+def public_sources_readiness_status(*, success_count: int, failed_count: int) -> str:
+    if failed_count:
+        return "warning"
+    if success_count == len(CORE_PUBLIC_SOURCE_IDS):
+        return "ready"
+    if success_count:
+        return "partial"
+    return "missing"
+
+
+def coverage_readiness_status(covered_count: int, total_count: int) -> str:
+    if total_count == 0:
+        return "missing"
+    if covered_count == total_count:
+        return "ready"
+    if covered_count:
+        return "partial"
+    return "missing"
+
+
+def validation_readiness_status(validation_run: dict[str, Any] | None) -> str:
+    if validation_run is None:
+        return "missing"
+    if validation_run["status"] == "success":
+        return "ready"
+    if validation_run["status"] == "failed":
+        return "warning"
+    return "partial"
+
+
+def indicator_validation_detail(
+    validation_run: dict[str, Any] | None,
+    warning_count: int,
+) -> str:
+    if validation_run is None:
+        return "No validation run recorded"
+    if warning_count:
+        return f"{validation_run['status']} with {warning_count} warning(s)"
+    return str(validation_run["status"])
+
+
+def validation_warning_count(validation_run: dict[str, Any] | None) -> int:
+    if validation_run is None:
+        return 0
+    match = re.search(r"(\d+) warning\(s\) found", str(validation_run.get("message", "")))
+    return int(match.group(1)) if match else 0
 
 
 def map_indicator_rows_by_territory(
@@ -1356,11 +1485,13 @@ def map_scenario_summary_by_territory(
         summary["top_severity"] = highest_severity(
             cast(str | None, summary["top_severity"]), record.severity
         )
-        summary["scored_explanations"].append((record.score, record.explanation))
+        summary["scored_scenarios"].append(scenario_api_row(record))
 
     for summary in summaries.values():
-        summary["top_explanations"] = top_explanations(summary["scored_explanations"])
-        del summary["scored_explanations"]
+        top_scenarios = top_scenario_rows(cast(list[dict[str, Any]], summary["scored_scenarios"]))
+        summary["top_scenarios"] = top_scenarios
+        summary["top_explanations"] = [scenario["explanation"] for scenario in top_scenarios]
+        del summary["scored_scenarios"]
     return summaries
 
 
@@ -1369,8 +1500,9 @@ def empty_map_scenario_summary() -> dict[str, Any]:
         "priority_score": 0.0,
         "scenario_count": 0,
         "top_severity": None,
+        "top_scenarios": [],
         "top_explanations": [],
-        "scored_explanations": [],
+        "scored_scenarios": [],
     }
 
 
@@ -1382,11 +1514,27 @@ def highest_severity(current: str | None, candidate: str) -> str:
     return current
 
 
-def top_explanations(scored_explanations: list[tuple[float, str]]) -> list[str]:
-    return [
-        explanation
-        for _, explanation in sorted(scored_explanations, key=lambda item: (-item[0], item[1]))[:3]
-    ]
+def scenario_api_row(record: TerritoryScenarioRecord) -> dict[str, Any]:
+    return {
+        "rule_id": record.rule_id,
+        "indicator_id": record.indicator_id,
+        "severity": record.severity,
+        "score": round(record.score, 4),
+        "explanation": record.explanation,
+        "indicator_value": record.indicator_value,
+        "threshold_value": record.threshold_value,
+    }
+
+
+def top_scenario_rows(scenarios: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    return sorted(
+        scenarios,
+        key=lambda row: (
+            -float(row["score"]),
+            -SEVERITY_ORDER.get(str(row["severity"]), 0),
+            str(row["rule_id"]),
+        ),
+    )[:3]
 
 
 def map_geojson_metadata(

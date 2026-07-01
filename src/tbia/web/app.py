@@ -26,6 +26,16 @@ from tbia.storage import (
     mvp2_summary,
     territory_report,
 )
+from tbia.web.i18n import (
+    DEFAULT_LANGUAGE,
+    FALLBACK_LANGUAGE,
+    language_context,
+    localize_dashboard_context,
+    localize_map_payload,
+    localize_mvp2_context,
+    localize_territory_report,
+    normalize_language,
+)
 
 TEMPLATE_DIR = Path(__file__).parent / "templates"
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
@@ -65,13 +75,17 @@ def register_dashboard_routes(app: FastAPI, session_factory: SessionProvider) ->
         request: Request,
         uf: str = Query("CE", min_length=2, max_length=2),
         year: int = Query(2023, ge=2000, le=2100),
+        lang: str = Query(DEFAULT_LANGUAGE),
     ) -> HTMLResponse:
+        language = normalize_language(lang)
         with session_factory() as session:
-            context = dashboard_context(session, year, uf.upper())
+            context = localize_dashboard_context(
+                dashboard_context(session, year, uf.upper()), language
+            )
         return templates.TemplateResponse(
             request,
             "index.html",
-            {"request": request, **context},
+            {"request": request, **language_context(language), **context},
         )
 
     @app.get("/mvp2", response_class=HTMLResponse)
@@ -83,21 +97,26 @@ def register_dashboard_routes(app: FastAPI, session_factory: SessionProvider) ->
         facility_id: str | None = Query(None),
         team_id: str | None = Query(None),
         status: str | None = Query(None),
+        lang: str = Query(DEFAULT_LANGUAGE),
     ) -> HTMLResponse:
+        language = normalize_language(lang)
         with session_factory() as session:
-            context = mvp2_dashboard_context(
-                session,
-                year,
-                alert_type=alert_type,
-                severity=severity,
-                facility_id=facility_id,
-                team_id=team_id,
-                status=status,
+            context = localize_mvp2_context(
+                mvp2_dashboard_context(
+                    session,
+                    year,
+                    alert_type=alert_type,
+                    severity=severity,
+                    facility_id=facility_id,
+                    team_id=team_id,
+                    status=status,
+                ),
+                language,
             )
         return templates.TemplateResponse(
             request,
             "mvp2.html",
-            {"request": request, **context},
+            {"request": request, **language_context(language), **context},
         )
 
 
@@ -137,9 +156,12 @@ def register_mvp1_api_routes(app: FastAPI, session_factory: SessionProvider) -> 
     def territory_detail(
         territory_id: str,
         year: int = Query(2023, ge=2000, le=2100),
+        lang: str = Query(FALLBACK_LANGUAGE),
     ) -> dict[str, Any]:
+        language = normalize_language(lang)
         with session_factory() as session:
-            return territory_report_or_404(session, territory_id, year)
+            report = territory_report_or_404(session, territory_id, year)
+        return localize_territory_report(report, language)
 
     @app.get("/api/geo/municipalities")
     def municipality_geojson(uf: str = Query("CE", min_length=2, max_length=2)) -> dict[str, Any]:
@@ -150,9 +172,12 @@ def register_mvp1_api_routes(app: FastAPI, session_factory: SessionProvider) -> 
     def municipality_map_geojson(
         uf: str = Query("CE", min_length=2, max_length=2),
         year: int = Query(2023, ge=2000, le=2100),
+        lang: str = Query(FALLBACK_LANGUAGE),
     ) -> dict[str, Any]:
+        language = normalize_language(lang)
         with session_factory() as session:
-            return map_geojson_for_municipalities(session, year, uf.upper())
+            payload = map_geojson_for_municipalities(session, year, uf.upper())
+        return localize_map_payload(payload, language)
 
     @app.get("/api/rankings")
     def rankings(

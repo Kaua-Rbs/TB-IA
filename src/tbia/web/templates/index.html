@@ -1,133 +1,319 @@
 <!doctype html>
-<html lang="en">
+<html lang="{{ html_lang }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>TB-IA MVP 1</title>
+    <title>{{ tr.mvp1.title }}</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
     <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f7fa;
+        --panel: #ffffff;
+        --panel-soft: #fbfcfd;
+        --line: #d9e2ec;
+        --line-strong: #bcccdc;
+        --text: #1f2933;
+        --muted: #52606d;
+        --blue: #0f609b;
+        --blue-soft: #e7f5ff;
+        --green: #13795b;
+        --green-soft: #e3fcef;
+        --yellow: #8d6b00;
+        --yellow-soft: #fff7d6;
+        --red: #ab091e;
+        --red-soft: #ffe3e3;
+        --neutral-soft: #f0f4f8;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
       body {
         margin: 0;
         font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: #1f2933;
-        background: #f4f7f9;
+        color: var(--text);
+        background: var(--bg);
       }
 
       header,
       main {
-        max-width: 1120px;
+        max-width: 1200px;
         margin: 0 auto;
-        padding: 24px;
+        padding: 20px 24px;
       }
 
       header {
-        display: flex;
-        justify-content: space-between;
-        gap: 24px;
-        align-items: flex-end;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 20px;
+        align-items: end;
       }
 
-      h1 {
-        margin: 0 0 8px;
-        font-size: 28px;
-      }
-
+      h1,
       h2,
-      h3 {
+      h3,
+      h4,
+      p {
         margin-top: 0;
       }
 
-      .meta {
-        color: #52606d;
+      h1 {
+        margin-bottom: 8px;
+        font-size: 28px;
+        letter-spacing: 0;
+      }
+
+      h2 {
+        font-size: 20px;
+        margin-bottom: 12px;
+      }
+
+      h3 {
+        font-size: 17px;
+        margin-bottom: 8px;
+      }
+
+      h4 {
+        font-size: 14px;
+        margin-bottom: 8px;
+      }
+
+      a {
+        color: var(--blue);
+        text-decoration: none;
+      }
+
+      button,
+      input,
+      select {
+        min-height: 36px;
+        border: 1px solid var(--line-strong);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--text);
+        font: inherit;
+        padding: 7px 10px;
+      }
+
+      button {
+        background: var(--text);
+        color: #fff;
+        cursor: pointer;
+      }
+
+      label {
+        display: grid;
+        gap: 4px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .top-nav {
+        display: inline-flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        padding: 3px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+        margin-bottom: 14px;
+      }
+
+      .top-nav a {
+        border-radius: 6px;
+        color: var(--muted);
+        padding: 7px 10px;
+        font-size: 13px;
+        font-weight: 650;
+      }
+
+      .top-nav a[aria-current="page"] {
+        background: var(--blue-soft);
+        color: #0b4f7a;
+      }
+
+      .header-meta,
+      .meta,
+      .muted {
+        color: var(--muted);
         font-size: 14px;
       }
 
-      .grid {
+      .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 10px;
+      }
+
+      .badge,
+      .status-pill {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        min-height: 22px;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        padding: 2px 8px;
+        background: #fff;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 650;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .badge.public {
+        border-color: #8fc7ad;
+        background: var(--green-soft);
+        color: var(--green);
+      }
+
+      .badge.scope {
+        border-color: #9ec5fe;
+        background: var(--blue-soft);
+        color: #0b4f7a;
+      }
+
+      .scope-form {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        grid-template-columns: 86px 110px auto;
+        gap: 10px;
+        align-items: end;
+        min-width: 300px;
+      }
+
+      .caveat {
+        border-left: 4px solid #9fb3c8;
+        background: #fff;
+        padding: 12px 16px;
+        margin-bottom: 20px;
+      }
+
+      .grid,
+      .readiness-grid,
+      .detail-summary {
+        display: grid;
         gap: 12px;
-        margin-bottom: 24px;
+      }
+
+      .grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        margin-bottom: 20px;
+      }
+
+      .readiness-grid {
+        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+        margin-bottom: 20px;
       }
 
       .metric,
+      .readiness-tile,
       .panel {
-        background: #fff;
-        border: 1px solid #d9e2ec;
+        background: var(--panel);
+        border: 1px solid var(--line);
         border-radius: 8px;
         padding: 16px;
       }
 
-      .metric strong {
+      .metric strong,
+      .readiness-tile strong {
         display: block;
-        font-size: 24px;
         margin-bottom: 4px;
+        font-size: 24px;
       }
 
-      .map-panel {
-        margin-bottom: 24px;
+      .readiness-tile strong {
+        font-size: 16px;
       }
 
+      .readiness-tile {
+        display: grid;
+        gap: 6px;
+        min-height: 118px;
+      }
+
+      .readiness-ready {
+        border-left: 4px solid var(--green);
+      }
+
+      .readiness-partial {
+        border-left: 4px solid var(--yellow);
+      }
+
+      .readiness-warning {
+        border-left: 4px solid var(--red);
+      }
+
+      .readiness-missing {
+        border-left: 4px solid #7b8794;
+      }
+
+      .panel {
+        margin-bottom: 20px;
+      }
+
+      .toolbar,
       .map-toolbar {
         display: flex;
+        flex-wrap: wrap;
         justify-content: space-between;
-        align-items: center;
-        gap: 16px;
+        gap: 12px 16px;
+        align-items: end;
         margin-bottom: 12px;
       }
 
-      .map-toolbar label {
+      .control-row {
         display: flex;
-        align-items: center;
-        gap: 8px;
-        color: #52606d;
-        font-size: 14px;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: end;
       }
 
-      .map-toolbar select {
-        min-width: 220px;
-        border: 1px solid #bcccdc;
-        border-radius: 6px;
-        padding: 8px 10px;
-        background: #fff;
-        color: #1f2933;
+      .control-row select,
+      .control-row input {
+        min-width: 190px;
       }
 
       .map-shell {
         display: grid;
-        grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+        grid-template-columns: minmax(0, 2fr) minmax(310px, 1fr);
         gap: 16px;
       }
 
       .map-frame {
-        position: relative;
         display: flex;
         flex-direction: column;
         gap: 10px;
+        min-width: 0;
       }
 
       #municipality-map {
-        height: 480px;
-        min-height: 360px;
+        height: 500px;
+        min-height: 380px;
         width: 100%;
-        border: 1px solid #d9e2ec;
+        border: 1px solid var(--line);
         border-radius: 8px;
         background: #eef2f6;
       }
 
       .map-detail {
-        min-height: 480px;
-        border: 1px solid #d9e2ec;
+        min-height: 500px;
+        max-height: 640px;
+        border: 1px solid var(--line);
         border-radius: 8px;
         padding: 14px;
         overflow: auto;
-        background: #fbfcfd;
+        background: var(--panel-soft);
       }
 
       .map-status {
-        border: 1px solid #bcccdc;
+        border: 1px solid var(--line-strong);
         border-radius: 6px;
         background: #fff;
-        color: #52606d;
+        color: var(--muted);
         padding: 10px 12px;
         font-size: 14px;
       }
@@ -140,7 +326,7 @@
         display: flex;
         flex-wrap: wrap;
         gap: 10px 14px;
-        color: #52606d;
+        color: var(--muted);
         font-size: 13px;
       }
 
@@ -153,7 +339,7 @@
       .legend-swatch {
         width: 16px;
         height: 12px;
-        border: 1px solid #52606d;
+        border: 1px solid var(--muted);
         border-radius: 2px;
         background: #d9e2ec;
       }
@@ -175,21 +361,33 @@
         padding-left: 18px;
       }
 
-      .status-pill {
-        display: inline-block;
-        border: 1px solid #bcccdc;
-        border-radius: 999px;
-        padding: 2px 8px;
-        color: #52606d;
+      .detail-summary {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        margin-top: 12px;
+      }
+
+      .summary-cell {
+        border-top: 1px solid var(--line);
+        background: transparent;
+        padding: 10px 0;
+      }
+
+      .summary-cell span {
+        display: block;
+        color: var(--muted);
         font-size: 12px;
-        text-transform: uppercase;
+        margin-bottom: 4px;
+      }
+
+      .summary-cell strong {
+        font-size: 18px;
       }
 
       table {
         width: 100%;
         border-collapse: collapse;
         background: #fff;
-        border: 1px solid #d9e2ec;
+        border: 1px solid var(--line);
       }
 
       th,
@@ -201,8 +399,17 @@
       }
 
       th {
-        background: #f0f4f8;
+        background: var(--neutral-soft);
         font-size: 13px;
+      }
+
+      tbody tr.clickable-row {
+        cursor: pointer;
+      }
+
+      tbody tr.clickable-row:hover,
+      tbody tr.selected-row {
+        background: var(--blue-soft);
       }
 
       .compact-table th,
@@ -211,35 +418,97 @@
         font-size: 13px;
       }
 
-      .caveat {
-        border-left: 4px solid #9fb3c8;
-        background: #fff;
-        padding: 12px 16px;
-        margin-bottom: 24px;
+      .status {
+        display: inline-block;
+        border-radius: 999px;
+        padding: 2px 8px;
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .status-success,
+      .status-ready,
+      .severity-low {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+
+      .status-skipped,
+      .status-partial,
+      .severity-moderate {
+        background: var(--yellow-soft);
+        color: var(--yellow);
+      }
+
+      .status-failed,
+      .status-warning,
+      .severity-high {
+        background: var(--red-soft);
+        color: var(--red);
+      }
+
+      .status-missing,
+      .severity-none {
+        background: var(--neutral-soft);
+        color: var(--muted);
       }
 
       .empty {
         color: #7b8794;
       }
 
+      .source-message {
+        max-width: 320px;
+      }
+
       .leaflet-container {
         font: inherit;
       }
 
-      @media (max-width: 860px) {
+      @media (max-width: 900px) {
         header,
+        .map-shell {
+          grid-template-columns: 1fr;
+        }
+
+        header {
+          align-items: start;
+        }
+
+        .scope-form {
+          grid-template-columns: 1fr 1fr auto;
+          min-width: 0;
+        }
+
         .map-toolbar {
           align-items: flex-start;
           flex-direction: column;
         }
 
-        .map-shell {
+        #municipality-map,
+        .map-detail {
+          min-height: 360px;
+        }
+      }
+
+      @media (max-width: 560px) {
+        header,
+        main {
+          padding: 16px;
+        }
+
+        .scope-form,
+        .detail-summary {
           grid-template-columns: 1fr;
         }
 
-        #municipality-map,
-        .map-detail {
-          min-height: 340px;
+        .control-row,
+        .control-row label,
+        .control-row select,
+        .control-row input {
+          width: 100%;
         }
       }
     </style>
@@ -247,119 +516,206 @@
   <body>
     <header>
       <div>
-        <h1>TB-IA public-data dashboard</h1>
-        <div class="meta">{{ uf }} {{ year }} territorial intelligence MVP</div>
+        <nav class="top-nav" aria-label="{{ tr.nav_label }}">
+          <a href="/?uf={{ uf }}&year={{ year }}&lang={{ lang }}" aria-current="page">{{ tr.mvp1_nav }}</a>
+          <a href="/mvp2?year={{ year }}&lang={{ lang }}">{{ tr.mvp2_nav }}</a>
+          <a href="/?uf={{ uf }}&year={{ year }}&lang={{ other_lang }}" aria-label="{{ tr.language_label }}: {{ tr.other_language_name }}">{{ tr.other_language_name }}</a>
+        </nav>
+        <h1>{{ tr.mvp1.title }}</h1>
+        <div class="header-meta">{{ tr.mvp1.subtitle }}</div>
+        <div class="badge-row" aria-label="{{ tr.mvp1.scope_label }}">
+          <span class="badge public">{{ tr.mvp1.badge_public }}</span>
+          <span class="badge scope">{{ uf }} {{ year }}</span>
+        </div>
       </div>
-      <div class="meta">Public aggregate data only</div>
+      <form class="scope-form" method="get" action="/" aria-label="{{ tr.mvp1.scope_controls }}">
+        <input type="hidden" name="lang" value="{{ lang }}">
+        <label for="uf-control">
+          UF
+          <input id="uf-control" name="uf" value="{{ uf }}" maxlength="2" autocomplete="off">
+        </label>
+        <label for="year-control">
+          {{ "Ano" if lang == "pt" else "Year" }}
+          <input id="year-control" name="year" value="{{ year }}" type="number" min="2000" max="2100">
+        </label>
+        <button type="submit">{{ tr.apply }}</button>
+      </form>
     </header>
     <main>
       <div class="caveat">{{ caveat }}</div>
 
-      <section class="grid" aria-label="Summary metrics">
+      <section class="readiness-grid" aria-label="{{ tr.mvp1.data_readiness }}">
+        {% for key in ["public_sources", "geometry", "indicator_validation", "generated_scenarios"] %}
+          {% set tile = readiness[key] %}
+          <div class="readiness-tile readiness-{{ tile.status }}">
+            <span class="status status-{{ tile.status }}">{{ tr.status_labels.get(tile.status, tile.status) }}</span>
+            <strong>{{ tr.readiness[key] }}</strong>
+            {% if key == "public_sources" %}
+              <span class="muted">{{ tile.success_count }}/{{ tile.expected_count }} {{ tr.readiness.core_sources_successful }}</span>
+            {% elif key == "geometry" %}
+              <span class="muted">{{ tile.geometry_count }}/{{ tile.territory_count }} {{ tr.readiness.municipalities_with_geometry }}</span>
+            {% elif key == "indicator_validation" %}
+              <span class="muted">{{ tr.status_labels.get(tile.source_status, tile.source_status) }} {{ tr.readiness.with }} {{ tile.warning_count }} {{ tr.readiness.warnings }}</span>
+            {% elif key == "generated_scenarios" %}
+              <span class="muted">{{ tile.scenario_count }} {{ tr.readiness.scenarios_in }} {{ tile.territory_count }} {{ tr.readiness.territories }}</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </section>
+
+      <section class="grid" aria-label="{{ tr.mvp1.summary_metrics }}">
         <div class="metric">
           <strong>{{ territory_count }}</strong>
-          territories
+          {{ tr.mvp1.territories }}
         </div>
         <div class="metric">
           <strong>{{ indicator_count }}</strong>
-          indicator values
+          {{ tr.mvp1.indicator_values }}
         </div>
         <div class="metric">
           <strong>{{ scenario_count }}</strong>
-          triggered scenarios
+          {{ tr.mvp1.triggered_scenarios }}
         </div>
       </section>
 
-      <section class="panel map-panel" aria-label="Territorial map">
+      <section class="panel map-panel" aria-label="{{ tr.mvp1.territorial_map }}">
         <div class="map-toolbar">
-          <h2>Territorial map</h2>
-          <label for="map-layer">
-            Layer
-            <select id="map-layer">
-              <option value="priority_score" selected>Priority score</option>
-              <option value="scenario_count">Scenario count</option>
-              <option value="tb_incidence_per_100k">TB incidence</option>
-              <option value="tb_mortality_per_100k">TB mortality</option>
-              <option value="cure_proportion">Cure proportion</option>
-              <option value="treatment_interruption_proportion">Treatment interruption proportion</option>
-              <option value="laboratory_confirmation_proportion">Laboratory confirmation proportion</option>
-            </select>
-          </label>
+          <h2>{{ tr.mvp1.territorial_map }}</h2>
+          <div class="control-row">
+            <label for="municipality-search">
+              {{ tr.mvp1.municipality }}
+              <input id="municipality-search" list="municipality-list" placeholder="{{ tr.mvp1.search_municipality }}" autocomplete="off">
+            </label>
+            <datalist id="municipality-list"></datalist>
+            <label for="severity-filter">
+              {{ tr.mvp1.severity }}
+              <select id="severity-filter">
+                <option value="">{{ tr.all }}</option>
+                <option value="high">{{ tr.severity_labels.high }}</option>
+                <option value="moderate">{{ tr.severity_labels.moderate }}</option>
+                <option value="low">{{ tr.severity_labels.low }}</option>
+                <option value="none">{{ tr.severity_labels.none }}</option>
+              </select>
+            </label>
+            <label for="data-status-filter">
+              {{ tr.mvp1.data_status }}
+              <select id="data-status-filter">
+                <option value="">{{ tr.all }}</option>
+                <option value="complete">{{ tr.status_labels.complete }}</option>
+                <option value="partial">{{ tr.status_labels.partial }}</option>
+                <option value="missing">{{ tr.status_labels.missing }}</option>
+              </select>
+            </label>
+            <label for="map-layer">
+              {{ tr.mvp1.layer }}
+              <select id="map-layer">
+                <option value="priority_score" selected>{{ tr.js.layer_labels.priority_score }}</option>
+                <option value="scenario_count">{{ tr.js.layer_labels.scenario_count }}</option>
+                <option value="tb_incidence_per_100k">{{ tr.js.layer_labels.tb_incidence_per_100k }}</option>
+                <option value="tb_mortality_per_100k">{{ tr.js.layer_labels.tb_mortality_per_100k }}</option>
+                <option value="cure_proportion">{{ tr.js.layer_labels.cure_proportion }}</option>
+                <option value="treatment_interruption_proportion">{{ tr.js.layer_labels.treatment_interruption_proportion }}</option>
+                <option value="laboratory_confirmation_proportion">{{ tr.js.layer_labels.laboratory_confirmation_proportion }}</option>
+              </select>
+            </label>
+          </div>
         </div>
         <div class="map-shell">
           <div class="map-frame">
-            <div id="municipality-map" role="img" aria-label="Municipality choropleth map"></div>
+            <div id="municipality-map" role="img" aria-label="{{ tr.mvp1.map_alt }}"></div>
             <div id="map-status" class="map-status hidden" aria-live="polite"></div>
-            <div class="map-legend" aria-label="Map legend">
-              <span class="legend-item"><span class="legend-swatch low"></span>lower concern</span>
-              <span class="legend-item"><span class="legend-swatch mid"></span>moderate concern</span>
-              <span class="legend-item"><span class="legend-swatch high"></span>higher concern</span>
-              <span class="legend-item"><span class="legend-swatch"></span>missing</span>
-              <span class="legend-item"><span class="legend-swatch suppressed"></span>suppressed</span>
+            <div class="map-legend" aria-label="{{ tr.mvp1.map_legend }}">
+              <span class="legend-item"><span class="legend-swatch low"></span>{{ tr.mvp1.lower_concern }}</span>
+              <span class="legend-item"><span class="legend-swatch mid"></span>{{ tr.mvp1.moderate_concern }}</span>
+              <span class="legend-item"><span class="legend-swatch high"></span>{{ tr.mvp1.higher_concern }}</span>
+              <span class="legend-item"><span class="legend-swatch"></span>{{ tr.status_labels.missing }}</span>
+              <span class="legend-item"><span class="legend-swatch suppressed"></span>{{ tr.js.suppressed }}</span>
             </div>
           </div>
           <aside id="map-detail" class="map-detail" aria-live="polite">
-            <h3>Municipality detail</h3>
-            <p class="empty">Select a municipality.</p>
+            <h3>{{ tr.js.municipality_detail }}</h3>
+            <p class="empty">{{ tr.js.select_municipality }}</p>
           </aside>
         </div>
       </section>
 
-      <section class="panel">
-        <h2>Priority ranking</h2>
-        {% if ranking %}
-          <table>
-            <thead>
-              <tr>
-                <th>Territory</th>
-                <th>Score</th>
-                <th>Scenarios</th>
-                <th>Explanation</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for row in ranking[:20] %}
+      <section class="panel" aria-label="{{ tr.mvp1.priority_ranking }}">
+        <div class="toolbar">
+          <h2>{{ tr.mvp1.priority_ranking }}</h2>
+          <div class="meta" id="ranking-count">{{ tr.mvp1.loading_ranking }}</div>
+        </div>
+        <table id="ranking-table">
+          <thead>
+            <tr>
+              <th>{{ tr.mvp1.territory }}</th>
+              <th>{{ tr.mvp1.score }}</th>
+              <th>{{ tr.mvp1.scenarios }}</th>
+              <th>{{ tr.mvp1.severity }}</th>
+              <th>{{ tr.mvp1.top_scenario }}</th>
+              <th>{{ tr.mvp1.data }}</th>
+            </tr>
+          </thead>
+          <tbody id="ranking-body">
+            <tr><td colspan="6" class="empty">{{ tr.mvp1.loading_ranking }}</td></tr>
+          </tbody>
+        </table>
+        <noscript>
+          {% if ranking %}
+            <table>
+              <thead>
                 <tr>
-                  <td>{{ row.territory_name }}</td>
-                  <td>{{ "%.2f"|format(row.score) }}</td>
-                  <td>{{ row.scenario_count }}</td>
-                  <td>{{ row.top_explanations[:2] | join(" ") }}</td>
+                  <th>{{ tr.mvp1.territory }}</th>
+                  <th>{{ tr.mvp1.score }}</th>
+                  <th>{{ tr.mvp1.scenarios }}</th>
+                  <th>{{ tr.mvp1.explanation }}</th>
                 </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-        {% else %}
-          <p class="empty">No scenarios have been generated yet. Run the ingest, compute-indicators, and build-scenarios commands.</p>
-        {% endif %}
+              </thead>
+              <tbody>
+                {% for row in ranking[:20] %}
+                  <tr>
+                    <td>{{ row.territory_name }}</td>
+                    <td>{{ "%.2f"|format(row.score) }}</td>
+                    <td>{{ row.scenario_count }}</td>
+                    <td>{{ row.top_explanations[:2] | join(" ") }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          {% else %}
+            <p class="empty">{{ tr.mvp1.no_scenarios_generated }}</p>
+          {% endif %}
+        </noscript>
       </section>
 
       <section class="panel">
-        <h2>Source freshness</h2>
+        <h2>{{ tr.mvp1.source_freshness }}</h2>
         {% if sources %}
           <table>
             <thead>
               <tr>
-                <th>Source</th>
-                <th>Status</th>
-                <th>Rows</th>
-                <th>Message</th>
-                <th>Caveats</th>
+                <th>{{ tr.mvp1.source }}</th>
+                <th>{{ tr.mvp1.status }}</th>
+                <th>{{ tr.mvp1.rows }}</th>
+                <th>{{ tr.mvp1.message }}</th>
+                <th>{{ tr.mvp1.caveats }}</th>
               </tr>
             </thead>
             <tbody>
               {% for source in sources %}
                 <tr>
                   <td>{{ source.name }}</td>
-                  <td>{{ source.status }}</td>
+                  <td><span class="status status-{{ source.status }}">{{ tr.status_labels.get(source.status, source.status) }}</span></td>
                   <td>{{ source.row_count }}</td>
-                  <td>{{ source.message }}</td>
+                  <td class="source-message" title="{{ source.message }}">
+                    {{ source.message[:140] }}{% if source.message|length > 140 %}...{% endif %}
+                  </td>
                   <td>{{ source.caveats }}</td>
                 </tr>
               {% endfor %}
             </tbody>
           </table>
         {% else %}
-          <p class="empty">No import runs recorded yet.</p>
+          <p class="empty">{{ tr.mvp1.no_import_runs }}</p>
         {% endif %}
       </section>
     </main>
@@ -367,48 +723,56 @@
     <script>
       const MAP_UF = {{ uf | tojson }};
       const MAP_YEAR = {{ year | tojson }};
+      const LANG = {{ lang | tojson }};
+      const TEXT = {{ tr.js | tojson }};
       const layerSelect = document.getElementById("map-layer");
       const detailPanel = document.getElementById("map-detail");
       const mapStatus = document.getElementById("map-status");
+      const municipalitySearch = document.getElementById("municipality-search");
+      const municipalityList = document.getElementById("municipality-list");
+      const severityFilter = document.getElementById("severity-filter");
+      const dataStatusFilter = document.getElementById("data-status-filter");
+      const rankingBody = document.getElementById("ranking-body");
+      const rankingCount = document.getElementById("ranking-count");
       const defaultLayerDefinitions = {
         priority_score: {
-          label: "Priority score",
+          label: TEXT.layer_labels.priority_score,
           kind: "property",
           unit: "score",
           direction: "high_bad"
         },
         scenario_count: {
-          label: "Scenario count",
+          label: TEXT.layer_labels.scenario_count,
           kind: "property",
           unit: "count",
           direction: "high_bad"
         },
         tb_incidence_per_100k: {
-          label: "TB incidence",
+          label: TEXT.layer_labels.tb_incidence_per_100k,
           kind: "indicator",
           unit: "per_100k",
           direction: "high_bad"
         },
         tb_mortality_per_100k: {
-          label: "TB mortality",
+          label: TEXT.layer_labels.tb_mortality_per_100k,
           kind: "indicator",
           unit: "per_100k",
           direction: "high_bad"
         },
         cure_proportion: {
-          label: "Cure proportion",
+          label: TEXT.layer_labels.cure_proportion,
           kind: "indicator",
           unit: "percent",
           direction: "low_bad"
         },
         treatment_interruption_proportion: {
-          label: "Treatment interruption proportion",
+          label: TEXT.layer_labels.treatment_interruption_proportion,
           kind: "indicator",
           unit: "percent",
           direction: "high_bad"
         },
         laboratory_confirmation_proportion: {
-          label: "Laboratory confirmation proportion",
+          label: TEXT.layer_labels.laboratory_confirmation_proportion,
           kind: "indicator",
           unit: "percent",
           direction: "low_bad"
@@ -419,10 +783,14 @@
       let mapData = { type: "FeatureCollection", features: [] };
       let municipalityLayer = null;
       let map = null;
+      let selectedTerritoryId = null;
+      const layerByTerritoryId = new Map();
+      const featureByTerritoryId = new Map();
+      const searchIndex = new Map();
 
       if (!window.L) {
-        showMapStatus("Map renderer unavailable. Check access to the Leaflet CDN.");
-        detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Map renderer unavailable.</p>';
+        showMapStatus(TEXT.map_renderer_unavailable);
+        detailPanel.innerHTML = `<h3>${escapeHtml(TEXT.municipality_detail)}</h3><p class="empty">${escapeHtml(TEXT.map_renderer_unavailable)}</p>`;
       } else {
         initMap();
       }
@@ -434,7 +802,7 @@
         });
         map.setView([-5.2, -39.5], 7);
 
-        fetch(`/api/map/municipalities?uf=${encodeURIComponent(MAP_UF)}&year=${MAP_YEAR}`)
+        fetch(`/api/map/municipalities?uf=${encodeURIComponent(MAP_UF)}&year=${MAP_YEAR}&lang=${encodeURIComponent(LANG)}`)
           .then((response) => {
             if (!response.ok) throw new Error(`Map API returned ${response.status}`);
             return response.json();
@@ -445,11 +813,15 @@
               ...layerDefinitions,
               ...((payload.metadata && payload.metadata.layers) || {})
             };
+            indexMapPayload();
             renderMap();
+            renderRanking();
           })
           .catch(() => {
-            showMapStatus("Map data unavailable. Run ingestion and verify cached IBGE Malhas geometry.");
-            detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Map data unavailable.</p>';
+            showMapStatus(TEXT.map_data_unavailable);
+            rankingBody.innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(TEXT.map_data_unavailable)}</td></tr>`;
+            rankingCount.textContent = TEXT.unavailable;
+            detailPanel.innerHTML = `<h3>${escapeHtml(TEXT.municipality_detail)}</h3><p class="empty">${escapeHtml(TEXT.map_data_unavailable)}</p>`;
           });
 
         layerSelect.addEventListener("change", () => {
@@ -460,6 +832,32 @@
             });
           }
         });
+        municipalitySearch.addEventListener("change", searchMunicipality);
+        municipalitySearch.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            searchMunicipality();
+          }
+        });
+        severityFilter.addEventListener("change", renderRanking);
+        dataStatusFilter.addEventListener("change", renderRanking);
+      }
+
+      function indexMapPayload() {
+        municipalityList.innerHTML = "";
+        searchIndex.clear();
+        featureByTerritoryId.clear();
+        mapData.features.forEach((feature) => {
+          const props = feature.properties;
+          featureByTerritoryId.set(props.territory_id, feature);
+          const option = document.createElement("option");
+          option.value = props.name;
+          option.label = props.territory_id;
+          municipalityList.appendChild(option);
+          searchIndex.set(props.name.toLowerCase(), props.territory_id);
+          searchIndex.set(`${props.name.toLowerCase()} ${props.territory_id}`, props.territory_id);
+          searchIndex.set(props.territory_id, props.territory_id);
+        });
       }
 
       function renderMap() {
@@ -468,7 +866,7 @@
           features: mapData.features.filter((feature) => feature.geometry)
         };
         if (!drawable.features.length) {
-          showMapStatus("No municipality geometries available. Run ingestion to cache IBGE Malhas data.");
+          showMapStatus(TEXT.no_geometry);
           return;
         }
         hideMapStatus();
@@ -482,20 +880,23 @@
       }
 
       function bindFeature(feature, layer) {
+        const territoryId = feature.properties.territory_id;
+        layerByTerritoryId.set(territoryId, layer);
         layer.bindTooltip(tooltipText(feature.properties), { sticky: true });
         layer.on({
-          mouseover: () => layer.setStyle({ weight: 2.5, color: "#1d4ed8" }),
-          mouseout: () => municipalityLayer.resetStyle(layer),
-          click: () => loadTerritoryDetail(feature.properties.territory_id)
+          mouseover: () => layer.setStyle({ weight: 2.6, color: "#0f609b" }),
+          mouseout: () => layer.setStyle(styleFeature(feature)),
+          click: () => selectTerritory(territoryId, { focusMap: true })
         });
       }
 
       function styleFeature(feature) {
         const state = layerState(feature.properties);
         const missing = state.value === null;
+        const selected = feature.properties.territory_id === selectedTerritoryId;
         return {
-          color: state.suppressed ? "#6b7280" : "#52606d",
-          weight: state.suppressed ? 1.7 : 0.9,
+          color: selected ? "#0f609b" : (state.suppressed ? "#6b7280" : "#52606d"),
+          weight: selected ? 2.8 : (state.suppressed ? 1.7 : 0.9),
           dashArray: state.suppressed ? "4 3" : "",
           fillColor: missing ? "#d9e2ec" : colorForValue(state.value, layerStats(), state.direction),
           fillOpacity: missing ? 0.45 : 0.78
@@ -548,67 +949,198 @@
         return `${props.name}<br>${label}: ${formatValue(state.value, state.unit, state.suppressed)}`;
       }
 
-      function formatValue(value, unit, suppressed = false) {
-        if (suppressed) return "suppressed";
-        if (value === null || value === undefined || !Number.isFinite(Number(value))) return "missing";
-        const numeric = Number(value);
-        if (unit === "percent") return `${numeric.toFixed(1)}%`;
-        if (unit === "per_100k") return `${numeric.toFixed(1)} per 100k`;
-        if (unit === "count") return String(Math.round(numeric));
-        return numeric.toFixed(2);
+      function selectTerritory(territoryId, options = {}) {
+        selectedTerritoryId = territoryId;
+        highlightRankingRow(territoryId);
+        highlightPolygon(territoryId, options.focusMap !== false);
+        loadTerritoryDetail(territoryId);
+      }
+
+      function highlightRankingRow(territoryId) {
+        document.querySelectorAll("#ranking-body tr").forEach((row) => {
+          row.classList.toggle("selected-row", row.dataset.territoryId === territoryId);
+        });
+        const row = document.querySelector(`#ranking-body tr[data-territory-id="${cssEscape(territoryId)}"]`);
+        if (row) row.scrollIntoView({ block: "nearest" });
+      }
+
+      function highlightPolygon(territoryId, focusMap = true) {
+        if (!municipalityLayer) return;
+        municipalityLayer.eachLayer((layer) => layer.setStyle(styleFeature(layer.feature)));
+        const layer = layerByTerritoryId.get(territoryId);
+        if (!layer) return;
+        layer.bringToFront();
+        layer.setStyle(styleFeature(layer.feature));
+        if (focusMap && layer.getBounds) {
+          map.fitBounds(layer.getBounds(), { padding: [36, 36], maxZoom: 10 });
+        }
+      }
+
+      function searchMunicipality() {
+        const query = municipalitySearch.value.trim().toLowerCase();
+        if (!query) return;
+        const direct = searchIndex.get(query);
+        const matched = direct || [...featureByTerritoryId.values()].find((feature) => {
+          const props = feature.properties;
+          return props.name.toLowerCase().includes(query) || props.territory_id.includes(query);
+        })?.properties.territory_id;
+        if (matched) selectTerritory(matched, { focusMap: true });
+      }
+
+      function renderRanking() {
+        const severityValue = severityFilter.value;
+        const dataStatusValue = dataStatusFilter.value;
+        const rows = mapData.features
+          .map((feature) => feature.properties)
+          .filter((props) => severityMatches(props, severityValue))
+          .filter((props) => !dataStatusValue || props.data_status === dataStatusValue)
+          .sort((a, b) => {
+            if (Number(b.priority_score) !== Number(a.priority_score)) {
+              return Number(b.priority_score) - Number(a.priority_score);
+            }
+            if (Number(b.scenario_count) !== Number(a.scenario_count)) {
+              return Number(b.scenario_count) - Number(a.scenario_count);
+            }
+            return a.name.localeCompare(b.name);
+          });
+
+        rankingCount.textContent = `${rows.length} ${TEXT.municipalities}`;
+        if (!rows.length) {
+          rankingBody.innerHTML = `<tr><td colspan="6" class="empty">${escapeHtml(TEXT.no_ranking_matches)}</td></tr>`;
+          return;
+        }
+        rankingBody.innerHTML = rows.map((props) => rankingRowHtml(props)).join("");
+        rankingBody.querySelectorAll("tr[data-territory-id]").forEach((row) => {
+          row.addEventListener("click", () => selectTerritory(row.dataset.territoryId, { focusMap: true }));
+        });
+        if (selectedTerritoryId) highlightRankingRow(selectedTerritoryId);
+      }
+
+      function rankingRowHtml(props) {
+        const topScenario = (props.top_scenarios || [])[0];
+        const severity = props.top_severity || "none";
+        return `
+          <tr class="clickable-row" data-territory-id="${escapeHtml(props.territory_id)}">
+            <td><strong>${escapeHtml(props.name)}</strong><div class="muted">${escapeHtml(props.territory_id)}</div></td>
+            <td>${formatValue(props.priority_score, "score")}</td>
+            <td>${formatValue(props.scenario_count, "count")}</td>
+            <td><span class="status severity-${escapeHtml(severity)}">${escapeHtml(displaySeverity(severity))}</span></td>
+            <td>${topScenario ? topScenarioHtml(topScenario) : `<span class="empty">${escapeHtml(TEXT.no_scenario)}</span>`}</td>
+            <td><span class="status status-${escapeHtml(props.data_status)}">${escapeHtml(displayStatus(props.data_status))}</span></td>
+          </tr>
+        `;
+      }
+
+      function topScenarioHtml(scenario) {
+        return `
+          <strong>${escapeHtml(scenario.indicator_id)}</strong>
+          <div class="muted">${escapeHtml(scenario.explanation)}</div>
+        `;
+      }
+
+      function displayStatus(status) {
+        return TEXT.status_labels[status] || status;
+      }
+
+      function displaySeverity(severity) {
+        return TEXT.severity_labels[severity || "none"] || severity || TEXT.severity_labels.none;
+      }
+
+      function severityMatches(props, selectedSeverity) {
+        if (!selectedSeverity) return true;
+        if (selectedSeverity === "none") return !props.top_severity;
+        return props.top_severity === selectedSeverity;
       }
 
       function loadTerritoryDetail(territoryId) {
-        detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Loading...</p>';
-        fetch(`/api/territories/${encodeURIComponent(territoryId)}/report?year=${MAP_YEAR}`)
+        detailPanel.innerHTML = `<h3>${escapeHtml(TEXT.municipality_detail)}</h3><p class="empty">${escapeHtml(TEXT.loading)}</p>`;
+        fetch(`/api/territories/${encodeURIComponent(territoryId)}/report?year=${MAP_YEAR}&lang=${encodeURIComponent(LANG)}`)
           .then((response) => {
             if (!response.ok) throw new Error(`Detail API returned ${response.status}`);
             return response.json();
           })
           .then(renderDetail)
           .catch(() => {
-            detailPanel.innerHTML = '<h3>Municipality detail</h3><p class="empty">Detail unavailable.</p>';
+            detailPanel.innerHTML = `<h3>${escapeHtml(TEXT.municipality_detail)}</h3><p class="empty">${escapeHtml(TEXT.detail_unavailable)}</p>`;
           });
       }
 
       function renderDetail(report) {
+        const feature = featureByTerritoryId.get(report.territory_id);
+        const props = feature ? feature.properties : {};
         const indicatorRows = (report.indicators || []).map((row) => `
           <tr>
             <td>${escapeHtml(row.indicator_name)}</td>
             <td>${formatValue(row.value, reportUnit(row), row.is_suppressed)}</td>
-            <td>${escapeHtml(row.caveats)}</td>
+            <td><span class="status-pill">${escapeHtml(valueStatus(row))}</span></td>
+            <td>${escapeHtml(directionLabel(row.direction))}</td>
           </tr>
         `).join("");
         const scenarios = (report.scenarios || []).map((row) =>
-          `<li>${escapeHtml(row.severity)}: ${escapeHtml(row.explanation)}</li>`
+          `<li><strong>${escapeHtml(displaySeverity(row.severity))}</strong>: ${escapeHtml(row.explanation)}</li>`
         ).join("");
         const recommendations = (report.recommendations || []).map((row) =>
-          `<li>${escapeHtml(row.priority)}: ${escapeHtml(row.explanation)}</li>`
+          `<li><strong>${escapeHtml(displaySeverity(row.priority))}</strong>: ${escapeHtml(row.explanation)}</li>`
         ).join("");
+        const caveats = caveatList(report);
         detailPanel.innerHTML = `
           <h3>${escapeHtml(report.territory_name)}</h3>
           <div class="meta">${escapeHtml(report.uf)} ${report.year}</div>
-          <div class="detail-section">
-            <span class="status-pill">public aggregate</span>
+          <div class="badge-row">
+            <span class="badge public">${escapeHtml(TEXT.public_aggregate)}</span>
+            <span class="status status-${escapeHtml(props.data_status || "missing")}">${escapeHtml(displayStatus(props.data_status || "missing"))}</span>
+          </div>
+          <div class="detail-summary" aria-label="${escapeHtml(TEXT.municipality_detail)}">
+            <div class="summary-cell"><span>${escapeHtml(TEXT.priority_score)}</span><strong>${formatValue(props.priority_score, "score")}</strong></div>
+            <div class="summary-cell"><span>${escapeHtml(TEXT.scenarios)}</span><strong>${formatValue(props.scenario_count, "count")}</strong></div>
+            <div class="summary-cell"><span>${escapeHtml(TEXT.top_severity)}</span><strong>${escapeHtml(displaySeverity(props.top_severity || "none"))}</strong></div>
+            <div class="summary-cell"><span>${escapeHtml(TEXT.data_status)}</span><strong>${escapeHtml(displayStatus(props.data_status || "missing"))}</strong></div>
           </div>
           <div class="detail-section">
-            <h4>Indicators</h4>
+            <h4>${escapeHtml(TEXT.why_flagged)}</h4>
+            ${scenarios ? `<ul class="detail-list">${scenarios}</ul>` : `<p class="empty">${escapeHtml(TEXT.no_scenarios_triggered)}</p>`}
+          </div>
+          <div class="detail-section">
+            <h4>${escapeHtml(TEXT.recommended_response)}</h4>
+            ${recommendations ? `<ul class="detail-list">${recommendations}</ul>` : `<p class="empty">${escapeHtml(TEXT.no_recommendations)}</p>`}
+          </div>
+          <div class="detail-section">
+            <h4>${escapeHtml(TEXT.indicators)}</h4>
             ${indicatorRows ? `
               <table class="compact-table">
-                <thead><tr><th>Indicator</th><th>Value</th><th>Caveat</th></tr></thead>
+                <thead><tr><th>${escapeHtml(TEXT.indicator)}</th><th>${escapeHtml(TEXT.value)}</th><th>${escapeHtml(TEXT.status)}</th><th>${escapeHtml(TEXT.direction)}</th></tr></thead>
                 <tbody>${indicatorRows}</tbody>
               </table>
-            ` : '<p class="empty">No indicator values.</p>'}
+            ` : `<p class="empty">${escapeHtml(TEXT.no_indicators)}</p>`}
           </div>
           <div class="detail-section">
-            <h4>Scenarios</h4>
-            ${scenarios ? `<ul class="detail-list">${scenarios}</ul>` : '<p class="empty">No scenarios.</p>'}
-          </div>
-          <div class="detail-section">
-            <h4>Recommendations</h4>
-            ${recommendations ? `<ul class="detail-list">${recommendations}</ul>` : '<p class="empty">No recommendations.</p>'}
+            <h4>${escapeHtml(TEXT.caveats)}</h4>
+            ${caveats.length ? `<ul class="detail-list">${caveats.map((item) => `<li>${escapeHtml(item)}</li>`).join("")}</ul>` : `<p class="empty">${escapeHtml(TEXT.no_caveats)}</p>`}
           </div>
         `;
+      }
+
+      function caveatList(report) {
+        const caveats = new Set((report.indicators || []).map((row) => row.caveats).filter(Boolean));
+        if ((report.indicators || []).some((row) => row.is_suppressed)) {
+          caveats.add(TEXT.suppressed_caveat);
+        }
+        if ((report.indicators || []).some((row) => row.value === null || row.value === undefined)) {
+          caveats.add(TEXT.missing_caveat);
+        }
+        return [...caveats];
+      }
+
+      function valueStatus(row) {
+        if (row.is_suppressed) return TEXT.suppressed;
+        if (row.value === null || row.value === undefined || !Number.isFinite(Number(row.value))) return TEXT.missing;
+        return TEXT.reported;
+      }
+
+      function directionLabel(direction) {
+        if (direction === "high_bad") return TEXT.higher_needs_attention;
+        if (direction === "low_bad") return TEXT.lower_needs_attention;
+        return direction || TEXT.context;
       }
 
       function reportUnit(row) {
@@ -620,6 +1152,16 @@
         return "score";
       }
 
+      function formatValue(value, unit, suppressed = false) {
+        if (suppressed) return TEXT.suppressed;
+        if (value === null || value === undefined || !Number.isFinite(Number(value))) return TEXT.missing;
+        const numeric = Number(value);
+        if (unit === "percent") return `${numeric.toFixed(1)}%`;
+        if (unit === "per_100k") return `${numeric.toFixed(1)} ${TEXT.per_100k}`;
+        if (unit === "count") return String(Math.round(numeric));
+        return numeric.toFixed(2);
+      }
+
       function showMapStatus(message) {
         mapStatus.textContent = message;
         mapStatus.classList.remove("hidden");
@@ -628,6 +1170,11 @@
       function hideMapStatus() {
         mapStatus.textContent = "";
         mapStatus.classList.add("hidden");
+      }
+
+      function cssEscape(value) {
+        if (window.CSS && window.CSS.escape) return window.CSS.escape(value);
+        return String(value).replace(/[^a-zA-Z0-9_-]/g, "\\$&");
       }
 
       function escapeHtml(value) {
