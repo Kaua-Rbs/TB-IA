@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 40" role="img" aria-label="SUS symbol">
+  <text x="4" y="26" fill="#ffffff" font-family="Inter, Arial, sans-serif" font-size="18" font-weight="800" letter-spacing=".7">SUS</text>
+  <path fill="#ffffff" d="M49 5h7v10h8v7h-8v13h-7V22H38v-7h11z"/>
+  <path fill="#bfeee4" d="M43 0h9v8h-9z" opacity=".9"/>
+</svg>
