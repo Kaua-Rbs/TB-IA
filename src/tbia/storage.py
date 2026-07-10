@@ -52,7 +52,7 @@ from tbia.domain.models import (
     Territory,
     TerritoryScenario,
 )
-from tbia.geography import BRAZIL_SCOPE, normalize_geographic_scope
+from tbia.geography import BRAZIL_SCOPE, normalize_geographic_scope, ufs_for_scope
 
 
 class Base(DeclarativeBase):
@@ -95,6 +95,8 @@ class ImportRunRecord(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     row_count: Mapped[int] = mapped_column(Integer, default=0)
     message: Mapped[str] = mapped_column(Text, default="")
+    year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    geographic_scope: Mapped[str | None] = mapped_column(String(2), nullable=True)
 
 
 class TerritoryRecord(Base):
@@ -389,7 +391,31 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 def initialize_database(engine: Engine) -> None:
     Base.metadata.create_all(engine)
+    migrate_import_run_scope_columns(engine)
     migrate_comparison_scope_tables(engine)
+
+
+def migrate_import_run_scope_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if not inspector.has_table(ImportRunRecord.__tablename__):
+        return
+
+    existing_columns = {
+        column["name"] for column in inspector.get_columns(ImportRunRecord.__tablename__)
+    }
+    with engine.begin() as connection:
+        if "year" not in existing_columns:
+            connection.execute(text("ALTER TABLE import_runs ADD COLUMN year INTEGER"))
+        if "geographic_scope" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE import_runs ADD COLUMN geographic_scope VARCHAR(2)")
+            )
+        connection.execute(
+            text(
+                "CREATE INDEX IF NOT EXISTS ix_import_runs_source_year_scope "
+                "ON import_runs (source_id, year, geographic_scope, import_run_id)"
+            )
+        )
 
 
 def migrate_comparison_scope_tables(engine: Engine) -> None:
@@ -482,6 +508,8 @@ def save_import_run(session: Session, import_run: ImportRun) -> None:
             finished_at=import_run.finished_at,
             row_count=import_run.row_count,
             message=import_run.message,
+            year=import_run.year,
+            geographic_scope=import_run.geographic_scope,
         )
     )
 
@@ -1286,6 +1314,22 @@ CORE_PUBLIC_SOURCE_IDS = (
     "sih_sus",
     "cnes",
 )
+TERRITORIAL_PUBLIC_SOURCE_IDS = (
+    "ibge_localidades",
+    "ibge_malhas",
+    "ibge_intramunicipal",
+    "ibge_population",
+    "sinan_tb",
+    "sinan_validation",
+    "sim",
+    "sih_sus",
+    "cnes",
+    "indicator_validation",
+)
+REGIONAL_PUBLIC_SOURCE_IDS = frozenset(
+    {"ibge_localidades", "ibge_malhas", "ibge_population", "sim", "sih_sus", "cnes"}
+)
+INHERITABLE_NATIONAL_SOURCE_IDS = frozenset({"sinan_tb"})
 
 
 def dashboard_context(
@@ -1312,7 +1356,9 @@ def dashboard_context(
         .all()
         if record.territory_id in territories
     ]
-    source_runs = latest_import_runs(session)
+    source_runs = latest_import_runs_for_scope(
+        session, year=year, geographic_scope=geographic_scope
+    )
     ranking = ranking_rows(territories, scenarios)
     geometry_count = sum(1 for territory in territories.values() if territory.geometry is not None)
     return {
@@ -1380,17 +1426,188 @@ def latest_import_runs(session: Session) -> list[dict[str, Any]]:
     for record in session.query(ImportRunRecord).order_by(ImportRunRecord.import_run_id).all():
         runs[record.source_id] = record
     return [
-        {
-            "source_id": source_id,
-            "name": source_by_id[source_id].name if source_id in source_by_id else source_id,
-            "status": run.status,
-            "row_count": run.row_count,
-            "finished_at": run.finished_at.isoformat() if run.finished_at else None,
-            "message": run.message,
-            "caveats": source_by_id[source_id].caveats if source_id in source_by_id else "",
-        }
-        for source_id, run in sorted(runs.items())
+        import_run_api_row(source_id, run, source_by_id) for source_id, run in sorted(runs.items())
     ]
+
+
+def latest_import_runs_for_scope(
+    session: Session,
+    *,
+    year: int,
+    geographic_scope: str,
+) -> list[dict[str, Any]]:
+    scope = normalize_geographic_scope(geographic_scope)
+    source_ids = set(TERRITORIAL_PUBLIC_SOURCE_IDS)
+    source_by_id = {record.source_id: record for record in session.query(DataSourceRecord).all()}
+    latest_by_source_scope: dict[tuple[str, str], ImportRunRecord] = {}
+    records = (
+        session.query(ImportRunRecord)
+        .filter(
+            ImportRunRecord.year == year,
+            ImportRunRecord.source_id.in_(source_ids),
+            ImportRunRecord.geographic_scope.is_not(None),
+        )
+        .order_by(ImportRunRecord.import_run_id)
+        .all()
+    )
+    for record in records:
+        if record.geographic_scope is not None:
+            latest_by_source_scope[(record.source_id, record.geographic_scope)] = record
+
+    rows: list[dict[str, Any]] = []
+    for source_id in TERRITORIAL_PUBLIC_SOURCE_IDS:
+        row = scoped_import_run_row(source_id, year, scope, latest_by_source_scope, source_by_id)
+        if row is not None:
+            rows.append(row)
+    return rows
+
+
+def scoped_import_run_row(
+    source_id: str,
+    year: int,
+    geographic_scope: str,
+    latest_by_source_scope: dict[tuple[str, str], ImportRunRecord],
+    source_by_id: dict[str, DataSourceRecord],
+) -> dict[str, Any] | None:
+    exact_run = latest_by_source_scope.get((source_id, geographic_scope))
+    if geographic_scope != BRAZIL_SCOPE:
+        return regional_import_run_row(
+            source_id,
+            year,
+            geographic_scope,
+            exact_run,
+            latest_by_source_scope,
+            source_by_id,
+        )
+
+    if source_id not in REGIONAL_PUBLIC_SOURCE_IDS:
+        return (
+            import_run_api_row(source_id, exact_run, source_by_id)
+            if exact_run is not None
+            else None
+        )
+
+    component_runs = {
+        uf: run
+        for uf in ufs_for_scope(BRAZIL_SCOPE)
+        if (run := latest_by_source_scope.get((source_id, uf))) is not None
+    }
+    latest_component_id = max((run.import_run_id for run in component_runs.values()), default=-1)
+    if exact_run is not None and exact_run.import_run_id > latest_component_id:
+        return import_run_api_row(source_id, exact_run, source_by_id)
+    if component_runs:
+        return national_import_run_row(source_id, year, component_runs, source_by_id)
+    if exact_run is not None:
+        return import_run_api_row(source_id, exact_run, source_by_id)
+    return None
+
+
+def regional_import_run_row(
+    source_id: str,
+    year: int,
+    geographic_scope: str,
+    exact_run: ImportRunRecord | None,
+    latest_by_source_scope: dict[tuple[str, str], ImportRunRecord],
+    source_by_id: dict[str, DataSourceRecord],
+) -> dict[str, Any] | None:
+    if exact_run is not None:
+        return import_run_api_row(source_id, exact_run, source_by_id)
+    if source_id not in INHERITABLE_NATIONAL_SOURCE_IDS:
+        return None
+
+    national_run = latest_by_source_scope.get((source_id, BRAZIL_SCOPE))
+    if national_run is None:
+        return None
+    row = import_run_api_row(source_id, national_run, source_by_id, scope_inherited=True)
+    row["message"] = (
+        f"Brazil-wide source run used for {geographic_scope}/{year}; {national_run.message}"
+    )
+    return row
+
+
+def national_import_run_row(
+    source_id: str,
+    year: int,
+    component_runs: dict[str, ImportRunRecord],
+    source_by_id: dict[str, DataSourceRecord],
+) -> dict[str, Any]:
+    expected_ufs = ufs_for_scope(BRAZIL_SCOPE)
+    success_ufs = sorted(uf for uf, run in component_runs.items() if run.status == "success")
+    failed_ufs = sorted(uf for uf, run in component_runs.items() if run.status == "failed")
+    skipped_ufs = sorted(uf for uf, run in component_runs.items() if run.status == "skipped")
+    other_ufs = sorted(
+        uf
+        for uf, run in component_runs.items()
+        if run.status not in {"success", "failed", "skipped"}
+    )
+    missing_ufs = sorted(set(expected_ufs) - set(component_runs))
+
+    if failed_ufs:
+        status = "failed"
+    elif len(success_ufs) == len(expected_ufs):
+        status = "success"
+    elif not success_ufs and len(skipped_ufs) == len(expected_ufs):
+        status = "skipped"
+    else:
+        status = "partial"
+
+    source = source_by_id.get(source_id)
+    message = (
+        f"national component summary for {year}: {len(success_ufs)} success, "
+        f"{len(failed_ufs)} failed, {len(skipped_ufs)} skipped, "
+        f"{len(other_ufs)} other, {len(missing_ufs)} missing"
+    )
+    gaps = [
+        f"{label}={','.join(values)}"
+        for label, values in (
+            ("failed", failed_ufs),
+            ("skipped", skipped_ufs),
+            ("other", other_ufs),
+            ("missing", missing_ufs),
+        )
+        if values
+    ]
+    if gaps:
+        message = f"{message}; {'; '.join(gaps)}"
+
+    finished_at = max(
+        (run.finished_at for run in component_runs.values() if run.finished_at is not None),
+        default=None,
+    )
+    return {
+        "source_id": source_id,
+        "name": source.name if source is not None else source_id,
+        "status": status,
+        "row_count": sum(run.row_count for run in component_runs.values()),
+        "finished_at": finished_at.isoformat() if finished_at is not None else None,
+        "message": message,
+        "caveats": source.caveats if source is not None else "",
+        "year": year,
+        "geographic_scope": BRAZIL_SCOPE,
+        "scope_inherited": False,
+    }
+
+
+def import_run_api_row(
+    source_id: str,
+    run: ImportRunRecord,
+    source_by_id: dict[str, DataSourceRecord],
+    *,
+    scope_inherited: bool = False,
+) -> dict[str, Any]:
+    source = source_by_id.get(source_id)
+    return {
+        "source_id": source_id,
+        "name": source.name if source is not None else source_id,
+        "status": run.status,
+        "row_count": run.row_count,
+        "finished_at": run.finished_at.isoformat() if run.finished_at else None,
+        "message": run.message,
+        "caveats": source.caveats if source is not None else "",
+        "year": run.year,
+        "geographic_scope": run.geographic_scope,
+        "scope_inherited": scope_inherited,
+    }
 
 
 def ranking_rows(

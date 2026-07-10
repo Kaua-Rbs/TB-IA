@@ -18,6 +18,7 @@ from tbia.storage import (
     create_engine_for_url,
     create_session_factory,
     initialize_database,
+    latest_import_runs,
     load_local_tb_cases,
     load_operational_alerts,
     mvp2_summary,
@@ -37,12 +38,16 @@ def test_mvp2_storage_and_api_expose_operational_alerts_without_patient_pseudony
         cases = load_local_tb_cases(session, 2023)
         alerts = load_operational_alerts(session, 2023)
         summary = mvp2_summary(session, 2023)
+        import_runs = latest_import_runs(session)
     engine.dispose()
 
     assert len(cases) == 3
     assert len(alerts) >= 4
     assert summary["alert_count"] == len(alerts)
     assert summary["open_alert_count"] == len(alerts)
+    assert import_runs
+    assert all(run["year"] == 2023 for run in import_runs)
+    assert all(run["geographic_scope"] is None for run in import_runs)
     monkeypatch.setattr(web_app, "FRONTEND_DIST_DIR", tmp_path / "missing-dist")
 
     with TestClient(create_app(database_url)) as client:

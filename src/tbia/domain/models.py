@@ -63,6 +63,8 @@ class ImportRun:
     finished_at: datetime | None = None
     row_count: int = 0
     message: str = ""
+    year: int | None = None
+    geographic_scope: str | None = None
 
 
 @dataclass(frozen=True)

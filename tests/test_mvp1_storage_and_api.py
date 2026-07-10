@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from fastapi.testclient import TestClient
+from sqlalchemy import inspect, text
 
 from tbia.domain.models import (
     CaseAggregate,
     Facility,
+    ImportRun,
     IndicatorValue,
     MortalityAggregate,
     PopulationDenominator,
@@ -24,10 +27,12 @@ from tbia.storage import (
     create_session_factory,
     dashboard_context,
     initialize_database,
+    latest_import_runs_for_scope,
     load_cases,
     load_territories,
     save_case_aggregates,
     save_facilities,
+    save_import_run,
     save_indicator_values,
     save_mortalities,
     save_populations,
@@ -97,6 +102,99 @@ def test_storage_pipeline_persists_dashboard_context(tmp_path: Path) -> None:
         territories = load_territories(session, "CE")
     engine.dispose()
     assert all(territory.geometry is not None for territory in territories)
+
+
+def test_import_run_readiness_is_scoped_by_year_and_geography(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    timestamp = datetime(2023, 12, 31, tzinfo=UTC)
+    with session_factory() as session:
+        seed_reference_data(session)
+        runs = [
+            ImportRun("sim", "success", timestamp, timestamp, 99, "legacy"),
+            ImportRun("sinan_tb", "success", timestamp, timestamp, 100, "national", 2023, "BR"),
+            ImportRun("cnes", "failed", timestamp, timestamp, 1, "older", 2023, "CE"),
+            ImportRun("cnes", "success", timestamp, timestamp, 3, "current", 2023, "CE"),
+            ImportRun("cnes", "failed", timestamp, timestamp, 2, "offline", 2023, "PE"),
+            ImportRun(
+                "indicator_validation",
+                "success",
+                timestamp,
+                timestamp,
+                10,
+                "validated",
+                2023,
+                "CE",
+            ),
+            ImportRun("cnes", "failed", timestamp, timestamp, 4, "prior year", 2022, "CE"),
+        ]
+        for run in runs:
+            save_import_run(session, run)
+        session.commit()
+
+        ce_rows = {
+            row["source_id"]: row
+            for row in latest_import_runs_for_scope(session, year=2023, geographic_scope="ce")
+        }
+        pe_rows = {
+            row["source_id"]: row
+            for row in latest_import_runs_for_scope(session, year=2023, geographic_scope="PE")
+        }
+        prior_year_rows = {
+            row["source_id"]: row
+            for row in latest_import_runs_for_scope(session, year=2022, geographic_scope="CE")
+        }
+        national_rows = {
+            row["source_id"]: row
+            for row in latest_import_runs_for_scope(session, year=2023, geographic_scope="BR")
+        }
+    engine.dispose()
+
+    assert ce_rows["cnes"]["status"] == "success"
+    assert ce_rows["cnes"]["row_count"] == 3
+    assert ce_rows["cnes"]["geographic_scope"] == "CE"
+    assert ce_rows["sinan_tb"]["geographic_scope"] == "BR"
+    assert ce_rows["sinan_tb"]["scope_inherited"] is True
+    assert ce_rows["indicator_validation"]["scope_inherited"] is False
+    assert "sim" not in ce_rows
+    assert "indicator_validation" not in pe_rows
+    assert pe_rows["cnes"]["status"] == "failed"
+    assert prior_year_rows["cnes"]["message"] == "prior year"
+    assert national_rows["cnes"]["status"] == "failed"
+    assert national_rows["cnes"]["row_count"] == 5
+    assert national_rows["cnes"]["geographic_scope"] == "BR"
+    assert "failed=PE" in national_rows["cnes"]["message"]
+    assert "missing=" in national_rows["cnes"]["message"]
+
+
+def test_initialize_database_migrates_legacy_import_run_scope_columns(tmp_path: Path) -> None:
+    engine = create_engine_for_url(f"sqlite:///{tmp_path / 'legacy.db'}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE TABLE import_runs ("
+                "import_run_id INTEGER PRIMARY KEY AUTOINCREMENT, "
+                "source_id VARCHAR(64) NOT NULL, "
+                "status VARCHAR(32) NOT NULL, "
+                "started_at DATETIME NOT NULL, "
+                "finished_at DATETIME, "
+                "row_count INTEGER NOT NULL DEFAULT 0, "
+                "message TEXT NOT NULL DEFAULT ''"
+                ")"
+            )
+        )
+
+    initialize_database(engine)
+
+    database_inspector = inspect(engine)
+    column_names = {column["name"] for column in database_inspector.get_columns("import_runs")}
+    index_names = {index["name"] for index in database_inspector.get_indexes("import_runs")}
+    engine.dispose()
+
+    assert {"year", "geographic_scope"} <= column_names
+    assert "ix_import_runs_source_year_scope" in index_names
 
 
 def test_national_and_uf_scenario_scopes_coexist(tmp_path: Path) -> None:

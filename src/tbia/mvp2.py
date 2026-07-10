@@ -66,6 +66,7 @@ def ingest_local_data(session: Session, config: Mvp2Config) -> dict[str, int]:
     counts = {
         "local_territories": load_local_source(
             session,
+            config.year,
             "local_territories",
             config.csv_path("local_territories.csv"),
             read_local_territories_csv,
@@ -73,6 +74,7 @@ def ingest_local_data(session: Session, config: Mvp2Config) -> dict[str, int]:
         ),
         "local_teams": load_local_source(
             session,
+            config.year,
             "local_teams",
             config.csv_path("local_teams.csv"),
             read_local_teams_csv,
@@ -80,6 +82,7 @@ def ingest_local_data(session: Session, config: Mvp2Config) -> dict[str, int]:
         ),
         "local_tb_cases": load_local_source(
             session,
+            config.year,
             "local_tb_cases",
             config.csv_path("local_tb_cases.csv"),
             lambda path: read_local_tb_cases_csv(path, config.year),
@@ -87,6 +90,7 @@ def ingest_local_data(session: Session, config: Mvp2Config) -> dict[str, int]:
         ),
         "local_lab_events": load_local_source(
             session,
+            config.year,
             "local_lab_events",
             config.csv_path("local_lab_events.csv"),
             lambda path: read_local_lab_events_csv(path, config.year),
@@ -94,6 +98,7 @@ def ingest_local_data(session: Session, config: Mvp2Config) -> dict[str, int]:
         ),
         "local_pharmacy_dispensing": load_local_source(
             session,
+            config.year,
             "local_pharmacy_dispensing",
             config.csv_path("local_pharmacy_dispensing.csv"),
             lambda path: read_local_pharmacy_dispensing_csv(path, config.year),
@@ -101,6 +106,7 @@ def ingest_local_data(session: Session, config: Mvp2Config) -> dict[str, int]:
         ),
         "local_contacts": load_local_source(
             session,
+            config.year,
             "local_contacts",
             config.csv_path("local_contacts.csv"),
             lambda path: read_local_contacts_csv(path, config.year),
@@ -108,6 +114,7 @@ def ingest_local_data(session: Session, config: Mvp2Config) -> dict[str, int]:
         ),
         "local_resources": load_local_source(
             session,
+            config.year,
             "local_resources",
             config.csv_path("local_resources.csv"),
             lambda path: read_local_resources_csv(path, config.year),
@@ -119,6 +126,7 @@ def ingest_local_data(session: Session, config: Mvp2Config) -> dict[str, int]:
 
 def load_local_source(
     session: Session,
+    year: int,
     source_id: str,
     path: Path,
     reader: Callable[[Path], Sequence[T]],
@@ -136,6 +144,7 @@ def load_local_source(
             finished_at=datetime.now(UTC),
             row_count=len(rows),
             message=f"loaded MVP2 local CSV: {path}",
+            year=year,
         ),
     )
     return len(rows)
@@ -164,6 +173,7 @@ def build_and_store_operational_alerts(
             finished_at=datetime.now(UTC),
             row_count=len(alerts),
             message=f"generated MVP2 operational alerts for reference date {reference_date}",
+            year=config.year,
         ),
     )
     return len(alerts)

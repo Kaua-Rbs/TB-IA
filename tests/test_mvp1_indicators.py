@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from tbia.domain.indicator_validation import build_indicator_validation_report
+from pathlib import Path
+
+from tbia.domain.indicator_validation import (
+    build_indicator_validation_report,
+    write_indicator_validation_report,
+)
 from tbia.domain.indicators import MANDATORY_INDICATOR_IDS, compute_indicator_values
 from tbia.domain.models import CaseAggregate, MortalityAggregate, PopulationDenominator
 
@@ -82,7 +87,7 @@ def test_bounded_proportion_with_numerator_above_denominator_is_suppressed() -> 
     assert "numerator exceeds denominator" in hiv_testing.caveats
 
 
-def test_indicator_validation_report_flags_invalid_bounded_proportion() -> None:
+def test_indicator_validation_report_flags_invalid_bounded_proportion(tmp_path: Path) -> None:
     values = compute_indicator_values(
         populations=[PopulationDenominator("2304400", 2023, 1_000_000, "ibge_population")],
         cases=[
@@ -100,11 +105,15 @@ def test_indicator_validation_report_flags_invalid_bounded_proportion() -> None:
     )
 
     hiv_testing = next(value for value in values if value.indicator_id == "hiv_testing_proportion")
-    report = build_indicator_validation_report([hiv_testing], year=2023)
+    report = build_indicator_validation_report([hiv_testing], year=2023, geographic_scope="CE")
 
     assert report["status"] == "failed"
+    assert report["scope"] == {"year": 2023, "geographic_scope": "CE"}
     assert report["violation_count"] == 1
     assert report["violations"][0]["check"] == "bounded_proportion_numerator_exceeds_denominator"
+    assert write_indicator_validation_report(report, tmp_path).name == (
+        "indicator_validation_ce_2023.json"
+    )
 
 
 def test_indicator_validation_report_treats_zero_over_zero_as_warning() -> None:
@@ -117,7 +126,7 @@ def test_indicator_validation_report_treats_zero_over_zero_as_warning() -> None:
     )
     cure = next(value for value in values if value.indicator_id == "cure_proportion")
 
-    report = build_indicator_validation_report([cure], year=2023)
+    report = build_indicator_validation_report([cure], year=2023, geographic_scope="CE")
 
     assert report["status"] == "success"
     assert report["violation_count"] == 0

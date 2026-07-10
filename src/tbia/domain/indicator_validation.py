@@ -17,6 +17,7 @@ def build_indicator_validation_report(
     values: Iterable[IndicatorValue],
     *,
     year: int,
+    geographic_scope: str,
     generated_at: datetime | None = None,
 ) -> dict[str, Any]:
     records = list(values)
@@ -26,7 +27,7 @@ def build_indicator_validation_report(
     return {
         "status": REPORT_STATUS_FAILED if violations else REPORT_STATUS_CLEAN,
         "generated_at": timestamp.isoformat(),
-        "scope": {"year": year},
+        "scope": {"year": year, "geographic_scope": geographic_scope},
         "indicator_count": len(records),
         "violation_count": len(violations),
         "warning_count": len(warnings),
@@ -86,6 +87,7 @@ def violation_row(value: IndicatorValue, check: str) -> dict[str, Any]:
 def write_indicator_validation_report(report: dict[str, Any], output_dir: Path) -> Path:
     output_dir.mkdir(parents=True, exist_ok=True)
     year = report["scope"]["year"]
-    output_path = output_dir / f"indicator_validation_{year}.json"
+    scope_slug = str(report["scope"]["geographic_scope"]).lower()
+    output_path = output_dir / f"indicator_validation_{scope_slug}_{year}.json"
     output_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")
     return output_path

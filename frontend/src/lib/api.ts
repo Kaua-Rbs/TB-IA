@@ -99,6 +99,9 @@ export interface SourceRow {
   finished_at: string | null;
   message: string;
   caveats: string;
+  year: number | null;
+  geographic_scope: string | null;
+  scope_inherited: boolean;
 }
 
 export interface TerritorialContext {

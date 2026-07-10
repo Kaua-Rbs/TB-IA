@@ -123,6 +123,28 @@ class Mvp1Config:
         return self.manual_dir / filename
 
 
+def public_import_run(
+    config: Mvp1Config,
+    *,
+    source_id: str,
+    status: str,
+    started_at: datetime,
+    finished_at: datetime | None = None,
+    row_count: int = 0,
+    message: str = "",
+) -> ImportRun:
+    return ImportRun(
+        source_id=source_id,
+        status=status,
+        started_at=started_at,
+        finished_at=finished_at,
+        row_count=row_count,
+        message=message,
+        year=config.year,
+        geographic_scope=config.uf,
+    )
+
+
 def seed_reference_data(session: Session) -> None:
     save_data_sources(session, (contract.as_data_source() for contract in SOURCE_CONTRACTS))
     save_indicator_definitions(session, INDICATOR_DEFINITIONS)
@@ -180,7 +202,8 @@ def ingest_ibge_territories(session: Session, config: Mvp1Config) -> None:
         save_territories(session, territories)
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="ibge_localidades",
                 status="success",
                 started_at=started_at,
@@ -192,7 +215,8 @@ def ingest_ibge_territories(session: Session, config: Mvp1Config) -> None:
     except Exception as exc:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="ibge_localidades",
                 status="failed",
                 started_at=started_at,
@@ -208,7 +232,8 @@ def ingest_ibge_malhas_geometries(session: Session, config: Mvp1Config) -> None:
     if not territories:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="ibge_malhas",
                 status="skipped",
                 started_at=started_at,
@@ -228,7 +253,8 @@ def ingest_ibge_malhas_geometries(session: Session, config: Mvp1Config) -> None:
         save_territories(session, territories_with_geometry)
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="ibge_malhas",
                 status="success",
                 started_at=started_at,
@@ -240,7 +266,8 @@ def ingest_ibge_malhas_geometries(session: Session, config: Mvp1Config) -> None:
     except Exception as exc:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="ibge_malhas",
                 status="failed",
                 started_at=started_at,
@@ -256,7 +283,8 @@ def ingest_public_subterritory_geometries(session: Session, config: Mvp1Config) 
     if not paths:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="ibge_intramunicipal",
                 status="skipped",
                 started_at=started_at,
@@ -278,7 +306,8 @@ def ingest_public_subterritory_geometries(session: Session, config: Mvp1Config) 
         save_territories(session, territories)
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="ibge_intramunicipal",
                 status="success" if territories else "skipped",
                 started_at=started_at,
@@ -290,7 +319,8 @@ def ingest_public_subterritory_geometries(session: Session, config: Mvp1Config) 
     except Exception as exc:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="ibge_intramunicipal",
                 status="failed",
                 started_at=started_at,
@@ -347,7 +377,8 @@ def ingest_ibge_population(session: Session, config: Mvp1Config) -> bool:
     except Exception as exc:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="ibge_population",
                 status="failed",
                 started_at=started_at,
@@ -360,7 +391,8 @@ def ingest_ibge_population(session: Session, config: Mvp1Config) -> bool:
     if not populations:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="ibge_population",
                 status="skipped",
                 started_at=started_at,
@@ -373,7 +405,8 @@ def ingest_ibge_population(session: Session, config: Mvp1Config) -> bool:
     save_populations(session, populations)
     save_import_run(
         session,
-        ImportRun(
+        public_import_run(
+            config,
             source_id="ibge_population",
             status="success",
             started_at=started_at,
@@ -467,6 +500,7 @@ def ingest_brazil_datasus_public_samples(session: Session, config: Mvp1Config) -
     municipality_map = build_datasus_municipality_map(territories)
     if load_datasus_source(
         session,
+        config,
         source_id="sinan_tb",
         paths=datasus_source_candidates(config, "sinan_tb"),
         transform=lambda records: transform_sinan_tb_records(
@@ -496,6 +530,7 @@ def ingest_uf_regional_datasus_public_samples(session: Session, config: Mvp1Conf
 
     if load_datasus_source(
         session,
+        config,
         source_id="sim",
         paths=datasus_source_candidates(config, "sim"),
         transform=lambda records: transform_sim_records(
@@ -509,6 +544,7 @@ def ingest_uf_regional_datasus_public_samples(session: Session, config: Mvp1Conf
 
     if load_datasus_source(
         session,
+        config,
         source_id="sih_sus",
         paths=datasus_source_candidates(config, "sih_sus"),
         transform=lambda records: transform_sih_records(
@@ -522,6 +558,7 @@ def ingest_uf_regional_datasus_public_samples(session: Session, config: Mvp1Conf
 
     if load_datasus_source(
         session,
+        config,
         source_id="cnes",
         paths=datasus_source_candidates(config, "cnes"),
         transform=lambda records: transform_cnes_records(records, municipality_map),
@@ -541,6 +578,7 @@ def ingest_uf_datasus_public_samples(session: Session, config: Mvp1Config) -> se
 
     if load_datasus_source(
         session,
+        config,
         source_id="sinan_tb",
         paths=datasus_source_candidates(config, "sinan_tb"),
         transform=lambda records: transform_sinan_tb_records(
@@ -556,6 +594,7 @@ def ingest_uf_datasus_public_samples(session: Session, config: Mvp1Config) -> se
 
     if load_datasus_source(
         session,
+        config,
         source_id="sim",
         paths=datasus_source_candidates(config, "sim"),
         transform=lambda records: transform_sim_records(
@@ -569,6 +608,7 @@ def ingest_uf_datasus_public_samples(session: Session, config: Mvp1Config) -> se
 
     if load_datasus_source(
         session,
+        config,
         source_id="sih_sus",
         paths=datasus_source_candidates(config, "sih_sus"),
         transform=lambda records: transform_sih_records(
@@ -582,6 +622,7 @@ def ingest_uf_datasus_public_samples(session: Session, config: Mvp1Config) -> se
 
     if load_datasus_source(
         session,
+        config,
         source_id="cnes",
         paths=datasus_source_candidates(config, "cnes"),
         transform=lambda records: transform_cnes_records(records, municipality_map),
@@ -630,6 +671,7 @@ def select_existing_datasus_paths(paths: Sequence[Path]) -> list[Path]:
 
 def load_datasus_source(
     session: Session,
+    config: Mvp1Config,
     *,
     source_id: str,
     paths: Sequence[Path],
@@ -641,7 +683,8 @@ def load_datasus_source(
     if not existing_paths:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id=source_id,
                 status="skipped",
                 started_at=started_at,
@@ -657,7 +700,8 @@ def load_datasus_source(
         if not rows:
             save_import_run(
                 session,
-                ImportRun(
+                public_import_run(
+                    config,
                     source_id=source_id,
                     status="skipped",
                     started_at=started_at,
@@ -671,7 +715,8 @@ def load_datasus_source(
         saver(session, rows)
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id=source_id,
                 status="success",
                 started_at=started_at,
@@ -684,7 +729,8 @@ def load_datasus_source(
     except Exception as exc:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id=source_id,
                 status="failed",
                 started_at=started_at,
@@ -717,7 +763,8 @@ def record_sinan_validation_report(session: Session, config: Mvp1Config) -> None
     except FileNotFoundError as exc:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="sinan_validation",
                 status="skipped",
                 started_at=started_at,
@@ -728,7 +775,8 @@ def record_sinan_validation_report(session: Session, config: Mvp1Config) -> None
     except Exception as exc:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="sinan_validation",
                 status="failed",
                 started_at=started_at,
@@ -739,7 +787,8 @@ def record_sinan_validation_report(session: Session, config: Mvp1Config) -> None
     else:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="sinan_validation",
                 status="success",
                 started_at=started_at,
@@ -821,7 +870,8 @@ def load_optional_csv_source(
     if not path.exists():
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id=source_id,
                 status="skipped",
                 started_at=started_at,
@@ -835,7 +885,8 @@ def load_optional_csv_source(
     saver(session, rows)
     save_import_run(
         session,
-        ImportRun(
+        public_import_run(
+            config,
             source_id=source_id,
             status="success",
             started_at=started_at,
@@ -876,12 +927,15 @@ def record_indicator_validation_report(
 ) -> None:
     started_at = datetime.now(UTC)
     try:
-        report = build_indicator_validation_report(values, year=config.year)
+        report = build_indicator_validation_report(
+            values, year=config.year, geographic_scope=config.uf
+        )
         output_path = write_indicator_validation_report(report, config.validation_dir)
     except Exception as exc:
         save_import_run(
             session,
-            ImportRun(
+            public_import_run(
+                config,
                 source_id="indicator_validation",
                 status="failed",
                 started_at=started_at,
@@ -900,7 +954,8 @@ def record_indicator_validation_report(
         message = f"{message}; {warning_count} warning(s) found"
     save_import_run(
         session,
-        ImportRun(
+        public_import_run(
+            config,
             source_id="indicator_validation",
             status=str(report["status"]),
             started_at=started_at,
