@@ -15,12 +15,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
-from tbia.ingest.datasus import datasus_demo_files, download_datasus_file
-from tbia.pipeline import (
-    Mvp1Config,
-    build_and_store_scenarios,
-    compute_and_store_indicators,
-    ingest_public_data,
+from tbia.pipeline import Mvp1Config
+from tbia.preparation import (
+    TERRITORIAL_PREPARATION_STEP_COUNT,
+    prepare_territorial_data,
+    territorial_preparation_completion_message,
 )
 from tbia.storage import (
     api_indicator_rows,
@@ -57,8 +56,7 @@ FRONTEND_DIST_DIR = PROJECT_ROOT / "frontend" / "dist"
 FRONTEND_STATIC_PATH = "/static/app"
 templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 SessionProvider = Callable[[], Session]
-ProgressCallback = Callable[[dict[str, Any]], None]
-TERRITORIAL_LOAD_STEP_COUNT = 5
+TERRITORIAL_LOAD_STEP_COUNT = TERRITORIAL_PREPARATION_STEP_COUNT
 TERRITORIAL_LOAD_TERMINAL_STATUSES = {"complete", "failed"}
 TERRITORIAL_LOAD_JOBS: dict[str, TerritorialLoadJob] = {}
 TERRITORIAL_LOAD_LOCK = Lock()
@@ -226,116 +224,6 @@ def frontend_spa_response() -> FileResponse | None:
     return FileResponse(index_file)
 
 
-def report_datasus_download_progress(
-    progress: ProgressCallback | None,
-    *,
-    index: int,
-    total: int,
-    status: str,
-    label: str,
-) -> None:
-    if progress is None:
-        return
-    status_messages = {
-        "existing": "já disponível",
-        "downloading": "baixando",
-        "downloaded": "baixado",
-        "failed": "falhou",
-    }
-    progress(
-        {
-            "index": index,
-            "total": total,
-            "status": status,
-            "label": label,
-            "message": f"{index}/{total} {status_messages[status]}: {label}",
-        }
-    )
-
-
-def download_missing_datasus_files(
-    config: Mvp1Config,
-    *,
-    sih_all_months: bool = False,
-    timeout: int = 60,
-    progress: ProgressCallback | None = None,
-) -> dict[str, Any]:
-    sih_months = tuple(range(1, 13)) if sih_all_months else (1,)
-    files = datasus_demo_files(config.uf, config.year, sih_months=sih_months)
-    result: dict[str, Any] = {
-        "requested_file_count": len(files),
-        "downloaded_file_count": 0,
-        "existing_file_count": 0,
-        "failed_file_count": 0,
-        "failures": [],
-        "sih_all_months": sih_all_months,
-    }
-    failures = cast(list[dict[str, str]], result["failures"])
-    for index, file in enumerate(files, start=1):
-        output_path = config.datasus_sample_dir / file.local_name
-        if output_path.exists():
-            result["existing_file_count"] = int(result["existing_file_count"]) + 1
-            report_datasus_download_progress(
-                progress,
-                index=index,
-                total=len(files),
-                status="existing",
-                label=file.label,
-            )
-            continue
-
-        report_datasus_download_progress(
-            progress,
-            index=index,
-            total=len(files),
-            status="downloading",
-            label=file.label,
-        )
-        try:
-            download_datasus_file(file, config.datasus_sample_dir, timeout=timeout)
-        except Exception as exc:
-            result["failed_file_count"] = int(result["failed_file_count"]) + 1
-            report_datasus_download_progress(
-                progress,
-                index=index,
-                total=len(files),
-                status="failed",
-                label=file.label,
-            )
-            failures.append(
-                {
-                    "source_id": file.source_id,
-                    "label": file.label,
-                    "url": file.ftp_url,
-                    "message": str(exc),
-                }
-            )
-        else:
-            result["downloaded_file_count"] = int(result["downloaded_file_count"]) + 1
-            report_datasus_download_progress(
-                progress,
-                index=index,
-                total=len(files),
-                status="downloaded",
-                label=file.label,
-            )
-    return result
-
-
-def territorial_load_status(
-    download_result: dict[str, Any], indicator_count: int, scenario_count: int
-) -> str:
-    if int(download_result["failed_file_count"]) and indicator_count == 0:
-        return "failed"
-    if int(download_result["failed_file_count"]):
-        return "warning"
-    if indicator_count and scenario_count:
-        return "ready"
-    if indicator_count:
-        return "partial"
-    return "missing"
-
-
 def utc_now_text() -> str:
     return datetime.now(UTC).isoformat()
 
@@ -418,66 +306,43 @@ def run_territorial_load_job(
         message="Verificando e baixando arquivos públicos DATASUS necessários.",
     )
 
-    def update_download_progress(event: dict[str, Any]) -> None:
-        update_territorial_load_job(
-            job_id,
-            stage="download",
-            step_index=1,
-            message=str(event["message"]),
-        )
+    def update_progress(event: dict[str, Any]) -> None:
+        updates = {
+            key: event[key]
+            for key in (
+                "stage",
+                "step_index",
+                "message",
+                "download",
+                "indicator_count",
+                "scenario_count",
+                "recommendation_count",
+                "result_status",
+            )
+            if key in event
+        }
+        update_territorial_load_job(job_id, **updates)
 
     try:
-        download_result = download_missing_datasus_files(
+        result = prepare_territorial_data(
+            session_factory,
             config,
             sih_all_months=sih_all_months,
             timeout=timeout,
-            progress=update_download_progress,
+            progress=update_progress,
         )
-        update_territorial_load_job(
-            job_id,
-            download=download_result,
-            stage="ingest",
-            step_index=2,
-            message=(
-                "Ingerindo fontes públicas e atualizando território, população, "
-                "geometria e agregados."
-            ),
-        )
-        with session_factory() as session:
-            ingest_public_data(session, config)
-            session.commit()
-
-            update_territorial_load_job(
-                job_id,
-                stage="indicators",
-                step_index=3,
-                message="Calculando indicadores municipais de TB para o ano selecionado.",
-            )
-            indicator_count = compute_and_store_indicators(session, config)
-            session.commit()
-
-            update_territorial_load_job(
-                job_id,
-                stage="scenarios",
-                step_index=4,
-                indicator_count=indicator_count,
-                message="Gerando cenários, ranking e recomendações transparentes.",
-            )
-            scenario_count, recommendation_count = build_and_store_scenarios(session, config)
-            session.commit()
-
-        result_status = territorial_load_status(download_result, indicator_count, scenario_count)
-        status = "failed" if result_status == "failed" else "complete"
+        status = "failed" if result.result_status == "failed" else "complete"
         update_territorial_load_job(
             job_id,
             status=status,
-            result_status=result_status,
+            result_status=result.result_status,
             stage="complete" if status == "complete" else "failed",
             step_index=TERRITORIAL_LOAD_STEP_COUNT,
-            indicator_count=indicator_count,
-            scenario_count=scenario_count,
-            recommendation_count=recommendation_count,
-            message=territorial_load_completion_message(result_status),
+            download=result.download,
+            indicator_count=result.indicator_count,
+            scenario_count=result.scenario_count,
+            recommendation_count=result.recommendation_count,
+            message=territorial_preparation_completion_message(result.result_status),
         )
     except Exception as exc:
         update_territorial_load_job(
@@ -488,20 +353,6 @@ def run_territorial_load_job(
             error=str(exc),
             message="A carga foi interrompida por erro. Consulte o detalhe técnico do job.",
         )
-
-
-def territorial_load_completion_message(result_status: str) -> str:
-    if result_status == "ready":
-        return "Carga concluída; indicadores e cenários foram atualizados."
-    if result_status == "warning":
-        return "Carga concluída com falhas em algumas fontes; confira a prontidão dos dados."
-    if result_status == "partial":
-        return (
-            "Carga parcial; indicadores foram gerados, mas cenários ainda exigem revisão dos dados."
-        )
-    if result_status == "missing":
-        return "Carga executada, mas não foram produzidos indicadores para o ano selecionado."
-    return "Carga automática não concluiu dados utilizáveis para o ano selecionado."
 
 
 def territory_report_or_404(

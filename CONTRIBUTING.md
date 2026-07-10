@@ -69,6 +69,19 @@ After `make frontend-build`, FastAPI serves the compiled SPA on `/`, `/territori
 
 ## MVP 1 Commands
 
+For a complete default CE/2023 demonstration, including the synthetic municipal
+operations layer:
+
+```bash
+make demo
+python -m tbia serve
+```
+
+The workflow is cache-aware, uses the full SIH/SUS year, and upserts only the
+selected scope/year. Existing files under `data/raw/municipal_demo` are
+regenerated as deterministic synthetic samples. Use the individual commands
+below when debugging a specific stage:
+
 ```bash
 python -m tbia download-datasus-samples --uf CE --year 2023 --sih-all-months
 python -m tbia ingest --uf CE --uf-code 23 --year 2023

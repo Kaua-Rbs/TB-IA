@@ -27,6 +27,25 @@ python -m pip install -r requirements-dev.txt
 
 ## MVP 1 Application
 
+Prepare the complete CE/2023 demonstration in one cache-aware command:
+
+```bash
+make demo
+# equivalent to:
+python -m tbia prepare-demo
+python -m tbia serve
+```
+
+`prepare-demo` downloads only missing public DATASUS files, uses all 12 SIH/SUS
+months by default, runs the territorial pipeline, regenerates the seven
+deterministic synthetic municipal CSVs, and builds operational alerts in the
+same database. It safely replaces the selected scope/year and preserves other
+years and UFs. Use `--sih-january-only` for a faster partial SIH/SUS
+demonstration, or pass the same `--database-url` to `prepare-demo` and
+`serve` when using a non-default database.
+
+The individual commands remain available for source-specific debugging:
+
 ```bash
 python -m tbia download-datasus-samples --uf CE --year 2023 --sih-all-months
 python -m tbia ingest --uf CE --year 2023
@@ -55,6 +74,7 @@ python -m tbia serve
 ## MVP 2 Synthetic Municipal Demo
 
 ```bash
+# Included automatically by prepare-demo; these commands remain available separately.
 python -m tbia generate-mvp2-sample-data --output-dir data/raw/municipal_demo
 python -m tbia ingest-local --raw-dir data/raw/municipal_demo --year 2023
 python -m tbia build-operational-alerts --year 2023 --reference-date 2026-06-29

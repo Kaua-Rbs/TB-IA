@@ -1,7 +1,7 @@
 PYTHON ?= python3
 MARKDOWN_FILES = AGENTS.md CONTRIBUTING.md README.md descricao_do_projeto.md frentes_de_desenvolvimento.md mvp2_municipal_contracts.md referencias.md especificacao_tecnica_do_sistema.md
 
-.PHONY: install lint format format-check type test coverage complexity deps mutation check frontend-install frontend-dev frontend-check frontend-build
+.PHONY: install lint format format-check type test coverage complexity deps mutation check demo frontend-install frontend-dev frontend-check frontend-build
 
 install:
 	$(PYTHON) -m pip install -r requirements-dev.txt
@@ -39,6 +39,9 @@ mutation:
 	$(PYTHON) -m scripts.quality_gates mutation
 
 check: lint format-check type test
+
+demo:
+	$(PYTHON) -m tbia prepare-demo
 
 
 frontend-install:

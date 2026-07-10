@@ -22,6 +22,7 @@ from tbia.pipeline import (
     compute_and_store_indicators,
     seed_reference_data,
 )
+from tbia.preparation import TerritorialPreparationResult
 from tbia.storage import (
     create_engine_for_url,
     create_session_factory,
@@ -517,32 +518,40 @@ def test_territorial_load_year_endpoint_runs_public_pipeline_without_auto_naviga
     populate_database(database_url)
     calls: list[tuple[str, int]] = []
 
-    def fake_download_missing_datasus_files(
+    def fake_prepare_territorial_data(
+        session_factory: Any,
         config: Any,
         *,
         sih_all_months: bool,
         timeout: int,
         progress: Any | None = None,
-    ) -> dict[str, Any]:
+    ) -> TerritorialPreparationResult:
         calls.append((config.uf, config.year))
         if progress is not None:
-            progress({"message": "1/4 baixando: SINAN-TB Brazil 2024 preliminary"})
-        return {
-            "requested_file_count": 4,
-            "downloaded_file_count": 2,
-            "existing_file_count": 2,
-            "failed_file_count": 0,
-            "failures": [],
-            "sih_all_months": sih_all_months,
-            "timeout": timeout,
-        }
+            progress(
+                {
+                    "stage": "download",
+                    "step_index": 1,
+                    "message": "1/4 baixando: SINAN-TB Brazil 2024 preliminary",
+                }
+            )
+        return TerritorialPreparationResult(
+            download={
+                "requested_file_count": 4,
+                "downloaded_file_count": 2,
+                "existing_file_count": 2,
+                "failed_file_count": 0,
+                "failures": [],
+                "sih_all_months": sih_all_months,
+                "timeout": timeout,
+            },
+            result_status="ready",
+            indicator_count=12,
+            scenario_count=5,
+            recommendation_count=5,
+        )
 
-    monkeypatch.setattr(
-        web_app, "download_missing_datasus_files", fake_download_missing_datasus_files
-    )
-    monkeypatch.setattr(web_app, "ingest_public_data", lambda session, config: None)
-    monkeypatch.setattr(web_app, "compute_and_store_indicators", lambda session, config: 12)
-    monkeypatch.setattr(web_app, "build_and_store_scenarios", lambda session, config: (5, 5))
+    monkeypatch.setattr(web_app, "prepare_territorial_data", fake_prepare_territorial_data)
 
     with TestClient(create_app(database_url)) as client:
         response = client.post("/api/territorial/load-year?uf=CE&year=2024&lang=pt")
