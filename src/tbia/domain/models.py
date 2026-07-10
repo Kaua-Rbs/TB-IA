@@ -295,6 +295,7 @@ class TerritoryScenario:
     indicator_id: str
     indicator_value: float
     threshold_value: float
+    comparison_scope: str = "uf"
 
 
 @dataclass(frozen=True)
@@ -319,3 +320,4 @@ class Recommendation:
     rule_id: str
     priority: ScenarioSeverity
     explanation: str
+    comparison_scope: str = "uf"

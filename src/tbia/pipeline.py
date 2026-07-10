@@ -17,6 +17,7 @@ from tbia.domain.indicators import INDICATOR_DEFINITIONS, compute_indicator_valu
 from tbia.domain.models import ImportRun, IndicatorValue, PopulationDenominator, Territory
 from tbia.domain.recommendations import STRATEGIES, build_recommendations
 from tbia.domain.scenarios import DEFAULT_SCENARIO_RULES, build_territory_scenarios
+from tbia.geography import BRAZIL_SCOPE, is_brazil_scope, uf_code_for, ufs_for_scope
 from tbia.ingest.contracts import SOURCE_CONTRACTS
 from tbia.ingest.datasus import read_datasus_records
 from tbia.ingest.datasus_transforms import (
@@ -35,6 +36,7 @@ from tbia.ingest.readers import (
     read_ibge_municipalities,
     read_mortality_aggregates_csv,
     read_population_csv,
+    read_public_subterritory_geojson,
     read_sidra_population_payload,
     read_sidra_values_population_payload,
 )
@@ -43,6 +45,8 @@ from tbia.ingest.sinan_validation import (
     write_sinan_mapping_report,
 )
 from tbia.storage import (
+    COMPARISON_SCOPE_NATIONAL,
+    COMPARISON_SCOPE_UF,
     load_cases,
     load_hospitalizations,
     load_indicator_values,
@@ -72,12 +76,25 @@ DEFAULT_CENSUS_POPULATION_YEAR = 2022
 @dataclass(frozen=True)
 class Mvp1Config:
     uf: str = "CE"
-    uf_code: str = "23"
+    uf_code: str = ""
     year: int = 2023
     raw_dir: Path = Path("data/raw/public_sources")
     processed_dir: Path = Path("data/processed/mvp1")
     minimum_count: int = 5
     population_source_year: int | None = None
+
+    def __post_init__(self) -> None:
+        normalized_uf = self.uf.upper()
+        object.__setattr__(self, "uf", normalized_uf)
+        if not self.uf_code:
+            object.__setattr__(self, "uf_code", uf_code_for(normalized_uf))
+
+    @property
+    def is_national(self) -> bool:
+        return is_brazil_scope(self.uf)
+
+    def for_uf(self, uf: str) -> Mvp1Config:
+        return replace(self, uf=uf, uf_code=uf_code_for(uf))
 
     @property
     def manual_dir(self) -> Path:
@@ -98,6 +115,10 @@ class Mvp1Config:
     def ibge_malhas_geojson(self) -> Path:
         return self.ibge_malhas_dir / f"{self.uf.lower()}_{self.uf_code}_municipios.geojson"
 
+    @property
+    def ibge_intramunicipal_dir(self) -> Path:
+        return self.raw_dir / "ibge_intramunicipal"
+
     def manual_csv(self, filename: str) -> Path:
         return self.manual_dir / filename
 
@@ -111,8 +132,34 @@ def seed_reference_data(session: Session) -> None:
 
 def ingest_public_data(session: Session, config: Mvp1Config) -> None:
     seed_reference_data(session)
+    if config.is_national:
+        ingest_brazil_public_data(session, config)
+        return
+    ingest_single_uf_public_data(session, config)
+
+
+def ingest_brazil_public_data(session: Session, config: Mvp1Config) -> None:
+    uf_configs = [config.for_uf(uf) for uf in ufs_for_scope(BRAZIL_SCOPE)]
+    for uf_config in uf_configs:
+        ingest_ibge_territories(session, uf_config)
+        ingest_ibge_malhas_geometries(session, uf_config)
+
+    ingest_public_subterritory_geometries(session, config)
+    loaded_sources: set[str] = set()
+    population_loaded = False
+    for uf_config in uf_configs:
+        population_loaded = ingest_ibge_population(session, uf_config) or population_loaded
+    if population_loaded:
+        loaded_sources.add("ibge_population")
+    loaded_sources.update(ingest_datasus_public_samples(session, config))
+    record_sinan_validation_report(session, config)
+    ingest_optional_csv_sources(session, config, skip_sources=loaded_sources)
+
+
+def ingest_single_uf_public_data(session: Session, config: Mvp1Config) -> None:
     ingest_ibge_territories(session, config)
     ingest_ibge_malhas_geometries(session, config)
+    ingest_public_subterritory_geometries(session, config)
     loaded_sources: set[str] = set()
     if ingest_ibge_population(session, config):
         loaded_sources.add("ibge_population")
@@ -201,6 +248,63 @@ def ingest_ibge_malhas_geometries(session: Session, config: Mvp1Config) -> None:
                 message=f"{url}: {exc}",
             ),
         )
+
+
+def ingest_public_subterritory_geometries(session: Session, config: Mvp1Config) -> None:
+    started_at = datetime.now(UTC)
+    paths = tuple(sorted(config.ibge_intramunicipal_dir.glob("*.geojson")))
+    if not paths:
+        save_import_run(
+            session,
+            ImportRun(
+                source_id="ibge_intramunicipal",
+                status="skipped",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                message=f"normalized public GeoJSON not found: {config.ibge_intramunicipal_dir}",
+            ),
+        )
+        return
+
+    try:
+        parent_ids = {territory.territory_id for territory in load_territories(session, config.uf)}
+        territories = [
+            territory
+            for path in paths
+            for territory in read_public_subterritory_geojson(
+                json.loads(path.read_text(encoding="utf-8")), parent_ids
+            )
+        ]
+        save_territories(session, territories)
+        save_import_run(
+            session,
+            ImportRun(
+                source_id="ibge_intramunicipal",
+                status="success" if territories else "skipped",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                row_count=len(territories),
+                message=public_subterritory_import_message(paths, len(territories)),
+            ),
+        )
+    except Exception as exc:
+        save_import_run(
+            session,
+            ImportRun(
+                source_id="ibge_intramunicipal",
+                status="failed",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                message=f"{config.ibge_intramunicipal_dir}: {exc}",
+            ),
+        )
+
+
+def public_subterritory_import_message(paths: Sequence[Path], row_count: int) -> str:
+    path_message = ", ".join(str(path) for path in paths)
+    if row_count == 0:
+        return f"no valid neighborhood_reference polygon features in {path_message}"
+    return f"loaded normalized public reference GeoJSON: {path_message}"
 
 
 def ibge_malhas_url(uf_code: str) -> str:
@@ -348,10 +452,91 @@ def normalize_population_year(
 
 
 def ingest_datasus_public_samples(session: Session, config: Mvp1Config) -> set[str]:
+    if config.is_national:
+        return ingest_brazil_datasus_public_samples(session, config)
+    return ingest_uf_datasus_public_samples(session, config)
+
+
+def ingest_brazil_datasus_public_samples(session: Session, config: Mvp1Config) -> set[str]:
+    territories = load_territories(session, BRAZIL_SCOPE)
+    if not territories:
+        return set()
+
+    loaded_sources: set[str] = set()
+    target_ids = {territory.territory_id for territory in territories}
+    municipality_map = build_datasus_municipality_map(territories)
+    if load_datasus_source(
+        session,
+        source_id="sinan_tb",
+        paths=datasus_source_candidates(config, "sinan_tb"),
+        transform=lambda records: transform_sinan_tb_records(
+            records,
+            municipality_map,
+            year=config.year,
+        ),
+        saver=lambda active_session, rows: save_case_aggregates(
+            active_session, rows, replace_territory_ids=target_ids
+        ),
+    ):
+        loaded_sources.add("sinan_tb")
+
+    for uf in ufs_for_scope(BRAZIL_SCOPE):
+        uf_loaded_sources = ingest_uf_regional_datasus_public_samples(session, config.for_uf(uf))
+        loaded_sources.update(uf_loaded_sources)
+    return loaded_sources
+
+
+def ingest_uf_regional_datasus_public_samples(session: Session, config: Mvp1Config) -> set[str]:
     territories = load_territories(session, config.uf)
     if not territories:
         return set()
     municipality_map = build_datasus_municipality_map(territories)
+    target_ids = {territory.territory_id for territory in territories}
+    loaded_sources: set[str] = set()
+
+    if load_datasus_source(
+        session,
+        source_id="sim",
+        paths=datasus_source_candidates(config, "sim"),
+        transform=lambda records: transform_sim_records(
+            records, municipality_map, year=config.year
+        ),
+        saver=lambda active_session, rows: save_mortalities(
+            active_session, rows, replace_territory_ids=target_ids
+        ),
+    ):
+        loaded_sources.add("sim")
+
+    if load_datasus_source(
+        session,
+        source_id="sih_sus",
+        paths=datasus_source_candidates(config, "sih_sus"),
+        transform=lambda records: transform_sih_records(
+            records, municipality_map, year=config.year
+        ),
+        saver=lambda active_session, rows: save_hospitalizations(
+            active_session, rows, replace_territory_ids=target_ids
+        ),
+    ):
+        loaded_sources.add("sih_sus")
+
+    if load_datasus_source(
+        session,
+        source_id="cnes",
+        paths=datasus_source_candidates(config, "cnes"),
+        transform=lambda records: transform_cnes_records(records, municipality_map),
+        saver=save_facilities,
+    ):
+        loaded_sources.add("cnes")
+    return loaded_sources
+
+
+def ingest_uf_datasus_public_samples(session: Session, config: Mvp1Config) -> set[str]:
+    territories = load_territories(session, config.uf)
+    if not territories:
+        return set()
+    municipality_map = build_datasus_municipality_map(territories)
+    target_ids = {territory.territory_id for territory in territories}
     loaded_sources: set[str] = set()
 
     if load_datasus_source(
@@ -363,7 +548,9 @@ def ingest_datasus_public_samples(session: Session, config: Mvp1Config) -> set[s
             municipality_map,
             year=config.year,
         ),
-        saver=save_case_aggregates,
+        saver=lambda active_session, rows: save_case_aggregates(
+            active_session, rows, replace_territory_ids=target_ids
+        ),
     ):
         loaded_sources.add("sinan_tb")
 
@@ -374,7 +561,9 @@ def ingest_datasus_public_samples(session: Session, config: Mvp1Config) -> set[s
         transform=lambda records: transform_sim_records(
             records, municipality_map, year=config.year
         ),
-        saver=save_mortalities,
+        saver=lambda active_session, rows: save_mortalities(
+            active_session, rows, replace_territory_ids=target_ids
+        ),
     ):
         loaded_sources.add("sim")
 
@@ -385,7 +574,9 @@ def ingest_datasus_public_samples(session: Session, config: Mvp1Config) -> set[s
         transform=lambda records: transform_sih_records(
             records, municipality_map, year=config.year
         ),
-        saver=save_hospitalizations,
+        saver=lambda active_session, rows: save_hospitalizations(
+            active_session, rows, replace_territory_ids=target_ids
+        ),
     ):
         loaded_sources.add("sih_sus")
 
@@ -656,17 +847,26 @@ def load_optional_csv_source(
 
 
 def compute_and_store_indicators(session: Session, config: Mvp1Config) -> int:
+    territory_ids = target_municipality_ids(session, config)
     values = compute_indicator_values(
-        load_populations(session, config.year),
-        load_cases(session, config.year),
-        load_mortalities(session, config.year),
-        load_hospitalizations(session, config.year),
+        filter_public_rows(load_populations(session, config.year), territory_ids),
+        filter_public_rows(load_cases(session, config.year), territory_ids),
+        filter_public_rows(load_mortalities(session, config.year), territory_ids),
+        filter_public_rows(load_hospitalizations(session, config.year), territory_ids),
         year=config.year,
         minimum_count=config.minimum_count,
     )
-    save_indicator_values(session, values, config.year)
+    save_indicator_values(session, values, config.year, replace_territory_ids=territory_ids)
     record_indicator_validation_report(session, config, values)
     return len(values)
+
+
+def target_municipality_ids(session: Session, config: Mvp1Config) -> set[str]:
+    return {territory.territory_id for territory in load_territories(session, config.uf)}
+
+
+def filter_public_rows(rows: Sequence[T], territory_ids: set[str]) -> list[T]:
+    return [row for row in rows if cast(Any, row).territory_id in territory_ids]
 
 
 def record_indicator_validation_report(
@@ -712,8 +912,70 @@ def record_indicator_validation_report(
 
 
 def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int, int]:
-    scenarios = build_territory_scenarios(load_indicator_values(session, config.year))
-    recommendations = build_recommendations(scenarios)
-    save_territory_scenarios(session, scenarios, config.year)
-    save_recommendations(session, recommendations, config.year)
+    territory_ids = target_municipality_ids(session, config)
+    if not territory_ids:
+        return 0, 0
+
+    scenarios: list[Any] = []
+    recommendations: list[Any] = []
+    uf_scenarios = build_uf_scope_scenarios(session, config, territory_ids)
+    uf_recommendations = build_recommendations(uf_scenarios)
+    save_territory_scenarios(
+        session,
+        uf_scenarios,
+        config.year,
+        comparison_scope=COMPARISON_SCOPE_UF,
+        replace_territory_ids=territory_ids,
+    )
+    save_recommendations(
+        session,
+        uf_recommendations,
+        config.year,
+        comparison_scope=COMPARISON_SCOPE_UF,
+        replace_territory_ids=territory_ids,
+    )
+    scenarios.extend(uf_scenarios)
+    recommendations.extend(uf_recommendations)
+
+    if config.is_national:
+        national_values = load_indicator_values(session, config.year, territory_ids)
+        national_scenarios = build_territory_scenarios(
+            national_values, comparison_scope=COMPARISON_SCOPE_NATIONAL
+        )
+        national_recommendations = build_recommendations(national_scenarios)
+        save_territory_scenarios(
+            session,
+            national_scenarios,
+            config.year,
+            comparison_scope=COMPARISON_SCOPE_NATIONAL,
+            replace_territory_ids=territory_ids,
+        )
+        save_recommendations(
+            session,
+            national_recommendations,
+            config.year,
+            comparison_scope=COMPARISON_SCOPE_NATIONAL,
+            replace_territory_ids=territory_ids,
+        )
+        scenarios.extend(national_scenarios)
+        recommendations.extend(national_recommendations)
+
     return len(scenarios), len(recommendations)
+
+
+def build_uf_scope_scenarios(
+    session: Session, config: Mvp1Config, territory_ids: set[str]
+) -> list[Any]:
+    scenarios: list[Any] = []
+    if not config.is_national:
+        values = load_indicator_values(session, config.year, territory_ids)
+        return build_territory_scenarios(values, comparison_scope=COMPARISON_SCOPE_UF)
+
+    territories_by_uf: dict[str, set[str]] = {}
+    for territory in load_territories(session, BRAZIL_SCOPE):
+        if territory.territory_id in territory_ids:
+            territories_by_uf.setdefault(territory.uf_sigla, set()).add(territory.territory_id)
+    for uf_territory_ids in territories_by_uf.values():
+        values = load_indicator_values(session, config.year, uf_territory_ids)
+        scenarios.extend(build_territory_scenarios(values, comparison_scope=COMPARISON_SCOPE_UF))
+    return scenarios

@@ -171,6 +171,7 @@ def write_sinan_mapping_report(report: dict[str, Any], output_dir: Path) -> Path
     output_dir.mkdir(parents=True, exist_ok=True)
     year = report["scope"]["year"]
     uf_code = report["scope"]["uf_code"]
-    output_path = output_dir / f"sinan_mapping_audit_{uf_code}_{year}.json"
+    scope_slug = uf_code or "br"
+    output_path = output_dir / f"sinan_mapping_audit_{scope_slug}_{year}.json"
     output_path.write_text(json.dumps(report, indent=2, sort_keys=True), encoding="utf-8")
     return output_path

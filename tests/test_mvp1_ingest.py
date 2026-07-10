@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 from pytest import MonkeyPatch
@@ -10,6 +11,7 @@ from tbia.ingest.readers import (
     read_case_aggregates_csv,
     read_ibge_malhas_municipality_geometries,
     read_ibge_municipalities,
+    read_public_subterritory_geojson,
     read_sidra_population_payload,
     read_sidra_values_population_payload,
 )
@@ -20,6 +22,7 @@ from tbia.pipeline import (
     ibge_malhas_url,
     ibge_population_url,
     ingest_ibge_malhas_geometries,
+    ingest_public_subterritory_geometries,
     population_source_year,
     preserve_existing_geometries,
     select_existing_datasus_paths,
@@ -52,6 +55,23 @@ def test_read_ibge_municipalities_filters_requested_uf() -> None:
 
     assert [territory.territory_id for territory in territories] == ["2304400"]
     assert territories[0].name == "Fortaleza"
+
+
+def test_read_ibge_municipalities_accepts_immediate_region_uf_fallback() -> None:
+    payload = [
+        {
+            "id": 5101837,
+            "nome": "Boa Esperança do Norte",
+            "microrregiao": None,
+            "regiao-imediata": {"regiao-intermediaria": {"UF": {"id": 51, "sigla": "MT"}}},
+        }
+    ]
+
+    territories = read_ibge_municipalities(payload, "MT")
+
+    assert [territory.territory_id for territory in territories] == ["5101837"]
+    assert territories[0].name == "Boa Esperança do Norte"
+    assert territories[0].uf_code == "51"
 
 
 def test_population_source_year_defaults_to_2022_census() -> None:
@@ -173,6 +193,19 @@ def test_datasus_demo_files_align_with_ingestion_names() -> None:
     assert files[2].remote_path.endswith("RDCE2301.dbc")
 
 
+def test_datasus_demo_files_for_brazil_downloads_sinan_once_and_regional_files() -> None:
+    files = datasus_demo_files("BR", 2023, sih_months=(1,), cnes_month=12)
+
+    local_names = [file.local_name for file in files]
+
+    assert local_names.count("sinan_tb_br_2023.dbc") == 1
+    assert "sim_ce_2023.dbc" in local_names
+    assert "sim_pe_2023.dbc" in local_names
+    assert "sih_ce_2023_01.dbc" in local_names
+    assert "cnes_st_sp_2023_12.dbc" in local_names
+    assert len(files) == 1 + (27 * 3)
+
+
 def test_format_month_rejects_invalid_month() -> None:
     try:
         format_month(13)
@@ -206,6 +239,58 @@ def test_select_existing_datasus_paths_prefers_dbf_over_dbc(tmp_path: Path) -> N
     selected = select_existing_datasus_paths((dbc_path, dbf_path, other_dbc_path))
 
     assert selected == [dbf_path, other_dbc_path]
+
+
+def test_read_public_subterritory_geojson_keeps_only_polygonal_reference_children() -> None:
+    geometry = {"type": "Polygon", "coordinates": [[[-39.0, -5.0], [-38.9, -5.0], [-39.0, -5.0]]]}
+    payload = {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "properties": {
+                    "territory_id": "2304400-bairro-001",
+                    "name": "Centro",
+                    "territory_type": "neighborhood_reference",
+                    "parent_id": "2304400",
+                    "uf_code": "23",
+                    "uf_sigla": "CE",
+                },
+                "geometry": geometry,
+            },
+            {
+                "type": "Feature",
+                "properties": {
+                    "territory_id": "2304400-line",
+                    "name": "Linha",
+                    "territory_type": "neighborhood_reference",
+                    "parent_id": "2304400",
+                    "uf_code": "23",
+                    "uf_sigla": "CE",
+                },
+                "geometry": {"type": "LineString", "coordinates": []},
+            },
+            {
+                "type": "Feature",
+                "properties": {
+                    "territory_id": "2303709-bairro-001",
+                    "name": "Outro",
+                    "territory_type": "neighborhood_reference",
+                    "parent_id": "2303709",
+                    "uf_code": "23",
+                    "uf_sigla": "CE",
+                },
+                "geometry": geometry,
+            },
+        ],
+    }
+
+    territories = read_public_subterritory_geojson(payload, {"2304400"})
+
+    assert [territory.territory_id for territory in territories] == ["2304400-bairro-001"]
+    assert territories[0].territory_type == "neighborhood_reference"
+    assert territories[0].parent_id == "2304400"
+    assert territories[0].geometry == geometry
 
 
 def test_read_ibge_malhas_geometries_extracts_codarea() -> None:
@@ -302,6 +387,55 @@ def test_ingest_ibge_malhas_records_import_and_persists_geometry(
     assert territory.geometry == geometry
     assert (tmp_path / "ibge_malhas" / "ce_23_municipios.geojson").exists()
     assert runs[0]["source_id"] == "ibge_malhas"
+    assert runs[0]["status"] == "success"
+    assert runs[0]["row_count"] == 1
+
+
+def test_ingest_public_subterritory_geometries_loads_normalized_geojson(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    geometry = {"type": "MultiPolygon", "coordinates": []}
+    intramunicipal_dir = tmp_path / "ibge_intramunicipal"
+    intramunicipal_dir.mkdir()
+    (intramunicipal_dir / "fortaleza_bairros.geojson").write_text(
+        json.dumps(
+            {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": {
+                            "territory_id": "2304400-bairro-001",
+                            "name": "Centro",
+                            "territory_type": "neighborhood_reference",
+                            "parent_id": "2304400",
+                            "uf_code": "23",
+                            "uf_sigla": "CE",
+                        },
+                        "geometry": geometry,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with session_factory() as session:
+        save_territories(session, [Territory("2304400", "Fortaleza", "municipality", "23", "CE")])
+        ingest_public_subterritory_geometries(session, Mvp1Config(uf="CE", raw_dir=tmp_path))
+        session.commit()
+        bairros = load_territories(session, "CE", "neighborhood_reference")
+        municipalities = load_territories(session, "CE")
+        runs = latest_import_runs(session)
+
+    engine.dispose()
+
+    assert [territory.territory_id for territory in municipalities] == ["2304400"]
+    assert [territory.territory_id for territory in bairros] == ["2304400-bairro-001"]
+    assert bairros[0].geometry == geometry
+    assert runs[0]["source_id"] == "ibge_intramunicipal"
     assert runs[0]["status"] == "success"
     assert runs[0]["row_count"] == 1
 

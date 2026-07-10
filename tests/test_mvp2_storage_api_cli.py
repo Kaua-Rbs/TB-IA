@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import date
 from pathlib import Path
+from typing import Any
 
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
@@ -21,11 +22,12 @@ from tbia.storage import (
     load_operational_alerts,
     mvp2_summary,
 )
+from tbia.web import app as web_app
 from tbia.web.app import create_app
 
 
 def test_mvp2_storage_and_api_expose_operational_alerts_without_patient_pseudonyms(
-    tmp_path: Path,
+    tmp_path: Path, monkeypatch: Any
 ) -> None:
     database_url = populate_mvp2_database(tmp_path)
 
@@ -41,35 +43,53 @@ def test_mvp2_storage_and_api_expose_operational_alerts_without_patient_pseudony
     assert len(alerts) >= 4
     assert summary["alert_count"] == len(alerts)
     assert summary["open_alert_count"] == len(alerts)
+    monkeypatch.setattr(web_app, "FRONTEND_DIST_DIR", tmp_path / "missing-dist")
 
     with TestClient(create_app(database_url)) as client:
         summary_response = client.get("/api/mvp2/summary?year=2023")
         alerts_response = client.get("/api/mvp2/alerts?year=2023&severity=high")
+        product_summary_response = client.get("/api/operations/summary?year=2023")
+        product_alerts_response = client.get("/api/operations/alerts?year=2023&severity=high")
         page_response = client.get("/mvp2?year=2023&severity=high")
-        english_page_response = client.get("/mvp2?year=2023&severity=high&lang=en")
+        product_page_response = client.get("/acompanhamento?year=2023&severity=high")
+        english_page_response = client.get("/acompanhamento?year=2023&severity=high&lang=en")
 
     assert summary_response.status_code == 200
     assert alerts_response.status_code == 200
+    assert product_summary_response.status_code == 200
+    assert product_alerts_response.status_code == 200
     assert page_response.status_code == 200
+    assert product_page_response.status_code == 200
     assert english_page_response.status_code == 200
     assert summary_response.json()["alert_count"] == len(alerts)
+    assert product_summary_response.json()["alert_count"] == len(alerts)
     assert all(row["severity"] == "high" for row in alerts_response.json())
+    assert product_alerts_response.json() == alerts_response.json()
     assert "pseudonymized_patient_id" not in alerts_response.text
     assert "PAT-" not in alerts_response.text
-    assert "MVP1 Territorial" in page_response.text
-    assert "MVP2 Operações" in page_response.text
+    assert "Análise territorial" in page_response.text
+    assert "Acompanhamento da atenção" in page_response.text
+    assert "MVP1" not in page_response.text
+    assert "MVP2" not in page_response.text
     assert "demonstração sintética/pseudonimizada" in page_response.text
-    assert "MVP2 Operations" in english_page_response.text
+    assert "Fila operacional de alertas" in product_page_response.text
+    assert "Territorial analysis" in english_page_response.text
+    assert "Care follow-up" in english_page_response.text
     assert "synthetic/pseudonymized demo" in english_page_response.text
 
     first_alert_id = alerts_response.json()[0]["alert_id"]
     with TestClient(create_app(database_url)) as client:
         detail_response = client.get(f"/api/mvp2/alerts/{first_alert_id}")
+        product_detail_response = client.get(f"/api/operations/alerts/{first_alert_id}")
         missing_response = client.get("/api/mvp2/alerts/missing-alert")
+        product_missing_response = client.get("/api/operations/alerts/missing-alert")
 
     assert detail_response.status_code == 200
+    assert product_detail_response.status_code == 200
     assert detail_response.json()["alert_id"] == first_alert_id
+    assert product_detail_response.json() == detail_response.json()
     assert missing_response.status_code == 404
+    assert product_missing_response.status_code == 404
 
 
 def test_mvp2_cli_smoke_generates_ingests_and_builds_alerts(tmp_path: Path) -> None:

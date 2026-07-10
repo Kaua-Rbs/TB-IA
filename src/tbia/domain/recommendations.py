@@ -98,11 +98,17 @@ STRATEGIES: tuple[Strategy, ...] = (
 def build_recommendations(scenarios: Iterable[TerritoryScenario]) -> list[Recommendation]:
     strategy_ids_by_rule = {rule.rule_id: rule.strategy_ids for rule in DEFAULT_SCENARIO_RULES}
     recommendations: list[Recommendation] = []
-    seen: set[tuple[str, int, str, str]] = set()
+    seen: set[tuple[str, int, str, str, str]] = set()
 
     for scenario in scenarios:
         for strategy_id in strategy_ids_by_rule.get(scenario.rule_id, ()):
-            key = (scenario.territory_id, scenario.year, strategy_id, scenario.rule_id)
+            key = (
+                scenario.territory_id,
+                scenario.year,
+                strategy_id,
+                scenario.rule_id,
+                scenario.comparison_scope,
+            )
             if key in seen:
                 continue
             seen.add(key)
@@ -117,6 +123,7 @@ def build_recommendations(scenarios: Iterable[TerritoryScenario]) -> list[Recomm
                         f"Recommended because {scenario.rule_id} was triggered. "
                         "This is decision support and requires professional review."
                     ),
+                    comparison_scope=scenario.comparison_scope,
                 )
             )
 
@@ -125,6 +132,7 @@ def build_recommendations(scenarios: Iterable[TerritoryScenario]) -> list[Recomm
         key=lambda item: (
             item.territory_id,
             item.year,
+            item.comparison_scope,
             priority_sort_value(item.priority),
             item.strategy_id,
         ),

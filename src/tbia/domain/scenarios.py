@@ -110,6 +110,8 @@ DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
 def build_territory_scenarios(
     values: Iterable[IndicatorValue],
     rules: Iterable[ScenarioRule] = DEFAULT_SCENARIO_RULES,
+    *,
+    comparison_scope: str = "uf",
 ) -> list[TerritoryScenario]:
     values_by_indicator: dict[str, list[IndicatorValue]] = defaultdict(list)
     for value in values:
@@ -142,6 +144,7 @@ def build_territory_scenarios(
                     indicator_id=rule.indicator_id,
                     indicator_value=value.value,
                     threshold_value=threshold,
+                    comparison_scope=comparison_scope,
                 )
             )
 

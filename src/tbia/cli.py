@@ -28,7 +28,9 @@ from tbia.storage import create_engine_for_url, create_session_factory, initiali
 app = typer.Typer(help="TB-IA MVP public-data and municipal pilot pipeline.")
 
 UfOption = Annotated[str, typer.Option(help="UF abbreviation for the demo scope.")]
-UfCodeOption = Annotated[str, typer.Option(help="IBGE UF code.")]
+UfCodeOption = Annotated[
+    str | None, typer.Option(help="IBGE UF code. Inferred from --uf when omitted.")
+]
 YearOption = Annotated[int, typer.Option(help="Reference year.")]
 PopulationSourceYearOption = Annotated[
     int | None,
@@ -59,14 +61,14 @@ def parse_reference_date(value: str) -> date:
 
 def build_config(
     uf: str,
-    uf_code: str,
+    uf_code: str | None,
     year: int,
     raw_dir: Path,
     population_source_year: int | None,
 ) -> Mvp1Config:
     return Mvp1Config(
         uf=uf.upper(),
-        uf_code=uf_code,
+        uf_code=uf_code or "",
         year=year,
         raw_dir=raw_dir,
         population_source_year=population_source_year,
@@ -101,7 +103,7 @@ def download_datasus_samples(
 @app.command("validate-sinan-mappings")
 def validate_sinan_mappings(
     uf: UfOption = "CE",
-    uf_code: UfCodeOption = "23",
+    uf_code: UfCodeOption = None,
     year: YearOption = 2023,
     raw_dir: RawDirOption = DEFAULT_RAW_DIR,
 ) -> None:
@@ -114,7 +116,7 @@ def validate_sinan_mappings(
 @app.command()
 def ingest(
     uf: UfOption = "CE",
-    uf_code: UfCodeOption = "23",
+    uf_code: UfCodeOption = None,
     year: YearOption = 2023,
     population_source_year: PopulationSourceYearOption = None,
     raw_dir: RawDirOption = DEFAULT_RAW_DIR,
@@ -136,7 +138,7 @@ def ingest(
 @app.command("compute-indicators")
 def compute_indicators(
     uf: UfOption = "CE",
-    uf_code: UfCodeOption = "23",
+    uf_code: UfCodeOption = None,
     year: YearOption = 2023,
     population_source_year: PopulationSourceYearOption = None,
     raw_dir: RawDirOption = DEFAULT_RAW_DIR,
@@ -158,7 +160,7 @@ def compute_indicators(
 @app.command("build-scenarios")
 def build_scenarios(
     uf: UfOption = "CE",
-    uf_code: UfCodeOption = "23",
+    uf_code: UfCodeOption = None,
     year: YearOption = 2023,
     population_source_year: PopulationSourceYearOption = None,
     raw_dir: RawDirOption = DEFAULT_RAW_DIR,

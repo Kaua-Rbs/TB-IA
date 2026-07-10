@@ -5,7 +5,14 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 
-from tbia.domain.models import CaseAggregate, MortalityAggregate, PopulationDenominator, Territory
+from tbia.domain.models import (
+    CaseAggregate,
+    Facility,
+    IndicatorValue,
+    MortalityAggregate,
+    PopulationDenominator,
+    Territory,
+)
 from tbia.pipeline import (
     Mvp1Config,
     build_and_store_scenarios,
@@ -20,14 +27,17 @@ from tbia.storage import (
     load_cases,
     load_territories,
     save_case_aggregates,
+    save_facilities,
+    save_indicator_values,
     save_mortalities,
     save_populations,
     save_territories,
 )
+from tbia.web import app as web_app
 from tbia.web.app import create_app
 
 
-def test_public_aggregate_savers_replace_year_rows(tmp_path: Path) -> None:
+def test_public_aggregate_savers_replace_only_target_territories(tmp_path: Path) -> None:
     database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
     engine = create_engine_for_url(database_url)
     initialize_database(engine)
@@ -37,19 +47,23 @@ def test_public_aggregate_savers_replace_year_rows(tmp_path: Path) -> None:
             session,
             [
                 CaseAggregate(territory_id="2304400", year=2023, notified_cases=1),
-                CaseAggregate(territory_id="2303709", year=2023, notified_cases=1),
+                CaseAggregate(territory_id="2607901", year=2023, notified_cases=1),
             ],
         )
         session.commit()
         save_case_aggregates(
             session,
-            [CaseAggregate(territory_id="2304400", year=2023, notified_cases=2)],
+            [CaseAggregate(territory_id="2607901", year=2023, notified_cases=2)],
+            replace_territory_ids={"2607901"},
         )
         session.commit()
-        rows = load_cases(session, 2023)
+        rows = sorted(load_cases(session, 2023), key=lambda row: row.territory_id)
     engine.dispose()
 
-    assert [(row.territory_id, row.notified_cases) for row in rows] == [("2304400", 2)]
+    assert [(row.territory_id, row.notified_cases) for row in rows] == [
+        ("2304400", 1),
+        ("2607901", 2),
+    ]
 
 
 def test_storage_pipeline_persists_dashboard_context(tmp_path: Path) -> None:
@@ -83,6 +97,69 @@ def test_storage_pipeline_persists_dashboard_context(tmp_path: Path) -> None:
         territories = load_territories(session, "CE")
     engine.dispose()
     assert all(territory.geometry is not None for territory in territories)
+
+
+def test_national_and_uf_scenario_scopes_coexist(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    with session_factory() as session:
+        seed_reference_data(session)
+        save_territories(
+            session,
+            [
+                *fixture_scope_territories("23", "CE", "23", [90, 80, 70, 60, 50]),
+                *fixture_scope_territories("26", "PE", "26", [10, 9, 8, 7, 6]),
+            ],
+        )
+        save_indicator_values(
+            session,
+            [
+                *fixture_incidence_values("23", [90, 80, 70, 60, 50]),
+                *fixture_incidence_values("26", [10, 9, 8, 7, 6]),
+            ],
+            2023,
+        )
+        scenario_count, recommendation_count = build_and_store_scenarios(
+            session, Mvp1Config(uf="BR", year=2023, minimum_count=5)
+        )
+        session.commit()
+
+        pe_uf_context = dashboard_context(session, 2023, "PE", "uf")
+        pe_national_context = dashboard_context(session, 2023, "PE", "national")
+        br_context = dashboard_context(session, 2023, "BR", "national")
+    engine.dispose()
+
+    assert scenario_count > 0
+    assert recommendation_count > 0
+    assert pe_uf_context["comparison_scope"] == "uf"
+    assert pe_national_context["comparison_scope"] == "national"
+    assert pe_uf_context["ranking"]
+    assert pe_national_context["ranking"] == []
+    assert br_context["territory_count"] == 10
+    assert br_context["ranking"][0]["territory_id"].startswith("23")
+
+    with TestClient(create_app(database_url)) as client:
+        br_map = client.get("/api/map/municipalities?uf=BR&year=2023&comparison_scope=national")
+        pe_map_uf = client.get("/api/map/municipalities?uf=PE&year=2023&comparison_scope=uf")
+        pe_map_national = client.get(
+            "/api/map/municipalities?uf=PE&year=2023&comparison_scope=national"
+        )
+
+    assert br_map.status_code == 200
+    assert pe_map_uf.status_code == 200
+    assert pe_map_national.status_code == 200
+    assert br_map.json()["metadata"]["comparison_scope"] == "national"
+    assert len(br_map.json()["features"]) == 10
+    pe_uf_scores = [
+        feature["properties"]["priority_score"] for feature in pe_map_uf.json()["features"]
+    ]
+    pe_national_scores = [
+        feature["properties"]["priority_score"] for feature in pe_map_national.json()["features"]
+    ]
+    assert max(pe_uf_scores) > 0
+    assert max(pe_national_scores) == 0
 
 
 def test_public_api_returns_aggregate_indicators_and_ranking(tmp_path: Path) -> None:
@@ -123,10 +200,16 @@ def test_public_api_returns_geometry_and_enriched_map_properties(tmp_path: Path)
         geometry = client.get("/api/geo/municipalities?uf=CE")
         map_response = client.get("/api/map/municipalities?uf=CE&year=2023")
         map_response_pt = client.get("/api/map/municipalities?uf=CE&year=2023&lang=pt")
+        product_context = client.get("/api/territorial/context?uf=CE&year=2023&lang=pt")
+        product_map = client.get("/api/territorial/map?uf=CE&year=2023&lang=pt")
 
     assert geometry.status_code == 200
     assert map_response.status_code == 200
     assert map_response_pt.status_code == 200
+    assert product_context.status_code == 200
+    assert product_map.status_code == 200
+    assert product_context.json()["territory_count"] == 6
+    assert product_map.json()["metadata"]["feature_count"] == 6
     geometry_features = geometry.json()["features"]
     assert len(geometry_features) == 6
     assert "indicators" not in geometry_features[0]["properties"]
@@ -172,31 +255,137 @@ def test_public_api_returns_geometry_and_enriched_map_properties(tmp_path: Path)
     assert sobral["top_scenarios"] == []
 
 
-def test_dashboard_renders_workbench_controls_and_existing_sections(tmp_path: Path) -> None:
+def test_public_subterritories_do_not_pollute_municipality_context(tmp_path: Path) -> None:
+    database_path = tmp_path / "mvp1.db"
+    database_url = f"sqlite:///{database_path}"
+    populate_database(database_url)
+
+    engine = create_engine_for_url(database_url)
+    session_factory = create_session_factory(engine)
+    with session_factory() as session:
+        save_reference_subterritories(session)
+        save_facilities(
+            session,
+            [
+                Facility("cnes-001", "2304400", "UBS Centro", "UBS", True),
+                Facility("cnes-002", "2303709", "UBS Caucaia", "UBS", True),
+            ],
+        )
+        session.commit()
+        context = dashboard_context(session, 2023, "CE")
+    engine.dispose()
+
+    readiness = context["readiness"]
+    health_readiness = context["health_territory_readiness"]
+    assert context["territory_count"] == 6
+    assert readiness["geometry"]["geometry_count"] == 6
+    assert readiness["geometry"]["territory_count"] == 6
+    assert context["ranking"][0]["territory_id"] == "2304400"
+    assert health_readiness["public_subterritory_geometry"]["status"] == "ready"
+    assert health_readiness["public_subterritory_geometry"]["feature_count"] == 2
+    assert health_readiness["cnes_facility_context"]["status"] == "ready"
+    assert health_readiness["cnes_facility_context"]["facility_count"] == 2
+    assert health_readiness["official_health_territory_boundaries"]["status"] == "missing"
+    assert health_readiness["tb_health_territory_indicators"]["status"] == "missing"
+
+    with TestClient(create_app(database_url)) as client:
+        territories = client.get("/api/territories?uf=CE")
+        geometry = client.get("/api/geo/municipalities?uf=CE")
+        municipalities = client.get("/api/map/municipalities?uf=CE&year=2023")
+        subterritories = client.get(
+            "/api/map/subterritories?parent_id=2304400&"
+            "territory_type=neighborhood_reference&lang=pt"
+        )
+        missing_subterritories = client.get(
+            "/api/map/subterritories?parent_id=2312908&territory_type=neighborhood_reference"
+        )
+        subterritory_report = client.get("/api/territories/2304400-bairro-001/report?year=2023")
+
+    assert territories.status_code == 200
+    assert geometry.status_code == 200
+    assert municipalities.status_code == 200
+    assert subterritories.status_code == 200
+    assert missing_subterritories.status_code == 200
+    assert subterritory_report.status_code == 404
+    assert len(territories.json()) == 6
+    assert len(geometry.json()["features"]) == 6
+    assert len(municipalities.json()["features"]) == 6
+    assert all(
+        feature["properties"]["territory_id"] != "2304400-bairro-001"
+        for feature in municipalities.json()["features"]
+    )
+
+    payload = subterritories.json()
+    assert payload["metadata"] == {
+        "parent_id": "2304400",
+        "territory_type": "neighborhood_reference",
+        "feature_count": 2,
+        "drawable_geometry_count": 2,
+        "status": "ready",
+        "data_level": "public_reference",
+        "caveat": (
+            "Bairros são referência geográfica pública; indicadores e priorização de TB "
+            "permanecem no nível municipal."
+        ),
+    }
+    assert [feature["properties"]["territory_id"] for feature in payload["features"]] == [
+        "2304400-bairro-001",
+        "2304400-bairro-002",
+    ]
+    assert "indicators" not in payload["features"][0]["properties"]
+    assert missing_subterritories.json()["features"] == []
+    assert missing_subterritories.json()["metadata"]["status"] == "missing"
+
+
+def test_dashboard_renders_product_shell_controls_and_existing_sections(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
     database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
     populate_database(database_url)
+    monkeypatch.setattr(web_app, "FRONTEND_DIST_DIR", tmp_path / "missing-dist")
     with TestClient(create_app(database_url)) as client:
-        response = client.get("/?uf=CE&year=2023")
-        english_response = client.get("/?uf=CE&year=2023&lang=en")
+        default_response = client.get("/")
+        response = client.get("/territorios?uf=CE&year=2023")
+        english_response = client.get("/territorios?uf=CE&year=2023&lang=en")
 
+    assert default_response.status_code == 200
     assert response.status_code == 200
     assert english_response.status_code == 200
+    assert "BR 2023" in default_response.text
     html = response.text
     english_html = english_response.text
-    assert "MVP1 Territorial" in html
-    assert "MVP2 Operações" in html
+    assert "Análise territorial" in html
+    assert "Acompanhamento da atenção" in html
+    assert "MVP1" not in html
+    assert "MVP2" not in html
     assert "English" in html
     assert 'id="uf-control"' in html
     assert 'id="year-control"' in html
     assert "dado público agregado" in html
+    assert "Dados e governança" in html
     assert "Prontidão dos dados" in html
     assert "Fontes públicas" in html
     assert "Geometria" in html
     assert "Validação dos indicadores" in html
-    assert "Cenários gerados" in html
-    assert "MVP2 Operations" in english_html
+    assert "Sinais gerados" in html
+    assert "Territórios de saúde" in html
+    assert "Limites oficiais de territórios de saúde" in html
+    assert "Indicadores de TB por território de saúde" in html
+    assert "Visualização do mapa" in html
+    assert "Prioridade municipal" in html
+    assert "Bairros de referência" in html
+    assert (
+        "Bairros são referência geográfica pública; indicadores e priorização de TB "
+        "permanecem no nível municipal."
+    ) in html
+    assert "Territorial analysis" in english_html
+    assert "Care follow-up" in english_html
+    assert "MVP1" not in english_html
+    assert "MVP2" not in english_html
     assert "public aggregate" in english_html
     assert "Data readiness" in english_html
+    assert "Health territories" in english_html
+    assert "Reference neighborhoods" in english_html
     assert "Why flagged" in english_html
     assert 'id="municipality-map"' in html
     assert 'id="map-layer"' in html
@@ -208,16 +397,171 @@ def test_dashboard_renders_workbench_controls_and_existing_sections(tmp_path: Pa
     assert 'id="map-status"' in html
     assert "Legenda do mapa" in html
     assert "CDN do Leaflet" in html
-    assert "Ranking de prioridade" in html
+    assert "Municípios prioritários" in html
     assert "Atualização das fontes" in html
     assert "selectTerritory" in html
     assert "highlightRankingRow" in html
     assert "highlightPolygon" in html
     assert "searchMunicipality" in html
+    assert "syncSubterritoriesForSelection" in html
+    assert "styleSubterritoryFeature" in html
+    assert "/api/map/subterritories" in html
     assert "Por que foi sinalizado" in html
     assert "Resposta recomendada" in html
     assert "Indicadores" in html
     assert "Ressalvas" in html
+
+
+def test_territorial_load_year_endpoint_runs_public_pipeline_without_auto_navigation(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
+    populate_database(database_url)
+    calls: list[tuple[str, int]] = []
+
+    def fake_download_missing_datasus_files(
+        config: Any,
+        *,
+        sih_all_months: bool,
+        timeout: int,
+        progress: Any | None = None,
+    ) -> dict[str, Any]:
+        calls.append((config.uf, config.year))
+        if progress is not None:
+            progress({"message": "1/4 baixando: SINAN-TB Brazil 2024 preliminary"})
+        return {
+            "requested_file_count": 4,
+            "downloaded_file_count": 2,
+            "existing_file_count": 2,
+            "failed_file_count": 0,
+            "failures": [],
+            "sih_all_months": sih_all_months,
+            "timeout": timeout,
+        }
+
+    monkeypatch.setattr(
+        web_app, "download_missing_datasus_files", fake_download_missing_datasus_files
+    )
+    monkeypatch.setattr(web_app, "ingest_public_data", lambda session, config: None)
+    monkeypatch.setattr(web_app, "compute_and_store_indicators", lambda session, config: 12)
+    monkeypatch.setattr(web_app, "build_and_store_scenarios", lambda session, config: (5, 5))
+
+    with TestClient(create_app(database_url)) as client:
+        response = client.post("/api/territorial/load-year?uf=CE&year=2024&lang=pt")
+        job_id = response.json()["job_id"]
+        status_response = client.get(f"/api/territorial/load-year/{job_id}")
+
+    assert response.status_code == 200
+    start_payload = response.json()
+    assert start_payload["status"] == "queued"
+    assert start_payload["uf"] == "CE"
+    assert start_payload["year"] == 2024
+
+    assert status_response.status_code == 200
+    payload = status_response.json()
+    assert payload["status"] == "complete"
+    assert payload["result_status"] == "ready"
+    assert payload["download"]["downloaded_file_count"] == 2
+    assert payload["indicator_count"] == 12
+    assert payload["scenario_count"] == 5
+    assert payload["step_index"] == payload["step_count"]
+    assert calls == [("CE", 2024)]
+
+
+def test_fastapi_serves_built_spa_without_capturing_api_routes(
+    tmp_path: Path, monkeypatch: Any
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
+    populate_database(database_url)
+    dist_dir = tmp_path / "dist"
+    asset_dir = dist_dir / "assets"
+    asset_dir.mkdir(parents=True)
+    (dist_dir / "index.html").write_text(
+        '<!doctype html><div id="root">SPA TB-IA</div>'
+        '<script type="module" src="/static/app/assets/app.js"></script>',
+        encoding="utf-8",
+    )
+    (asset_dir / "app.js").write_text("console.log('tbia');", encoding="utf-8")
+    monkeypatch.setattr(web_app, "FRONTEND_DIST_DIR", dist_dir)
+
+    with TestClient(web_app.create_app(database_url)) as client:
+        territorial_page = client.get("/territorios?uf=CE&year=2023")
+        operations_page = client.get("/acompanhamento?year=2023")
+        concept_territorial_page = client.get("/conceito/territorios?uf=BR&year=2023")
+        concept_operations_page = client.get("/conceito/acompanhamento?year=2023")
+        asset_response = client.get("/static/app/assets/app.js")
+        api_response = client.get("/api/territorial/context?uf=CE&year=2023&lang=pt")
+
+    assert territorial_page.status_code == 200
+    assert operations_page.status_code == 200
+    assert concept_territorial_page.status_code == 200
+    assert concept_operations_page.status_code == 200
+    assert asset_response.status_code == 200
+    assert api_response.status_code == 200
+    assert "SPA TB-IA" in territorial_page.text
+    assert "SPA TB-IA" in operations_page.text
+    assert "SPA TB-IA" in concept_territorial_page.text
+    assert "SPA TB-IA" in concept_operations_page.text
+    assert api_response.json()["territory_count"] == 6
+
+
+def save_reference_subterritories(session: Any) -> None:
+    save_territories(
+        session,
+        [
+            Territory(
+                "2304400-bairro-001",
+                "Centro",
+                "neighborhood_reference",
+                "23",
+                "CE",
+                parent_id="2304400",
+                geometry=fixture_geometry(0.01),
+            ),
+            Territory(
+                "2304400-bairro-002",
+                "Mucuripe",
+                "neighborhood_reference",
+                "23",
+                "CE",
+                parent_id="2304400",
+                geometry=fixture_geometry(0.02),
+            ),
+        ],
+    )
+
+
+def fixture_scope_territories(
+    prefix: str, uf: str, uf_code: str, values: list[int]
+) -> list[Territory]:
+    return [
+        Territory(
+            f"{prefix}{index:05d}",
+            f"{uf} Municipio {index}",
+            "municipality",
+            uf_code,
+            uf,
+            geometry=fixture_geometry(index / 100),
+        )
+        for index, _ in enumerate(values, start=1)
+    ]
+
+
+def fixture_incidence_values(prefix: str, values: list[int]) -> list[IndicatorValue]:
+    return [
+        IndicatorValue(
+            indicator_id="tb_incidence_per_100k",
+            territory_id=f"{prefix}{index:05d}",
+            year=2023,
+            value=float(value),
+            numerator_value=float(value),
+            denominator_value=100_000.0,
+            is_suppressed=False,
+            source_ids=("fixture",),
+            caveats="fixture",
+        )
+        for index, value in enumerate(values, start=1)
+    ]
 
 
 def fixture_geometry(offset: float) -> dict[str, Any]:

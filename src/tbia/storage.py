@@ -16,9 +16,11 @@ from sqlalchemy import (
     Text,
     create_engine,
     delete,
+    inspect,
+    text,
 )
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column, sessionmaker
+from sqlalchemy.orm import DeclarativeBase, Mapped, Query, Session, mapped_column, sessionmaker
 
 from tbia.domain.models import (
     CaseAggregate,
@@ -50,10 +52,23 @@ from tbia.domain.models import (
     Territory,
     TerritoryScenario,
 )
+from tbia.geography import BRAZIL_SCOPE, normalize_geographic_scope
 
 
 class Base(DeclarativeBase):
     pass
+
+
+MUNICIPALITY_TERRITORY_TYPE = "municipality"
+NEIGHBORHOOD_REFERENCE_TERRITORY_TYPE = "neighborhood_reference"
+PUBLIC_REFERENCE_DATA_LEVEL = "public_reference"
+COMPARISON_SCOPE_UF = "uf"
+COMPARISON_SCOPE_NATIONAL = "national"
+COMPARISON_SCOPES = frozenset({COMPARISON_SCOPE_UF, COMPARISON_SCOPE_NATIONAL})
+SUBTERRITORY_REFERENCE_CAVEAT = (
+    "Reference neighborhoods are public geographic context; TB indicators and prioritization "
+    "remain municipality-level."
+)
 
 
 class DataSourceRecord(Base):
@@ -322,6 +337,9 @@ class TerritoryScenarioRecord(Base):
 
     territory_id: Mapped[str] = mapped_column(String(20), primary_key=True)
     year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    comparison_scope: Mapped[str] = mapped_column(
+        String(20), primary_key=True, default=COMPARISON_SCOPE_UF
+    )
     rule_id: Mapped[str] = mapped_column(String(120), primary_key=True)
     scenario_id: Mapped[str] = mapped_column(String(120))
     severity: Mapped[str] = mapped_column(String(40))
@@ -352,6 +370,9 @@ class RecommendationRecord(Base):
 
     territory_id: Mapped[str] = mapped_column(String(20), primary_key=True)
     year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    comparison_scope: Mapped[str] = mapped_column(
+        String(20), primary_key=True, default=COMPARISON_SCOPE_UF
+    )
     strategy_id: Mapped[str] = mapped_column(String(120), primary_key=True)
     rule_id: Mapped[str] = mapped_column(String(120), primary_key=True)
     priority: Mapped[str] = mapped_column(String(40))
@@ -368,6 +389,71 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
 
 def initialize_database(engine: Engine) -> None:
     Base.metadata.create_all(engine)
+    migrate_comparison_scope_tables(engine)
+
+
+def migrate_comparison_scope_tables(engine: Engine) -> None:
+    migrate_comparison_scope_table(
+        engine,
+        TerritoryScenarioRecord.__table__,
+        (
+            "territory_id",
+            "year",
+            "comparison_scope",
+            "rule_id",
+            "scenario_id",
+            "severity",
+            "score",
+            "explanation",
+            "indicator_id",
+            "indicator_value",
+            "threshold_value",
+        ),
+    )
+    migrate_comparison_scope_table(
+        engine,
+        RecommendationRecord.__table__,
+        (
+            "territory_id",
+            "year",
+            "comparison_scope",
+            "strategy_id",
+            "rule_id",
+            "priority",
+            "explanation",
+        ),
+    )
+
+
+def migrate_comparison_scope_table(
+    engine: Engine,
+    table: Any,
+    columns: Sequence[str],
+) -> None:
+    inspector = inspect(engine)
+    if not inspector.has_table(table.name):
+        return
+    existing_columns = {column["name"] for column in inspector.get_columns(table.name)}
+    primary_key_columns = set(inspector.get_pk_constraint(table.name)["constrained_columns"])
+    if "comparison_scope" in existing_columns and "comparison_scope" in primary_key_columns:
+        return
+
+    legacy_table_name = f"{table.name}_legacy_comparison_scope"
+    with engine.begin() as connection:
+        connection.execute(text(f"DROP TABLE IF EXISTS {legacy_table_name}"))
+        connection.execute(text(f"ALTER TABLE {table.name} RENAME TO {legacy_table_name}"))
+        table.create(connection)
+        select_columns = [
+            column if column in existing_columns else f"'{COMPARISON_SCOPE_UF}' AS {column}"
+            for column in columns
+        ]
+        connection.execute(
+            text(
+                f"INSERT INTO {table.name} ({', '.join(columns)}) "
+                f"SELECT {', '.join(select_columns)} FROM {legacy_table_name}"
+            )
+        )
+        connection.execute(text(f"DROP TABLE {legacy_table_name}"))
 
 
 def save_data_sources(session: Session, sources: Iterable[DataSource]) -> None:
@@ -428,12 +514,42 @@ def save_populations(session: Session, populations: Iterable[PopulationDenominat
         )
 
 
-def save_case_aggregates(session: Session, aggregates: Iterable[CaseAggregate]) -> None:
+def replacement_territory_ids(
+    explicit_ids: Iterable[str] | None,
+    rows: Iterable[Any],
+) -> set[str]:
+    if explicit_ids is not None:
+        return set(explicit_ids)
+    return {str(row.territory_id) for row in rows}
+
+
+def delete_public_rows(
+    session: Session,
+    record_type: Any,
+    years: set[int],
+    territory_ids: set[str],
+) -> None:
+    if not years or not territory_ids:
+        return
+    session.execute(
+        delete(record_type).where(
+            record_type.year.in_(years),
+            record_type.territory_id.in_(territory_ids),
+        )
+    )
+
+
+def save_case_aggregates(
+    session: Session,
+    aggregates: Iterable[CaseAggregate],
+    replace_territory_ids: Iterable[str] | None = None,
+) -> None:
     rows = list(aggregates)
     if not rows:
         return
     years = {aggregate.year for aggregate in rows}
-    session.execute(delete(CaseAggregateRecord).where(CaseAggregateRecord.year.in_(years)))
+    territory_ids = replacement_territory_ids(replace_territory_ids, rows)
+    delete_public_rows(session, CaseAggregateRecord, years, territory_ids)
     for aggregate in rows:
         session.merge(
             CaseAggregateRecord(
@@ -457,14 +573,17 @@ def save_case_aggregates(session: Session, aggregates: Iterable[CaseAggregate]) 
         )
 
 
-def save_mortalities(session: Session, mortalities: Iterable[MortalityAggregate]) -> None:
+def save_mortalities(
+    session: Session,
+    mortalities: Iterable[MortalityAggregate],
+    replace_territory_ids: Iterable[str] | None = None,
+) -> None:
     rows = list(mortalities)
     if not rows:
         return
     years = {mortality.year for mortality in rows}
-    session.execute(
-        delete(MortalityAggregateRecord).where(MortalityAggregateRecord.year.in_(years))
-    )
+    territory_ids = replacement_territory_ids(replace_territory_ids, rows)
+    delete_public_rows(session, MortalityAggregateRecord, years, territory_ids)
     for mortality in rows:
         session.merge(
             MortalityAggregateRecord(
@@ -479,14 +598,14 @@ def save_mortalities(session: Session, mortalities: Iterable[MortalityAggregate]
 def save_hospitalizations(
     session: Session,
     hospitalizations: Iterable[HospitalizationAggregate],
+    replace_territory_ids: Iterable[str] | None = None,
 ) -> None:
     rows = list(hospitalizations)
     if not rows:
         return
     years = {hospitalization.year for hospitalization in rows}
-    session.execute(
-        delete(HospitalizationAggregateRecord).where(HospitalizationAggregateRecord.year.in_(years))
-    )
+    territory_ids = replacement_territory_ids(replace_territory_ids, rows)
+    delete_public_rows(session, HospitalizationAggregateRecord, years, territory_ids)
     for hospitalization in rows:
         session.merge(
             HospitalizationAggregateRecord(
@@ -698,9 +817,16 @@ def save_indicator_definitions(
         )
 
 
-def save_indicator_values(session: Session, values: Iterable[IndicatorValue], year: int) -> None:
-    session.execute(delete(IndicatorValueRecord).where(IndicatorValueRecord.year == year))
-    for value in values:
+def save_indicator_values(
+    session: Session,
+    values: Iterable[IndicatorValue],
+    year: int,
+    replace_territory_ids: Iterable[str] | None = None,
+) -> None:
+    rows = list(values)
+    territory_ids = replacement_territory_ids(replace_territory_ids, rows)
+    delete_public_rows(session, IndicatorValueRecord, {year}, territory_ids)
+    for value in rows:
         session.merge(
             IndicatorValueRecord(
                 indicator_id=value.indicator_id,
@@ -739,13 +865,25 @@ def save_territory_scenarios(
     session: Session,
     scenarios: Iterable[TerritoryScenario],
     year: int,
+    comparison_scope: str = COMPARISON_SCOPE_UF,
+    replace_territory_ids: Iterable[str] | None = None,
 ) -> None:
-    session.execute(delete(TerritoryScenarioRecord).where(TerritoryScenarioRecord.year == year))
-    for scenario in scenarios:
+    rows = list(scenarios)
+    territory_ids = replacement_territory_ids(replace_territory_ids, rows)
+    if territory_ids:
+        session.execute(
+            delete(TerritoryScenarioRecord).where(
+                TerritoryScenarioRecord.year == year,
+                TerritoryScenarioRecord.comparison_scope == comparison_scope,
+                TerritoryScenarioRecord.territory_id.in_(territory_ids),
+            )
+        )
+    for scenario in rows:
         session.merge(
             TerritoryScenarioRecord(
                 territory_id=scenario.territory_id,
                 year=scenario.year,
+                comparison_scope=scenario.comparison_scope,
                 rule_id=scenario.rule_id,
                 scenario_id=scenario.scenario_id,
                 severity=scenario.severity.value,
@@ -780,13 +918,25 @@ def save_recommendations(
     session: Session,
     recommendations: Iterable[Recommendation],
     year: int,
+    comparison_scope: str = COMPARISON_SCOPE_UF,
+    replace_territory_ids: Iterable[str] | None = None,
 ) -> None:
-    session.execute(delete(RecommendationRecord).where(RecommendationRecord.year == year))
-    for recommendation in recommendations:
+    rows = list(recommendations)
+    territory_ids = replacement_territory_ids(replace_territory_ids, rows)
+    if territory_ids:
+        session.execute(
+            delete(RecommendationRecord).where(
+                RecommendationRecord.year == year,
+                RecommendationRecord.comparison_scope == comparison_scope,
+                RecommendationRecord.territory_id.in_(territory_ids),
+            )
+        )
+    for recommendation in rows:
         session.merge(
             RecommendationRecord(
                 territory_id=recommendation.territory_id,
                 year=recommendation.year,
+                comparison_scope=recommendation.comparison_scope,
                 strategy_id=recommendation.strategy_id,
                 rule_id=recommendation.rule_id,
                 priority=recommendation.priority.value,
@@ -860,8 +1010,18 @@ def load_hospitalizations(session: Session, year: int) -> list[HospitalizationAg
     ]
 
 
-def load_indicator_values(session: Session, year: int) -> list[IndicatorValue]:
-    records = session.query(IndicatorValueRecord).filter_by(year=year).all()
+def load_indicator_values(
+    session: Session,
+    year: int,
+    territory_ids: Iterable[str] | None = None,
+) -> list[IndicatorValue]:
+    query = session.query(IndicatorValueRecord).filter_by(year=year)
+    if territory_ids is not None:
+        ids = set(territory_ids)
+        if not ids:
+            return []
+        query = query.filter(IndicatorValueRecord.territory_id.in_(ids))
+    records = query.all()
     return [
         IndicatorValue(
             indicator_id=record.indicator_id,
@@ -879,8 +1039,15 @@ def load_indicator_values(session: Session, year: int) -> list[IndicatorValue]:
     ]
 
 
-def load_territory_scenarios(session: Session, year: int) -> list[TerritoryScenario]:
-    records = session.query(TerritoryScenarioRecord).filter_by(year=year).all()
+def load_territory_scenarios(
+    session: Session,
+    year: int,
+    comparison_scope: str | None = None,
+) -> list[TerritoryScenario]:
+    query = session.query(TerritoryScenarioRecord).filter_by(year=year)
+    if comparison_scope is not None:
+        query = query.filter_by(comparison_scope=comparison_scope)
+    records = query.all()
     return [
         TerritoryScenario(
             territory_id=record.territory_id,
@@ -893,13 +1060,19 @@ def load_territory_scenarios(session: Session, year: int) -> list[TerritoryScena
             indicator_id=record.indicator_id,
             indicator_value=record.indicator_value,
             threshold_value=record.threshold_value,
+            comparison_scope=record.comparison_scope,
         )
         for record in records
     ]
 
 
-def load_territories(session: Session, uf: str) -> list[Territory]:
-    records = session.query(TerritoryRecord).filter_by(uf_sigla=uf).all()
+def load_territories(
+    session: Session,
+    uf: str,
+    territory_type: str | None = MUNICIPALITY_TERRITORY_TYPE,
+) -> list[Territory]:
+    query = territory_query(session, uf, territory_type)
+    records = query.all()
     return [
         Territory(
             territory_id=record.territory_id,
@@ -912,6 +1085,38 @@ def load_territories(session: Session, uf: str) -> list[Territory]:
         )
         for record in records
     ]
+
+
+def territory_query(
+    session: Session,
+    uf: str,
+    territory_type: str | None = MUNICIPALITY_TERRITORY_TYPE,
+) -> Query[TerritoryRecord]:
+    scope = normalize_geographic_scope(uf)
+    query = session.query(TerritoryRecord)
+    if scope != BRAZIL_SCOPE:
+        query = query.filter_by(uf_sigla=scope)
+    if territory_type is not None:
+        query = query.filter_by(territory_type=territory_type)
+    return query
+
+
+def territory_records_for_scope(
+    session: Session,
+    uf: str,
+    territory_type: str | None = MUNICIPALITY_TERRITORY_TYPE,
+) -> list[TerritoryRecord]:
+    return territory_query(session, uf, territory_type).order_by(TerritoryRecord.name).all()
+
+
+def normalize_comparison_scope(uf: str, comparison_scope: str | None = None) -> str:
+    geographic_scope = normalize_geographic_scope(uf)
+    if geographic_scope == BRAZIL_SCOPE:
+        return COMPARISON_SCOPE_NATIONAL
+    scope = comparison_scope or COMPARISON_SCOPE_UF
+    if scope not in COMPARISON_SCOPES:
+        raise ValueError(f"unsupported comparison scope: {scope}")
+    return scope
 
 
 def load_local_territories(session: Session) -> list[LocalTerritory]:
@@ -1083,10 +1288,17 @@ CORE_PUBLIC_SOURCE_IDS = (
 )
 
 
-def dashboard_context(session: Session, year: int, uf: str) -> dict[str, Any]:
+def dashboard_context(
+    session: Session,
+    year: int,
+    uf: str,
+    comparison_scope: str | None = None,
+) -> dict[str, Any]:
+    geographic_scope = normalize_geographic_scope(uf)
+    scenario_scope = normalize_comparison_scope(geographic_scope, comparison_scope)
     territories = {
         record.territory_id: record
-        for record in session.query(TerritoryRecord).filter_by(uf_sigla=uf).all()
+        for record in territory_records_for_scope(session, geographic_scope)
     }
     indicators = [
         record
@@ -1095,14 +1307,18 @@ def dashboard_context(session: Session, year: int, uf: str) -> dict[str, Any]:
     ]
     scenarios = [
         record
-        for record in session.query(TerritoryScenarioRecord).filter_by(year=year).all()
+        for record in session.query(TerritoryScenarioRecord)
+        .filter_by(year=year, comparison_scope=scenario_scope)
+        .all()
         if record.territory_id in territories
     ]
     source_runs = latest_import_runs(session)
     ranking = ranking_rows(territories, scenarios)
     geometry_count = sum(1 for territory in territories.values() if territory.geometry is not None)
     return {
-        "uf": uf,
+        "uf": geographic_scope,
+        "geographic_scope": geographic_scope,
+        "comparison_scope": scenario_scope,
         "year": year,
         "territory_count": len(territories),
         "indicator_count": len(indicators),
@@ -1113,6 +1329,9 @@ def dashboard_context(session: Session, year: int, uf: str) -> dict[str, Any]:
             indicator_count=len(indicators),
             scenarios=scenarios,
             source_runs=source_runs,
+        ),
+        "health_territory_readiness": health_territory_readiness(
+            session, geographic_scope, set(territories)
         ),
         "ranking": ranking,
         "sources": source_runs,
@@ -1125,8 +1344,7 @@ def dashboard_context(session: Session, year: int, uf: str) -> dict[str, Any]:
 
 def api_indicator_rows(session: Session, year: int, uf: str) -> list[dict[str, Any]]:
     territory_by_id = {
-        record.territory_id: record
-        for record in session.query(TerritoryRecord).filter_by(uf_sigla=uf).all()
+        record.territory_id: record for record in territory_records_for_scope(session, uf)
     }
     definitions = {
         record.indicator_id: record for record in session.query(IndicatorDefinitionRecord).all()
@@ -1217,9 +1435,7 @@ def ranking_rows(
 
 
 def api_territory_rows(session: Session, uf: str) -> list[dict[str, Any]]:
-    records = (
-        session.query(TerritoryRecord).filter_by(uf_sigla=uf).order_by(TerritoryRecord.name).all()
-    )
+    records = territory_records_for_scope(session, uf)
     return [
         {
             "territory_id": record.territory_id,
@@ -1233,11 +1449,17 @@ def api_territory_rows(session: Session, uf: str) -> list[dict[str, Any]]:
     ]
 
 
-def territory_report(session: Session, territory_id: str, year: int) -> dict[str, Any]:
+def territory_report(
+    session: Session,
+    territory_id: str,
+    year: int,
+    comparison_scope: str | None = None,
+) -> dict[str, Any]:
     territory = session.get(TerritoryRecord, territory_id)
-    if territory is None:
-        raise KeyError(f"unknown territory: {territory_id}")
+    if territory is None or territory.territory_type != MUNICIPALITY_TERRITORY_TYPE:
+        raise KeyError(f"unknown municipality territory: {territory_id}")
 
+    scenario_scope = normalize_comparison_scope(territory.uf_sigla, comparison_scope)
     indicators = [
         row
         for row in api_indicator_rows(session, year, territory.uf_sigla)
@@ -1248,6 +1470,7 @@ def territory_report(session: Session, territory_id: str, year: int) -> dict[str
         for record in session.query(TerritoryScenarioRecord).filter_by(
             territory_id=territory_id,
             year=year,
+            comparison_scope=scenario_scope,
         )
     ]
     recommendations = [
@@ -1256,16 +1479,19 @@ def territory_report(session: Session, territory_id: str, year: int) -> dict[str
             "rule_id": record.rule_id,
             "priority": record.priority,
             "explanation": record.explanation,
+            "comparison_scope": record.comparison_scope,
         }
         for record in session.query(RecommendationRecord).filter_by(
             territory_id=territory_id,
             year=year,
+            comparison_scope=scenario_scope,
         )
     ]
     return {
         "territory_id": territory.territory_id,
         "territory_name": territory.name,
         "uf": territory.uf_sigla,
+        "comparison_scope": scenario_scope,
         "year": year,
         "indicators": indicators,
         "scenarios": scenarios,
@@ -1275,7 +1501,7 @@ def territory_report(session: Session, territory_id: str, year: int) -> dict[str
 
 def geojson_for_territories(session: Session, uf: str) -> dict[str, Any]:
     features: list[dict[str, Any]] = []
-    for record in session.query(TerritoryRecord).filter_by(uf_sigla=uf).all():
+    for record in territory_records_for_scope(session, uf):
         if record.geometry is None:
             continue
         features.append(
@@ -1292,22 +1518,83 @@ def geojson_for_territories(session: Session, uf: str) -> dict[str, Any]:
     return {"type": "FeatureCollection", "features": features}
 
 
-def map_geojson_for_municipalities(session: Session, year: int, uf: str) -> dict[str, Any]:
-    territories = (
-        session.query(TerritoryRecord).filter_by(uf_sigla=uf).order_by(TerritoryRecord.name).all()
+def geojson_for_subterritories(
+    session: Session,
+    parent_id: str,
+    territory_type: str = NEIGHBORHOOD_REFERENCE_TERRITORY_TYPE,
+) -> dict[str, Any]:
+    records = (
+        session.query(TerritoryRecord)
+        .filter_by(parent_id=parent_id, territory_type=territory_type)
+        .order_by(TerritoryRecord.name)
+        .all()
     )
+    features = [subterritory_feature(record) for record in records]
+    return {
+        "type": "FeatureCollection",
+        "metadata": subterritory_geojson_metadata(parent_id, territory_type, features),
+        "features": features,
+    }
+
+
+def subterritory_feature(record: TerritoryRecord) -> dict[str, Any]:
+    return {
+        "type": "Feature",
+        "properties": {
+            "territory_id": record.territory_id,
+            "name": record.name,
+            "territory_type": record.territory_type,
+            "parent_id": record.parent_id,
+            "uf": record.uf_sigla,
+            "uf_code": record.uf_code,
+            "data_level": PUBLIC_REFERENCE_DATA_LEVEL,
+        },
+        "geometry": record.geometry,
+    }
+
+
+def subterritory_geojson_metadata(
+    parent_id: str,
+    territory_type: str,
+    features: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    drawable_geometry_count = sum(1 for feature in features if feature["geometry"] is not None)
+    return {
+        "parent_id": parent_id,
+        "territory_type": territory_type,
+        "feature_count": len(features),
+        "drawable_geometry_count": drawable_geometry_count,
+        "status": coverage_readiness_status(drawable_geometry_count, len(features)),
+        "data_level": PUBLIC_REFERENCE_DATA_LEVEL,
+        "caveat": SUBTERRITORY_REFERENCE_CAVEAT,
+    }
+
+
+def map_geojson_for_municipalities(
+    session: Session,
+    year: int,
+    uf: str,
+    comparison_scope: str | None = None,
+) -> dict[str, Any]:
+    geographic_scope = normalize_geographic_scope(uf)
+    scenario_scope = normalize_comparison_scope(geographic_scope, comparison_scope)
+    territories = territory_records_for_scope(session, geographic_scope)
     territory_ids = {territory.territory_id for territory in territories}
     definitions = {
         record.indicator_id: record for record in session.query(IndicatorDefinitionRecord).all()
     }
     indicators = map_indicator_rows_by_territory(session, year, territory_ids)
-    scenarios = map_scenario_summary_by_territory(session, year, territory_ids)
+    scenarios = map_scenario_summary_by_territory(
+        session, year, territory_ids, comparison_scope=scenario_scope
+    )
     features = [
         map_municipality_feature(territory, indicators, scenarios) for territory in territories
     ]
     return {
         "type": "FeatureCollection",
-        "metadata": map_geojson_metadata(uf, year, features, definitions),
+        "metadata": map_geojson_metadata(
+            geographic_scope, year, features, definitions, comparison_scope=scenario_scope
+        ),
         "features": features,
     }
 
@@ -1396,6 +1683,64 @@ def dashboard_readiness(
     }
 
 
+def health_territory_readiness(
+    session: Session,
+    uf: str,
+    municipality_ids: set[str],
+) -> dict[str, Any]:
+    subterritories = territory_query(session, uf, NEIGHBORHOOD_REFERENCE_TERRITORY_TYPE).all()
+    public_geometry_count = sum(1 for territory in subterritories if territory.geometry is not None)
+    facilities = (
+        session.query(FacilityRecord)
+        .filter(FacilityRecord.territory_id.in_(municipality_ids))
+        .all()
+        if municipality_ids
+        else []
+    )
+    facility_municipality_count = len({facility.territory_id for facility in facilities})
+
+    return {
+        "public_subterritory_geometry": {
+            "label": "Public submunicipal reference geometry",
+            "status": coverage_readiness_status(public_geometry_count, len(subterritories)),
+            "feature_count": len(subterritories),
+            "drawable_geometry_count": public_geometry_count,
+            "detail": (
+                f"{public_geometry_count}/{len(subterritories)} public reference polygons "
+                "available for contextual drill-down"
+            ),
+        },
+        "cnes_facility_context": {
+            "label": "CNES facility context",
+            "status": "ready" if facilities else "missing",
+            "facility_count": len(facilities),
+            "municipality_count": facility_municipality_count,
+            "detail": (
+                f"{len(facilities)} public CNES facility records in "
+                f"{facility_municipality_count} municipalities"
+            ),
+        },
+        "official_health_territory_boundaries": {
+            "label": "Official health-territory boundaries",
+            "status": "missing",
+            "available": False,
+            "detail": (
+                "Official UBS, team, and microarea boundaries are not available from "
+                "the current public-only sources."
+            ),
+        },
+        "tb_health_territory_indicators": {
+            "label": "TB indicators by health territory",
+            "status": "missing",
+            "available": False,
+            "detail": (
+                "TB outcomes by UBS, team, microarea, or bairro are not computed in MVP1; "
+                "public TB indicators remain municipality-level."
+            ),
+        },
+    }
+
+
 def public_sources_readiness_status(*, success_count: int, failed_count: int) -> str:
     if failed_count:
         return "warning"
@@ -1473,9 +1818,14 @@ def map_scenario_summary_by_territory(
     session: Session,
     year: int,
     territory_ids: set[str],
+    comparison_scope: str = COMPARISON_SCOPE_UF,
 ) -> dict[str, dict[str, Any]]:
     summaries: dict[str, dict[str, Any]] = {}
-    records = session.query(TerritoryScenarioRecord).filter_by(year=year).all()
+    records = (
+        session.query(TerritoryScenarioRecord)
+        .filter_by(year=year, comparison_scope=comparison_scope)
+        .all()
+    )
     for record in records:
         if record.territory_id not in territory_ids:
             continue
@@ -1517,6 +1867,7 @@ def highest_severity(current: str | None, candidate: str) -> str:
 def scenario_api_row(record: TerritoryScenarioRecord) -> dict[str, Any]:
     return {
         "rule_id": record.rule_id,
+        "comparison_scope": record.comparison_scope,
         "indicator_id": record.indicator_id,
         "severity": record.severity,
         "score": round(record.score, 4),
@@ -1542,9 +1893,13 @@ def map_geojson_metadata(
     year: int,
     features: Sequence[dict[str, Any]],
     definitions: dict[str, IndicatorDefinitionRecord],
+    *,
+    comparison_scope: str,
 ) -> dict[str, Any]:
     return {
         "uf": uf,
+        "geographic_scope": uf,
+        "comparison_scope": comparison_scope,
         "year": year,
         "feature_count": len(features),
         "drawable_geometry_count": sum(

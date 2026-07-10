@@ -39,8 +39,8 @@ def read_ibge_municipalities(payload: Iterable[dict[str, Any]], uf_sigla: str) -
     territories: list[Territory] = []
     for item in payload:
         code = str(item["id"])
-        uf = item["microrregiao"]["mesorregiao"]["UF"]
-        if uf["sigla"] != uf_sigla:
+        uf = ibge_municipality_uf(item)
+        if uf is None or uf["sigla"] != uf_sigla:
             continue
         territories.append(
             Territory(
@@ -52,6 +52,26 @@ def read_ibge_municipalities(payload: Iterable[dict[str, Any]], uf_sigla: str) -
             )
         )
     return sorted(territories, key=lambda territory: territory.territory_id)
+
+
+def ibge_municipality_uf(item: dict[str, Any]) -> dict[str, Any] | None:
+    microregion = item.get("microrregiao")
+    if isinstance(microregion, dict):
+        mesoregion = microregion.get("mesorregiao")
+        if isinstance(mesoregion, dict):
+            uf = mesoregion.get("UF")
+            if isinstance(uf, dict):
+                return uf
+
+    immediate_region = item.get("regiao-imediata")
+    if isinstance(immediate_region, dict):
+        intermediate_region = immediate_region.get("regiao-intermediaria")
+        if isinstance(intermediate_region, dict):
+            uf = intermediate_region.get("UF")
+            if isinstance(uf, dict):
+                return uf
+
+    return None
 
 
 def read_ibge_malhas_municipality_geometries(
@@ -82,6 +102,68 @@ def read_ibge_malhas_municipality_geometries(
     return sorted(matched.values(), key=lambda territory: territory.territory_id)
 
 
+def read_public_subterritory_geojson(
+    payload: object,
+    parent_territory_ids: set[str] | None = None,
+) -> list[Territory]:
+    if not isinstance(payload, dict) or payload.get("type") != "FeatureCollection":
+        return []
+
+    features = payload.get("features", [])
+    if not isinstance(features, list):
+        return []
+
+    territories: dict[str, Territory] = {}
+    for feature in features:
+        territory = public_subterritory_feature(feature, parent_territory_ids)
+        if territory is not None:
+            territories[territory.territory_id] = territory
+    return sorted(territories.values(), key=lambda territory: territory.territory_id)
+
+
+def public_subterritory_feature(
+    feature: object,
+    parent_territory_ids: set[str] | None,
+) -> Territory | None:
+    if not isinstance(feature, dict):
+        return None
+    properties = feature.get("properties")
+    if not isinstance(properties, dict):
+        return None
+
+    values = {
+        field: str(properties.get(field, "")).strip()
+        for field in (
+            "territory_id",
+            "name",
+            "territory_type",
+            "parent_id",
+            "uf_code",
+            "uf_sigla",
+        )
+    }
+    if not all(values.values()):
+        return None
+    if values["territory_type"] != "neighborhood_reference":
+        return None
+    if parent_territory_ids is not None and values["parent_id"] not in parent_territory_ids:
+        return None
+
+    geometry = feature.get("geometry")
+    if not is_polygonal_geojson_geometry(geometry):
+        return None
+
+    return Territory(
+        territory_id=values["territory_id"],
+        name=values["name"],
+        territory_type=values["territory_type"],
+        parent_id=values["parent_id"],
+        uf_code=values["uf_code"],
+        uf_sigla=values["uf_sigla"],
+        geometry=geometry,
+    )
+
+
 def ibge_malhas_feature_code(feature: dict[str, Any]) -> str | None:
     properties = feature.get("properties", {})
     raw_code: object | None = None
@@ -97,6 +179,10 @@ def ibge_malhas_feature_code(feature: dict[str, Any]) -> str | None:
 
 def is_geojson_geometry(value: object) -> bool:
     return isinstance(value, dict) and isinstance(value.get("type"), str)
+
+
+def is_polygonal_geojson_geometry(value: object) -> bool:
+    return isinstance(value, dict) and value.get("type") in {"Polygon", "MultiPolygon"}
 
 
 def read_sidra_population_payload(

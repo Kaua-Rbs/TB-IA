@@ -7,6 +7,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
+from tbia.geography import BRAZIL_SCOPE, ufs_for_scope
+
 
 @dataclass(frozen=True)
 class DatasusFile:
@@ -31,6 +33,30 @@ def datasus_demo_files(
     sih_months: Sequence[int] = (1,),
     cnes_month: int = 12,
 ) -> tuple[DatasusFile, ...]:
+    scope = uf.upper()
+    year_suffix = str(year)[-2:]
+    sinan_file = DatasusFile(
+        source_id="sinan_tb",
+        label=f"SINAN-TB Brazil {year} preliminary",
+        host="ftp.datasus.gov.br",
+        remote_path=f"dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR{year_suffix}.dbc",
+        local_name=f"sinan_tb_br_{year}.dbc",
+    )
+    if scope == BRAZIL_SCOPE:
+        files: list[DatasusFile] = [sinan_file]
+        for uf_sigla in ufs_for_scope(BRAZIL_SCOPE):
+            files.extend(regional_datasus_demo_files(uf_sigla, year, sih_months, cnes_month))
+        return tuple(files)
+    regional_files = regional_datasus_demo_files(scope, year, sih_months, cnes_month)
+    return (regional_files[0], sinan_file, *regional_files[1:])
+
+
+def regional_datasus_demo_files(
+    uf: str,
+    year: int,
+    sih_months: Sequence[int],
+    cnes_month: int,
+) -> tuple[DatasusFile, ...]:
     uf_code = uf.upper()
     uf_slug = uf.lower()
     year_suffix = str(year)[-2:]
@@ -41,16 +67,8 @@ def datasus_demo_files(
             host="ftp.datasus.gov.br",
             remote_path=f"dissemin/publicos/SIM/CID10/DORES/DO{uf_code}{year}.dbc",
             local_name=f"sim_{uf_slug}_{year}.dbc",
-        ),
-        DatasusFile(
-            source_id="sinan_tb",
-            label=f"SINAN-TB Brazil {year} preliminary",
-            host="ftp.datasus.gov.br",
-            remote_path=f"dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR{year_suffix}.dbc",
-            local_name=f"sinan_tb_br_{year}.dbc",
-        ),
+        )
     ]
-
     files.extend(
         DatasusFile(
             source_id="sih_sus",

@@ -1,569 +1,51 @@
-<!doctype html>
-<html lang="{{ html_lang }}">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{{ tr.mvp1.title }}</title>
+{% extends "base.html" %}
+{% set active_page = "territorial" %}
+{% set page_title = tr.mvp1.title %}
+{% set page_subtitle = tr.mvp1.subtitle %}
+{% set territorial_url = "/territorios?uf=%s&year=%s&comparison_scope=%s&lang=%s"|format(uf, year, comparison_scope, lang) %}
+{% set care_url = "/acompanhamento?year=%s&lang=%s"|format(year, lang) %}
+{% set language_url = "/territorios?uf=%s&year=%s&comparison_scope=%s&lang=%s"|format(uf, year, comparison_scope, other_lang) %}
+
+{% block title %}{{ tr.mvp1.title }} - TB-IA{% endblock %}
+{% block head_extra %}
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
-    <style>
-      :root {
-        color-scheme: light;
-        --bg: #f5f7fa;
-        --panel: #ffffff;
-        --panel-soft: #fbfcfd;
-        --line: #d9e2ec;
-        --line-strong: #bcccdc;
-        --text: #1f2933;
-        --muted: #52606d;
-        --blue: #0f609b;
-        --blue-soft: #e7f5ff;
-        --green: #13795b;
-        --green-soft: #e3fcef;
-        --yellow: #8d6b00;
-        --yellow-soft: #fff7d6;
-        --red: #ab091e;
-        --red-soft: #ffe3e3;
-        --neutral-soft: #f0f4f8;
-      }
+{% endblock %}
 
-      * {
-        box-sizing: border-box;
-      }
-
-      body {
-        margin: 0;
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        color: var(--text);
-        background: var(--bg);
-      }
-
-      header,
-      main {
-        max-width: 1200px;
-        margin: 0 auto;
-        padding: 20px 24px;
-      }
-
-      header {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) auto;
-        gap: 20px;
-        align-items: end;
-      }
-
-      h1,
-      h2,
-      h3,
-      h4,
-      p {
-        margin-top: 0;
-      }
-
-      h1 {
-        margin-bottom: 8px;
-        font-size: 28px;
-        letter-spacing: 0;
-      }
-
-      h2 {
-        font-size: 20px;
-        margin-bottom: 12px;
-      }
-
-      h3 {
-        font-size: 17px;
-        margin-bottom: 8px;
-      }
-
-      h4 {
-        font-size: 14px;
-        margin-bottom: 8px;
-      }
-
-      a {
-        color: var(--blue);
-        text-decoration: none;
-      }
-
-      button,
-      input,
-      select {
-        min-height: 36px;
-        border: 1px solid var(--line-strong);
-        border-radius: 6px;
-        background: #fff;
-        color: var(--text);
-        font: inherit;
-        padding: 7px 10px;
-      }
-
-      button {
-        background: var(--text);
-        color: #fff;
-        cursor: pointer;
-      }
-
-      label {
-        display: grid;
-        gap: 4px;
-        color: var(--muted);
-        font-size: 13px;
-      }
-
-      .top-nav {
-        display: inline-flex;
-        flex-wrap: wrap;
-        gap: 4px;
-        padding: 3px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #fff;
-        margin-bottom: 14px;
-      }
-
-      .top-nav a {
-        border-radius: 6px;
-        color: var(--muted);
-        padding: 7px 10px;
-        font-size: 13px;
-        font-weight: 650;
-      }
-
-      .top-nav a[aria-current="page"] {
-        background: var(--blue-soft);
-        color: #0b4f7a;
-      }
-
-      .header-meta,
-      .meta,
-      .muted {
-        color: var(--muted);
-        font-size: 14px;
-      }
-
-      .badge-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 6px;
-        margin-top: 10px;
-      }
-
-      .badge,
-      .status-pill {
-        display: inline-flex;
-        align-items: center;
-        width: fit-content;
-        min-height: 22px;
-        border: 1px solid var(--line-strong);
-        border-radius: 999px;
-        padding: 2px 8px;
-        background: #fff;
-        color: var(--muted);
-        font-size: 12px;
-        font-weight: 650;
-        text-transform: uppercase;
-        white-space: nowrap;
-      }
-
-      .badge.public {
-        border-color: #8fc7ad;
-        background: var(--green-soft);
-        color: var(--green);
-      }
-
-      .badge.scope {
-        border-color: #9ec5fe;
-        background: var(--blue-soft);
-        color: #0b4f7a;
-      }
-
-      .scope-form {
-        display: grid;
-        grid-template-columns: 86px 110px auto;
-        gap: 10px;
-        align-items: end;
-        min-width: 300px;
-      }
-
-      .caveat {
-        border-left: 4px solid #9fb3c8;
-        background: #fff;
-        padding: 12px 16px;
-        margin-bottom: 20px;
-      }
-
-      .grid,
-      .readiness-grid,
-      .detail-summary {
-        display: grid;
-        gap: 12px;
-      }
-
-      .grid {
-        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-        margin-bottom: 20px;
-      }
-
-      .readiness-grid {
-        grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-        margin-bottom: 20px;
-      }
-
-      .metric,
-      .readiness-tile,
-      .panel {
-        background: var(--panel);
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 16px;
-      }
-
-      .metric strong,
-      .readiness-tile strong {
-        display: block;
-        margin-bottom: 4px;
-        font-size: 24px;
-      }
-
-      .readiness-tile strong {
-        font-size: 16px;
-      }
-
-      .readiness-tile {
-        display: grid;
-        gap: 6px;
-        min-height: 118px;
-      }
-
-      .readiness-ready {
-        border-left: 4px solid var(--green);
-      }
-
-      .readiness-partial {
-        border-left: 4px solid var(--yellow);
-      }
-
-      .readiness-warning {
-        border-left: 4px solid var(--red);
-      }
-
-      .readiness-missing {
-        border-left: 4px solid #7b8794;
-      }
-
-      .panel {
-        margin-bottom: 20px;
-      }
-
-      .toolbar,
-      .map-toolbar {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        gap: 12px 16px;
-        align-items: end;
-        margin-bottom: 12px;
-      }
-
-      .control-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px;
-        align-items: end;
-      }
-
-      .control-row select,
-      .control-row input {
-        min-width: 190px;
-      }
-
-      .map-shell {
-        display: grid;
-        grid-template-columns: minmax(0, 2fr) minmax(310px, 1fr);
-        gap: 16px;
-      }
-
-      .map-frame {
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        min-width: 0;
-      }
-
-      #municipality-map {
-        height: 500px;
-        min-height: 380px;
-        width: 100%;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        background: #eef2f6;
-      }
-
-      .map-detail {
-        min-height: 500px;
-        max-height: 640px;
-        border: 1px solid var(--line);
-        border-radius: 8px;
-        padding: 14px;
-        overflow: auto;
-        background: var(--panel-soft);
-      }
-
-      .map-status {
-        border: 1px solid var(--line-strong);
-        border-radius: 6px;
-        background: #fff;
-        color: var(--muted);
-        padding: 10px 12px;
-        font-size: 14px;
-      }
-
-      .map-status.hidden {
-        display: none;
-      }
-
-      .map-legend {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 10px 14px;
-        color: var(--muted);
-        font-size: 13px;
-      }
-
-      .legend-item {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-      }
-
-      .legend-swatch {
-        width: 16px;
-        height: 12px;
-        border: 1px solid var(--muted);
-        border-radius: 2px;
-        background: #d9e2ec;
-      }
-
-      .legend-swatch.low { background: #dcfce7; }
-      .legend-swatch.mid { background: #facc15; }
-      .legend-swatch.high { background: #b91c1c; }
-      .legend-swatch.suppressed {
-        background: #f3f4f6;
-        border-style: dashed;
-      }
-
-      .detail-section {
-        margin-top: 16px;
-      }
-
-      .detail-list {
-        margin: 8px 0 0;
-        padding-left: 18px;
-      }
-
-      .detail-summary {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-        margin-top: 12px;
-      }
-
-      .summary-cell {
-        border-top: 1px solid var(--line);
-        background: transparent;
-        padding: 10px 0;
-      }
-
-      .summary-cell span {
-        display: block;
-        color: var(--muted);
-        font-size: 12px;
-        margin-bottom: 4px;
-      }
-
-      .summary-cell strong {
-        font-size: 18px;
-      }
-
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        background: #fff;
-        border: 1px solid var(--line);
-      }
-
-      th,
-      td {
-        text-align: left;
-        padding: 10px 12px;
-        border-bottom: 1px solid #e4e7eb;
-        vertical-align: top;
-      }
-
-      th {
-        background: var(--neutral-soft);
-        font-size: 13px;
-      }
-
-      tbody tr.clickable-row {
-        cursor: pointer;
-      }
-
-      tbody tr.clickable-row:hover,
-      tbody tr.selected-row {
-        background: var(--blue-soft);
-      }
-
-      .compact-table th,
-      .compact-table td {
-        padding: 8px;
-        font-size: 13px;
-      }
-
-      .status {
-        display: inline-block;
-        border-radius: 999px;
-        padding: 2px 8px;
-        font-size: 12px;
-        font-weight: 700;
-        text-transform: uppercase;
-        white-space: nowrap;
-      }
-
-      .status-success,
-      .status-ready,
-      .severity-low {
-        background: var(--green-soft);
-        color: var(--green);
-      }
-
-      .status-skipped,
-      .status-partial,
-      .severity-moderate {
-        background: var(--yellow-soft);
-        color: var(--yellow);
-      }
-
-      .status-failed,
-      .status-warning,
-      .severity-high {
-        background: var(--red-soft);
-        color: var(--red);
-      }
-
-      .status-missing,
-      .severity-none {
-        background: var(--neutral-soft);
-        color: var(--muted);
-      }
-
-      .empty {
-        color: #7b8794;
-      }
-
-      .source-message {
-        max-width: 320px;
-      }
-
-      .leaflet-container {
-        font: inherit;
-      }
-
-      @media (max-width: 900px) {
-        header,
-        .map-shell {
-          grid-template-columns: 1fr;
-        }
-
-        header {
-          align-items: start;
-        }
-
-        .scope-form {
-          grid-template-columns: 1fr 1fr auto;
-          min-width: 0;
-        }
-
-        .map-toolbar {
-          align-items: flex-start;
-          flex-direction: column;
-        }
-
-        #municipality-map,
-        .map-detail {
-          min-height: 360px;
-        }
-      }
-
-      @media (max-width: 560px) {
-        header,
-        main {
-          padding: 16px;
-        }
-
-        .scope-form,
-        .detail-summary {
-          grid-template-columns: 1fr;
-        }
-
-        .control-row,
-        .control-row label,
-        .control-row select,
-        .control-row input {
-          width: 100%;
-        }
-      }
-    </style>
-  </head>
-  <body>
-    <header>
-      <div>
-        <nav class="top-nav" aria-label="{{ tr.nav_label }}">
-          <a href="/?uf={{ uf }}&year={{ year }}&lang={{ lang }}" aria-current="page">{{ tr.mvp1_nav }}</a>
-          <a href="/mvp2?year={{ year }}&lang={{ lang }}">{{ tr.mvp2_nav }}</a>
-          <a href="/?uf={{ uf }}&year={{ year }}&lang={{ other_lang }}" aria-label="{{ tr.language_label }}: {{ tr.other_language_name }}">{{ tr.other_language_name }}</a>
-        </nav>
-        <h1>{{ tr.mvp1.title }}</h1>
-        <div class="header-meta">{{ tr.mvp1.subtitle }}</div>
-        <div class="badge-row" aria-label="{{ tr.mvp1.scope_label }}">
+{% block page_badges %}
           <span class="badge public">{{ tr.mvp1.badge_public }}</span>
           <span class="badge scope">{{ uf }} {{ year }}</span>
-        </div>
-      </div>
-      <form class="scope-form" method="get" action="/" aria-label="{{ tr.mvp1.scope_controls }}">
+          <span class="badge scope">{{ tr.mvp1.comparison_badge_prefix }} {{ tr.comparison_scope_labels.get(comparison_scope, comparison_scope) }}</span>
+{% endblock %}
+
+{% block page_controls %}
+      <form class="scope-form" method="get" action="/territorios" aria-label="{{ tr.mvp1.scope_controls }}">
         <input type="hidden" name="lang" value="{{ lang }}">
         <label for="uf-control">
           UF
           <input id="uf-control" name="uf" value="{{ uf }}" maxlength="2" autocomplete="off">
         </label>
         <label for="year-control">
-          {{ "Ano" if lang == "pt" else "Year" }}
+          {{ tr.year }}
           <input id="year-control" name="year" value="{{ year }}" type="number" min="2000" max="2100">
         </label>
+        <label for="comparison-scope-control">
+          {{ tr.mvp1.comparison_scope }}
+          <select id="comparison-scope-control" name="comparison_scope" {% if uf == "BR" %}disabled{% endif %}>
+            <option value="uf" {% if comparison_scope == "uf" %}selected{% endif %}>{{ tr.comparison_scope_labels.uf }}</option>
+            <option value="national" {% if comparison_scope == "national" %}selected{% endif %}>{{ tr.comparison_scope_labels.national }}</option>
+          </select>
+        </label>
+        {% if uf == "BR" %}
+          <input type="hidden" name="comparison_scope" value="national">
+        {% endif %}
         <button type="submit">{{ tr.apply }}</button>
       </form>
-    </header>
-    <main>
+{% endblock %}
+
+{% block content %}
       <div class="caveat">{{ caveat }}</div>
 
-      <section class="readiness-grid" aria-label="{{ tr.mvp1.data_readiness }}">
-        {% for key in ["public_sources", "geometry", "indicator_validation", "generated_scenarios"] %}
-          {% set tile = readiness[key] %}
-          <div class="readiness-tile readiness-{{ tile.status }}">
-            <span class="status status-{{ tile.status }}">{{ tr.status_labels.get(tile.status, tile.status) }}</span>
-            <strong>{{ tr.readiness[key] }}</strong>
-            {% if key == "public_sources" %}
-              <span class="muted">{{ tile.success_count }}/{{ tile.expected_count }} {{ tr.readiness.core_sources_successful }}</span>
-            {% elif key == "geometry" %}
-              <span class="muted">{{ tile.geometry_count }}/{{ tile.territory_count }} {{ tr.readiness.municipalities_with_geometry }}</span>
-            {% elif key == "indicator_validation" %}
-              <span class="muted">{{ tr.status_labels.get(tile.source_status, tile.source_status) }} {{ tr.readiness.with }} {{ tile.warning_count }} {{ tr.readiness.warnings }}</span>
-            {% elif key == "generated_scenarios" %}
-              <span class="muted">{{ tile.scenario_count }} {{ tr.readiness.scenarios_in }} {{ tile.territory_count }} {{ tr.readiness.territories }}</span>
-            {% endif %}
-          </div>
-        {% endfor %}
-      </section>
-
-      <section class="grid" aria-label="{{ tr.mvp1.summary_metrics }}">
+      <section class="grid metric-grid" aria-label="{{ tr.mvp1.summary_metrics }}">
         <div class="metric">
           <strong>{{ territory_count }}</strong>
           {{ tr.mvp1.territories }}
@@ -578,10 +60,23 @@
         </div>
       </section>
 
-      <section class="panel map-panel" aria-label="{{ tr.mvp1.territorial_map }}">
+      <section class="panel map-panel primary-panel" aria-label="{{ tr.mvp1.territorial_map }}">
         <div class="map-toolbar">
           <h2>{{ tr.mvp1.territorial_map }}</h2>
           <div class="control-row">
+            <div id="map-view-control" class="map-view-control" role="radiogroup" aria-label="{{ tr.mvp1.map_view }}">
+              <span class="control-label">{{ tr.mvp1.map_view }}</span>
+              <div class="segmented-control">
+                <label for="map-view-municipality-priority">
+                  <input id="map-view-municipality-priority" type="radio" name="map-view" value="municipality_priority" checked>
+                  <span>{{ tr.mvp1.municipality_priority }}</span>
+                </label>
+                <label for="map-view-neighborhood-reference">
+                  <input id="map-view-neighborhood-reference" type="radio" name="map-view" value="neighborhood_reference">
+                  <span>{{ tr.mvp1.reference_neighborhoods }}</span>
+                </label>
+              </div>
+            </div>
             <label for="municipality-search">
               {{ tr.mvp1.municipality }}
               <input id="municipality-search" list="municipality-list" placeholder="{{ tr.mvp1.search_municipality }}" autocomplete="off">
@@ -624,7 +119,8 @@
           <div class="map-frame">
             <div id="municipality-map" role="img" aria-label="{{ tr.mvp1.map_alt }}"></div>
             <div id="map-status" class="map-status hidden" aria-live="polite"></div>
-            <div class="map-legend" aria-label="{{ tr.mvp1.map_legend }}">
+            <div id="subterritory-caveat" class="map-status map-reference-caveat hidden">{{ tr.js.subterritory_caveat }}</div>
+            <div id="map-legend" class="map-legend" aria-label="{{ tr.mvp1.map_legend }}">
               <span class="legend-item"><span class="legend-swatch low"></span>{{ tr.mvp1.lower_concern }}</span>
               <span class="legend-item"><span class="legend-swatch mid"></span>{{ tr.mvp1.moderate_concern }}</span>
               <span class="legend-item"><span class="legend-swatch high"></span>{{ tr.mvp1.higher_concern }}</span>
@@ -639,7 +135,9 @@
         </div>
       </section>
 
-      <section class="panel" aria-label="{{ tr.mvp1.priority_ranking }}">
+
+
+      <section class="panel ranking-panel" aria-label="{{ tr.mvp1.priority_ranking }}">
         <div class="toolbar">
           <h2>{{ tr.mvp1.priority_ranking }}</h2>
           <div class="meta" id="ranking-count">{{ tr.mvp1.loading_ranking }}</div>
@@ -687,7 +185,60 @@
         </noscript>
       </section>
 
-      <section class="panel">
+
+
+      <section class="section-heading" aria-label="{{ tr.mvp1.data_governance }}">
+        <h2>{{ tr.mvp1.data_governance }}</h2>
+        <p class="muted">{{ tr.mvp1.data_governance_note }}</p>
+      </section>
+
+      <section class="readiness-grid" aria-label="{{ tr.mvp1.data_readiness }}">
+        {% for key in ["public_sources", "geometry", "indicator_validation", "generated_scenarios"] %}
+          {% set tile = readiness[key] %}
+          <div class="readiness-tile readiness-{{ tile.status }}">
+            <span class="status status-{{ tile.status }}">{{ tr.status_labels.get(tile.status, tile.status) }}</span>
+            <strong>{{ tr.readiness[key] }}</strong>
+            {% if key == "public_sources" %}
+              <span class="muted">{{ tile.success_count }}/{{ tile.expected_count }} {{ tr.readiness.core_sources_successful }}</span>
+            {% elif key == "geometry" %}
+              <span class="muted">{{ tile.geometry_count }}/{{ tile.territory_count }} {{ tr.readiness.municipalities_with_geometry }}</span>
+            {% elif key == "indicator_validation" %}
+              <span class="muted">{{ tr.status_labels.get(tile.source_status, tile.source_status) }} {{ tr.readiness.with }} {{ tile.warning_count }} {{ tr.readiness.warnings }}</span>
+            {% elif key == "generated_scenarios" %}
+              <span class="muted">{{ tile.scenario_count }} {{ tr.readiness.scenarios_in }} {{ tile.territory_count }} {{ tr.readiness.territories }}</span>
+            {% endif %}
+          </div>
+        {% endfor %}
+      </section>
+
+
+
+      <section id="health-territory-readiness" class="health-territory-section" aria-label="{{ tr.mvp1.health_territories }}">
+        <h2>{{ tr.mvp1.health_territories }}</h2>
+        <p class="muted">{{ tr.mvp1.health_territory_note }}</p>
+        <div class="readiness-grid health-territory-grid">
+          {% for key in ["public_subterritory_geometry", "cnes_facility_context", "official_health_territory_boundaries", "tb_health_territory_indicators"] %}
+            {% set tile = health_territory_readiness[key] %}
+            <div class="readiness-tile readiness-{{ tile.status }}">
+              <span class="status status-{{ tile.status }}">{{ tr.status_labels.get(tile.status, tile.status) }}</span>
+              <strong>{{ tr.health_territory_readiness[key] }}</strong>
+              {% if key == "public_subterritory_geometry" %}
+                <span class="muted">{{ tile.drawable_geometry_count }}/{{ tile.feature_count }} {{ tr.health_territory_readiness.public_reference_polygons }}</span>
+              {% elif key == "cnes_facility_context" %}
+                <span class="muted">{{ tile.facility_count }} {{ tr.health_territory_readiness.cnes_facilities }} / {{ tile.municipality_count }} {{ tr.health_territory_readiness.municipalities }}</span>
+              {% else %}
+                <span class="muted">{{ tr.health_territory_readiness.not_available_public_mvp }}</span>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </section>
+
+
+
+
+
+      <section class="panel source-panel">
         <h2>{{ tr.mvp1.source_freshness }}</h2>
         {% if sources %}
           <table>
@@ -718,11 +269,14 @@
           <p class="empty">{{ tr.mvp1.no_import_runs }}</p>
         {% endif %}
       </section>
-    </main>
+{% endblock %}
+
+{% block body_scripts %}
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
       const MAP_UF = {{ uf | tojson }};
       const MAP_YEAR = {{ year | tojson }};
+      const MAP_COMPARISON_SCOPE = {{ comparison_scope | tojson }};
       const LANG = {{ lang | tojson }};
       const TEXT = {{ tr.js | tojson }};
       const layerSelect = document.getElementById("map-layer");
@@ -732,6 +286,9 @@
       const municipalityList = document.getElementById("municipality-list");
       const severityFilter = document.getElementById("severity-filter");
       const dataStatusFilter = document.getElementById("data-status-filter");
+      const mapViewInputs = document.querySelectorAll("input[name=\"map-view\"]");
+      const mapLegend = document.getElementById("map-legend");
+      const subterritoryCaveat = document.getElementById("subterritory-caveat");
       const rankingBody = document.getElementById("ranking-body");
       const rankingCount = document.getElementById("ranking-count");
       const defaultLayerDefinitions = {
@@ -782,9 +339,11 @@
       let layerDefinitions = { ...defaultLayerDefinitions };
       let mapData = { type: "FeatureCollection", features: [] };
       let municipalityLayer = null;
+      let subterritoryLayer = null;
       let map = null;
       let selectedTerritoryId = null;
       const layerByTerritoryId = new Map();
+      const subterritoryPayloadByParentId = new Map();
       const featureByTerritoryId = new Map();
       const searchIndex = new Map();
 
@@ -802,7 +361,7 @@
         });
         map.setView([-5.2, -39.5], 7);
 
-        fetch(`/api/map/municipalities?uf=${encodeURIComponent(MAP_UF)}&year=${MAP_YEAR}&lang=${encodeURIComponent(LANG)}`)
+        fetch(`/api/map/municipalities?uf=${encodeURIComponent(MAP_UF)}&year=${MAP_YEAR}&comparison_scope=${encodeURIComponent(MAP_COMPARISON_SCOPE)}&lang=${encodeURIComponent(LANG)}`)
           .then((response) => {
             if (!response.ok) throw new Error(`Map API returned ${response.status}`);
             return response.json();
@@ -831,6 +390,9 @@
               layer.setTooltipContent(tooltipText(layer.feature.properties));
             });
           }
+        });
+        mapViewInputs.forEach((input) => {
+          input.addEventListener("change", handleMapViewChange);
         });
         municipalitySearch.addEventListener("change", searchMunicipality);
         municipalitySearch.addEventListener("keydown", (event) => {
@@ -891,6 +453,9 @@
       }
 
       function styleFeature(feature) {
+        if (currentMapView() === "neighborhood_reference") {
+          return styleReferenceMunicipality(feature);
+        }
         const state = layerState(feature.properties);
         const missing = state.value === null;
         const selected = feature.properties.territory_id === selectedTerritoryId;
@@ -900,6 +465,17 @@
           dashArray: state.suppressed ? "4 3" : "",
           fillColor: missing ? "#d9e2ec" : colorForValue(state.value, layerStats(), state.direction),
           fillOpacity: missing ? 0.45 : 0.78
+        };
+      }
+
+      function styleReferenceMunicipality(feature) {
+        const selected = feature.properties.territory_id === selectedTerritoryId;
+        return {
+          color: selected ? "#0f609b" : "#94a3b8",
+          weight: selected ? 2.8 : 0.8,
+          dashArray: selected ? "" : "3 3",
+          fillColor: selected ? "#e7f5ff" : "#f8fafc",
+          fillOpacity: selected ? 0.32 : 0.12
         };
       }
 
@@ -944,6 +520,9 @@
       }
 
       function tooltipText(props) {
+        if (currentMapView() === "neighborhood_reference") {
+          return `${props.name}<br>${TEXT.reference_neighborhoods}`;
+        }
         const state = layerState(props);
         const label = (layerDefinitions[layerSelect.value] || defaultLayerDefinitions[layerSelect.value]).label;
         return `${props.name}<br>${label}: ${formatValue(state.value, state.unit, state.suppressed)}`;
@@ -954,6 +533,7 @@
         highlightRankingRow(territoryId);
         highlightPolygon(territoryId, options.focusMap !== false);
         loadTerritoryDetail(territoryId);
+        syncSubterritoriesForSelection();
       }
 
       function highlightRankingRow(territoryId) {
@@ -974,6 +554,104 @@
         if (focusMap && layer.getBounds) {
           map.fitBounds(layer.getBounds(), { padding: [36, 36], maxZoom: 10 });
         }
+      }
+
+      function currentMapView() {
+        const selected = document.querySelector("input[name=\"map-view\"]:checked");
+        return selected ? selected.value : "municipality_priority";
+      }
+
+      function handleMapViewChange() {
+        const referenceMode = currentMapView() === "neighborhood_reference";
+        mapLegend.classList.toggle("hidden", referenceMode);
+        subterritoryCaveat.classList.toggle("hidden", !referenceMode);
+        if (!referenceMode) {
+          clearSubterritoryLayer();
+          hideMapStatus();
+        }
+        if (municipalityLayer) {
+          municipalityLayer.setStyle(styleFeature);
+          municipalityLayer.eachLayer((layer) => {
+            layer.setTooltipContent(tooltipText(layer.feature.properties));
+          });
+        }
+        syncSubterritoriesForSelection();
+      }
+
+      function syncSubterritoriesForSelection() {
+        if (currentMapView() !== "neighborhood_reference") return;
+        subterritoryCaveat.classList.remove("hidden");
+        mapLegend.classList.add("hidden");
+        if (!selectedTerritoryId) {
+          clearSubterritoryLayer();
+          showMapStatus(TEXT.subterritory_select_municipality);
+          return;
+        }
+        loadSubterritories(selectedTerritoryId);
+      }
+
+      function loadSubterritories(parentId) {
+        const cached = subterritoryPayloadByParentId.get(parentId);
+        if (cached) {
+          renderSubterritories(cached);
+          return;
+        }
+        showMapStatus(TEXT.subterritory_loading);
+        fetch(`/api/map/subterritories?parent_id=${encodeURIComponent(parentId)}&territory_type=neighborhood_reference&lang=${encodeURIComponent(LANG)}`)
+          .then((response) => {
+            if (!response.ok) throw new Error(`Subterritory API returned ${response.status}`);
+            return response.json();
+          })
+          .then((payload) => {
+            subterritoryPayloadByParentId.set(parentId, payload);
+            renderSubterritories(payload);
+          })
+          .catch(() => {
+            clearSubterritoryLayer();
+            showMapStatus(TEXT.subterritory_unavailable);
+          });
+      }
+
+      function renderSubterritories(payload) {
+        clearSubterritoryLayer();
+        const drawable = {
+          type: "FeatureCollection",
+          features: (payload.features || []).filter((feature) => feature.geometry)
+        };
+        if (!drawable.features.length) {
+          showMapStatus(TEXT.subterritory_empty);
+          return;
+        }
+        hideMapStatus();
+        subterritoryLayer = L.geoJSON(drawable, {
+          style: styleSubterritoryFeature,
+          onEachFeature: bindSubterritoryFeature
+        }).addTo(map);
+        if (subterritoryLayer.getLayers().length) {
+          map.fitBounds(subterritoryLayer.getBounds(), { padding: [36, 36], maxZoom: 12 });
+        }
+      }
+
+      function clearSubterritoryLayer() {
+        if (subterritoryLayer && map) {
+          map.removeLayer(subterritoryLayer);
+        }
+        subterritoryLayer = null;
+      }
+
+      function styleSubterritoryFeature() {
+        return {
+          color: "#0f609b",
+          weight: 1.2,
+          dashArray: "",
+          fillColor: "#dbeafe",
+          fillOpacity: 0.36
+        };
+      }
+
+      function bindSubterritoryFeature(feature, layer) {
+        const props = feature.properties || {};
+        layer.bindTooltip(`${props.name || TEXT.reference_neighborhoods}<br>${TEXT.public_reference}`, { sticky: true });
       }
 
       function searchMunicipality() {
@@ -1054,7 +732,7 @@
 
       function loadTerritoryDetail(territoryId) {
         detailPanel.innerHTML = `<h3>${escapeHtml(TEXT.municipality_detail)}</h3><p class="empty">${escapeHtml(TEXT.loading)}</p>`;
-        fetch(`/api/territories/${encodeURIComponent(territoryId)}/report?year=${MAP_YEAR}&lang=${encodeURIComponent(LANG)}`)
+        fetch(`/api/territories/${encodeURIComponent(territoryId)}/report?year=${MAP_YEAR}&comparison_scope=${encodeURIComponent(MAP_COMPARISON_SCOPE)}&lang=${encodeURIComponent(LANG)}`)
           .then((response) => {
             if (!response.ok) throw new Error(`Detail API returned ${response.status}`);
             return response.json();
@@ -1090,6 +768,7 @@
             <span class="badge public">${escapeHtml(TEXT.public_aggregate)}</span>
             <span class="status status-${escapeHtml(props.data_status || "missing")}">${escapeHtml(displayStatus(props.data_status || "missing"))}</span>
           </div>
+          ${currentMapView() === "neighborhood_reference" ? `<div class="map-status map-reference-caveat">${escapeHtml(TEXT.subterritory_caveat)}</div>` : ""}
           <div class="detail-summary" aria-label="${escapeHtml(TEXT.municipality_detail)}">
             <div class="summary-cell"><span>${escapeHtml(TEXT.priority_score)}</span><strong>${formatValue(props.priority_score, "score")}</strong></div>
             <div class="summary-cell"><span>${escapeHtml(TEXT.scenarios)}</span><strong>${formatValue(props.scenario_count, "count")}</strong></div>
@@ -1187,5 +866,5 @@
         }[character]));
       }
     </script>
-  </body>
-</html>
+
+{% endblock %}

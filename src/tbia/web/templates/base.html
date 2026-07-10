@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="{{ html_lang }}">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}TB-IA{% endblock %}</title>
+    {% block head_extra %}{% endblock %}
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f4f6f8;
+        --surface: #ffffff;
+        --surface-soft: #f8fafc;
+        --surface-muted: #eef2f6;
+        --line: #d8e0e8;
+        --line-strong: #b8c4d0;
+        --text: #1f2933;
+        --muted: #52606d;
+        --muted-strong: #3e4c59;
+        --blue: #0b5f95;
+        --blue-soft: #e5f3ff;
+        --green: #13795b;
+        --green-soft: #e3fcef;
+        --yellow: #8d6b00;
+        --yellow-soft: #fff7d6;
+        --red: #a61b2b;
+        --red-soft: #ffe3e3;
+        --neutral-soft: #edf2f7;
+        --shadow: 0 10px 24px rgba(31, 41, 51, 0.08);
+      }
+
+      * { box-sizing: border-box; }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        color: var(--text);
+        background: var(--bg);
+      }
+
+      a { color: var(--blue); text-decoration: none; }
+
+      h1, h2, h3, h4, p { margin-top: 0; }
+      h1 { margin-bottom: 8px; font-size: 28px; line-height: 1.12; letter-spacing: 0; }
+      h2 { font-size: 20px; margin-bottom: 12px; letter-spacing: 0; }
+      h3 { font-size: 17px; margin-bottom: 8px; letter-spacing: 0; }
+      h4 { font-size: 14px; margin-bottom: 8px; letter-spacing: 0; }
+
+      button, input, select {
+        min-height: 36px;
+        border: 1px solid var(--line-strong);
+        border-radius: 6px;
+        background: #fff;
+        color: var(--text);
+        font: inherit;
+        padding: 7px 10px;
+      }
+
+      button {
+        background: var(--text);
+        color: #fff;
+        cursor: pointer;
+        font-weight: 650;
+      }
+
+      label {
+        display: grid;
+        gap: 4px;
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .app-layout {
+        display: grid;
+        grid-template-columns: 248px minmax(0, 1fr);
+        min-height: 100vh;
+      }
+
+      .app-sidebar {
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        gap: 22px;
+        padding: 22px 18px;
+        border-right: 1px solid var(--line);
+        background: #fff;
+      }
+
+      .brand {
+        display: grid;
+        grid-template-columns: 42px minmax(0, 1fr);
+        gap: 10px;
+        align-items: center;
+      }
+
+      .brand-mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 42px;
+        height: 42px;
+        border-radius: 8px;
+        background: var(--blue);
+        color: #fff;
+        font-weight: 800;
+        letter-spacing: 0;
+      }
+
+      .brand strong { display: block; font-size: 17px; }
+      .brand span:last-child { color: var(--muted); font-size: 12px; line-height: 1.25; }
+
+      .side-nav {
+        display: grid;
+        gap: 6px;
+      }
+
+      .side-nav a, .language-link {
+        display: flex;
+        align-items: center;
+        min-height: 38px;
+        border-radius: 7px;
+        color: var(--muted-strong);
+        font-size: 14px;
+        font-weight: 650;
+        padding: 8px 10px;
+      }
+
+      .side-nav a[aria-current="page"] {
+        background: var(--blue-soft);
+        color: #0b4f7a;
+      }
+
+      .language-link {
+        margin-top: auto;
+        border: 1px solid var(--line);
+        color: var(--blue);
+      }
+
+      .app-content { min-width: 0; }
+
+      .page-header, main {
+        max-width: 1280px;
+        margin: 0 auto;
+        padding: 22px 28px;
+      }
+
+      .page-header {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 20px;
+        align-items: end;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.74);
+      }
+
+      main { padding-top: 20px; }
+
+      .header-meta, .meta, .muted { color: var(--muted); font-size: 14px; }
+
+      .badge-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+      .badge, .status-pill {
+        display: inline-flex;
+        align-items: center;
+        width: fit-content;
+        min-height: 22px;
+        border: 1px solid var(--line-strong);
+        border-radius: 999px;
+        padding: 2px 8px;
+        background: #fff;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+        text-transform: uppercase;
+        white-space: nowrap;
+      }
+
+      .badge.public, .badge.scope { border-color: #8fc7ad; background: var(--green-soft); color: var(--green); }
+      .badge.synthetic { border-color: #9ec5fe; background: var(--blue-soft); color: #0b4f7a; }
+
+      .scope-form {
+        display: grid;
+        grid-template-columns: 86px 110px auto auto;
+        gap: 10px;
+        align-items: end;
+        min-width: 420px;
+      }
+
+      .filter-form {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 12px;
+        align-items: end;
+      }
+
+      .caveat { border-left: 4px solid #9fb3c8; background: #fff; padding: 12px 16px; margin-bottom: 20px; }
+      .grid, .readiness-grid, .detail-summary { display: grid; gap: 12px; }
+      .metric-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); margin-bottom: 20px; }
+      .readiness-grid { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 20px; }
+      .metric, .readiness-tile, .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; }
+      .primary-panel { box-shadow: var(--shadow); }
+      .metric strong, .readiness-tile strong { display: block; margin-bottom: 4px; font-size: 24px; }
+      .readiness-tile { display: grid; gap: 6px; min-height: 112px; }
+      .readiness-tile strong { font-size: 16px; }
+      .readiness-ready { border-left: 4px solid var(--green); }
+      .readiness-partial { border-left: 4px solid var(--yellow); }
+      .readiness-warning { border-left: 4px solid var(--red); }
+      .readiness-missing { border-left: 4px solid #7b8794; }
+      .panel { margin-bottom: 20px; }
+      .section-heading { margin: 8px 0 14px; }
+      .section-heading h2 { margin-bottom: 4px; }
+      .toolbar, .map-toolbar { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px 16px; align-items: end; margin-bottom: 12px; }
+      .control-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; }
+      .control-label { color: var(--muted); font-size: 13px; }
+      .map-view-control { display: grid; gap: 4px; }
+      .segmented-control { display: inline-grid; grid-template-columns: repeat(2, minmax(120px, 1fr)); gap: 2px; padding: 3px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; }
+      .segmented-control label { display: block; color: var(--muted); font-size: 13px; }
+      .segmented-control input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+      .segmented-control span { display: flex; align-items: center; justify-content: center; min-height: 30px; border-radius: 6px; padding: 4px 10px; font-weight: 650; white-space: nowrap; }
+      .segmented-control input:checked + span { background: var(--blue-soft); color: #0b4f7a; }
+      .control-row > label select, .control-row > label input { min-width: 190px; }
+      .map-shell { display: grid; grid-template-columns: minmax(0, 2fr) minmax(310px, 1fr); gap: 16px; }
+      .map-frame { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+      #municipality-map { height: 500px; min-height: 380px; width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-muted); }
+      .map-detail { min-height: 500px; max-height: 640px; border: 1px solid var(--line); border-radius: 8px; padding: 14px; overflow: auto; background: var(--surface-soft); }
+      .map-status { border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; color: var(--muted); padding: 10px 12px; font-size: 14px; }
+      .hidden, .map-status.hidden { display: none !important; }
+      .map-reference-caveat { border-color: #9ec5fe; background: var(--blue-soft); color: #0b4f7a; }
+      .health-territory-section { margin-bottom: 20px; }
+      .health-territory-grid { margin-bottom: 0; }
+      .map-legend { display: flex; flex-wrap: wrap; gap: 10px 14px; color: var(--muted); font-size: 13px; }
+      .legend-item { display: inline-flex; align-items: center; gap: 6px; }
+      .legend-swatch { width: 16px; height: 12px; border: 1px solid var(--muted); border-radius: 2px; background: #d9e2ec; }
+      .legend-swatch.low { background: #dcfce7; }
+      .legend-swatch.mid { background: #facc15; }
+      .legend-swatch.high { background: #b91c1c; }
+      .legend-swatch.suppressed { background: #f3f4f6; border-style: dashed; }
+      .detail-section { margin-top: 16px; }
+      .detail-list { margin: 8px 0 0; padding-left: 18px; }
+      .detail-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; }
+      .summary-cell { border-top: 1px solid var(--line); background: transparent; padding: 10px 0; }
+      .summary-cell span { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+      .summary-cell strong { font-size: 18px; }
+      table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--line); }
+      th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid #e4e7eb; vertical-align: top; }
+      th { background: var(--neutral-soft); font-size: 13px; }
+      tbody tr.clickable-row { cursor: pointer; }
+      tbody tr.clickable-row:hover, tbody tr.selected-row { background: var(--blue-soft); }
+      .compact-table th, .compact-table td { padding: 8px; font-size: 13px; }
+      .status { display: inline-block; border-radius: 999px; padding: 2px 8px; font-size: 12px; font-weight: 700; text-transform: uppercase; white-space: nowrap; }
+      .status-success, .status-ready, .severity-low { background: var(--green-soft); color: var(--green); }
+      .status-skipped, .status-partial, .severity-moderate { background: var(--yellow-soft); color: var(--yellow); }
+      .status-failed, .status-warning, .severity-high { background: var(--red-soft); color: var(--red); }
+      .status-missing, .severity-none { background: var(--neutral-soft); color: var(--muted); }
+      .empty { color: #7b8794; }
+      .source-message { max-width: 320px; }
+      .leaflet-container { font: inherit; }
+
+      @media (max-width: 980px) {
+        .app-layout { grid-template-columns: 1fr; }
+        .app-sidebar { position: static; height: auto; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+        .side-nav { grid-column: 1 / -1; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+        .language-link { margin-top: 0; }
+        .page-header, .map-shell { grid-template-columns: 1fr; }
+        .page-header { align-items: start; }
+        .scope-form { grid-template-columns: 1fr 1fr; min-width: 0; }
+        .scope-form button { grid-column: 1 / -1; }
+        .map-toolbar { align-items: flex-start; flex-direction: column; }
+        #municipality-map, .map-detail { min-height: 360px; }
+      }
+
+      @media (max-width: 560px) {
+        .app-sidebar, .page-header, main { padding: 16px; }
+        .brand { grid-template-columns: 36px minmax(0, 1fr); }
+        .brand-mark { width: 36px; height: 36px; }
+        .scope-form, .detail-summary, .side-nav { grid-template-columns: 1fr; }
+        .control-row, .control-row > label, .control-row > label select, .control-row > label input, .map-view-control { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="app-layout">
+      <aside class="app-sidebar">
+        <div class="brand" aria-label="TB-IA">
+          <span class="brand-mark">TB</span>
+          <div>
+            <strong>TB-IA</strong>
+            <span>{{ tr.product_subtitle }}</span>
+          </div>
+        </div>
+        <nav class="side-nav" aria-label="{{ tr.nav_label }}">
+          <a href="{{ territorial_url|default('/territorios') }}" {% if active_page == "territorial" %}aria-current="page"{% endif %}>{{ tr.territorial_nav }}</a>
+          <a href="{{ care_url|default('/acompanhamento') }}" {% if active_page == "care" %}aria-current="page"{% endif %}>{{ tr.care_nav }}</a>
+        </nav>
+        <a class="language-link" href="{{ language_url|default('#') }}" aria-label="{{ tr.language_label }}: {{ tr.other_language_name }}">{{ tr.other_language_name }}</a>
+      </aside>
+      <div class="app-content">
+        <header class="page-header">
+          <div>
+            <h1>{{ page_title }}</h1>
+            <div class="header-meta">{{ page_subtitle }}</div>
+            <div class="badge-row" aria-label="{{ tr.current_context }}">
+{% block page_badges %}{% endblock %}
+            </div>
+          </div>
+          <div class="page-controls">
+{% block page_controls %}{% endblock %}
+          </div>
+        </header>
+        <main>
+{% block content %}{% endblock %}
+        </main>
+      </div>
+    </div>
+{% block body_scripts %}{% endblock %}
+  </body>
+</html>

@@ -101,12 +101,51 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
         ),
     ),
     SourceContract(
+        source_id="ibge_intramunicipal",
+        name="IBGE normalized intramunicipal public reference geometries",
+        owner="IBGE or public municipal open-data source, normalized by TB-IA operator",
+        access_method="Normalized GeoJSON under data/raw/public_sources/ibge_intramunicipal",
+        file_format="GeoJSON",
+        grain="public submunicipal reference geometry",
+        geographic_coverage="selected public municipalities when available",
+        time_coverage="source-specific public reference snapshot",
+        refresh_cadence="manual refresh from public source",
+        required_fields=(
+            "features[].properties.territory_id",
+            "features[].properties.name",
+            "features[].properties.territory_type",
+            "features[].properties.parent_id",
+            "features[].properties.uf_code",
+            "features[].properties.uf_sigla",
+            "features[].geometry",
+        ),
+        optional_fields=("features[].properties.source_name", "features[].properties.source_year"),
+        code_systems=("IBGE municipality code", "operator-defined public reference code"),
+        missingness_rules=(
+            "Skip features without required properties, a known municipality parent, or "
+            "Polygon/MultiPolygon geometry."
+        ),
+        duplicate_handling="Use territory_id as the natural key; later files overwrite prior rows.",
+        privacy_level="public aggregate/reference geography only",
+        validation_checks=(
+            "FeatureCollection",
+            "Polygon or MultiPolygon geometry",
+            "parent_id exists as a municipality",
+            "territory_type is neighborhood_reference",
+        ),
+        caveats=(
+            "Submunicipal public polygons are contextual reference geography only. They are "
+            "not official health-team or microarea boundaries, and this public-data layer "
+            "does not compute TB indicators, rankings, or scenarios at this level."
+        ),
+    ),
+    SourceContract(
         source_id="sinan_tb",
         name="SINAN-TB / DATASUS",
         owner="Ministry of Health / DATASUS",
         access_method="DATASUS FTP DBC, TabNet PRN/HTML, or manual CSV fallback",
         file_format="DBC/DBF/CSV",
-        grain="municipality-year aggregate for MVP 1",
+        grain="municipality-year aggregate",
         geographic_coverage="Brazil",
         time_coverage="selected notification or cohort year",
         refresh_cadence="DATASUS publication cadence; subject to delay",
@@ -163,9 +202,9 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
     ),
     SourceContract(
         source_id="indicator_validation",
-        name="MVP1 indicator sanity validation",
+        name="Indicator sanity validation",
         owner="TB-IA",
-        access_method="Generated after MVP1 indicator computation",
+        access_method="Generated after indicator computation",
         file_format="JSON",
         grain="indicator invariant report",
         geographic_coverage="selected analysis scope",
@@ -214,9 +253,7 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
         duplicate_handling="Aggregate duplicate municipality-year rows by summing deaths.",
         privacy_level="public aggregate",
         validation_checks=("non-negative deaths",),
-        caveats=(
-            "Filter should use underlying cause CID-10 A15-A19 for the MVP mortality indicator."
-        ),
+        caveats=("Filter should use underlying cause CID-10 A15-A19 for the mortality indicator."),
     ),
     SourceContract(
         source_id="sih_sus",
@@ -258,7 +295,7 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
     ),
     SourceContract(
         source_id="local_territories",
-        name="MVP2 local territory registry",
+        name="Local territory registry",
         owner="Municipal pilot synthetic source",
         access_method="CSV under data/raw/municipal_demo",
         file_format="CSV",
@@ -286,7 +323,7 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
     ),
     SourceContract(
         source_id="local_teams",
-        name="MVP2 local team registry",
+        name="Local team registry",
         owner="Municipal pilot synthetic source",
         access_method="CSV under data/raw/municipal_demo",
         file_format="CSV",
@@ -307,7 +344,7 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
     ),
     SourceContract(
         source_id="local_tb_cases",
-        name="MVP2 pseudonymized local TB cases",
+        name="Pseudonymized local TB cases",
         owner="Municipal pilot synthetic source",
         access_method="CSV under data/raw/municipal_demo",
         file_format="CSV",
@@ -342,7 +379,7 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
     ),
     SourceContract(
         source_id="local_lab_events",
-        name="MVP2 pseudonymized local lab events",
+        name="Pseudonymized local lab events",
         owner="Municipal pilot synthetic source",
         access_method="CSV under data/raw/municipal_demo",
         file_format="CSV",
@@ -374,7 +411,7 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
     ),
     SourceContract(
         source_id="local_pharmacy_dispensing",
-        name="MVP2 pseudonymized pharmacy dispensing",
+        name="Pseudonymized pharmacy dispensing",
         owner="Municipal pilot synthetic source",
         access_method="CSV under data/raw/municipal_demo",
         file_format="CSV",
@@ -406,7 +443,7 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
     ),
     SourceContract(
         source_id="local_contacts",
-        name="MVP2 pseudonymized contact investigations",
+        name="Pseudonymized contact investigations",
         owner="Municipal pilot synthetic source",
         access_method="CSV under data/raw/municipal_demo",
         file_format="CSV",
@@ -436,7 +473,7 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
     ),
     SourceContract(
         source_id="local_resources",
-        name="MVP2 local resource inventory",
+        name="Local resource inventory",
         owner="Municipal pilot synthetic source",
         access_method="CSV under data/raw/municipal_demo",
         file_format="CSV",
@@ -465,7 +502,7 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
     ),
     SourceContract(
         source_id="operational_alerts",
-        name="MVP2 generated operational alerts",
+        name="Generated operational alerts",
         owner="TB-IA",
         access_method="Generated from pseudonymized local pilot CSVs",
         file_format="SQLite",

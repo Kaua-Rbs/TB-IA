@@ -13,27 +13,50 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "language_name": "English",
         "other_language_name": "Português",
         "language_label": "Language",
-        "nav_label": "Dashboard navigation",
-        "mvp1_nav": "MVP1 Territorial",
-        "mvp2_nav": "MVP2 Operations",
+        "nav_label": "Product navigation",
+        "product_subtitle": "Tuberculosis intelligence",
+        "territorial_nav": "Territorial analysis",
+        "care_nav": "Care follow-up",
+        "current_context": "Current context",
+        "year": "Year",
+        "mvp1_nav": "Territorial analysis",
+        "mvp2_nav": "Care follow-up",
         "apply": "Apply",
         "all": "All",
+        "comparison_scope_labels": {
+            "uf": "selected UF",
+            "national": "Brazil",
+        },
         "mvp1": {
-            "title": "TB-IA territorial workbench",
-            "subtitle": "Municipality-level public territorial intelligence MVP",
+            "title": "Territorial analysis",
+            "subtitle": "Public municipality-level intelligence for tuberculosis planning",
             "badge_public": "public aggregate",
             "scope_label": "Current data scope",
             "scope_controls": "Scope controls",
+            "comparison_scope": "Comparison",
+            "comparison_badge_prefix": "comparison",
             "caveat": (
                 "Public aggregate dashboard. Small counts are suppressed and outputs are "
                 "decision support for professional review, not diagnosis."
             ),
             "data_readiness": "Data readiness",
+            "data_governance": "Data and governance",
+            "data_governance_note": (
+                "Source status, public-data limits, and readiness for health-territory context."
+            ),
             "summary_metrics": "Summary metrics",
             "territories": "territories",
             "indicator_values": "indicator values",
-            "triggered_scenarios": "triggered scenarios",
-            "territorial_map": "Territorial map",
+            "triggered_scenarios": "active signals",
+            "territorial_map": "Territorial priority map",
+            "map_view": "Map view",
+            "municipality_priority": "Municipal priority",
+            "reference_neighborhoods": "Reference neighborhoods",
+            "health_territories": "Health territories",
+            "health_territory_note": (
+                "Public-source readiness for health-territory context; TB priority remains "
+                "municipality-level."
+            ),
             "municipality": "Municipality",
             "search_municipality": "Search municipality",
             "severity": "Severity",
@@ -44,17 +67,17 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "lower_concern": "lower concern",
             "moderate_concern": "moderate concern",
             "higher_concern": "higher concern",
-            "priority_ranking": "Priority ranking",
+            "priority_ranking": "Priority municipalities",
             "loading_ranking": "Loading ranking...",
             "territory": "Territory",
             "score": "Score",
-            "scenarios": "Scenarios",
-            "top_scenario": "Top scenario",
+            "scenarios": "Signals",
+            "top_scenario": "Main signal",
             "data": "Data",
             "explanation": "Explanation",
             "no_scenarios_generated": (
-                "No scenarios have been generated yet. Run the ingest, compute-indicators, "
-                "and build-scenarios commands."
+                "No territorial signals have been generated yet. Run the ingest, "
+                "compute-indicators, and build-scenarios commands."
             ),
             "source_freshness": "Source freshness",
             "source": "Source",
@@ -65,8 +88,8 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "no_import_runs": "No import runs recorded yet.",
         },
         "mvp2": {
-            "title": "TB-IA MVP2 operations",
-            "subtitle": "municipal operational pilot",
+            "title": "Care follow-up",
+            "subtitle": "operational review queue",
             "badge_synthetic": "synthetic/pseudonymized demo",
             "caveat": (
                 "Synthetic/pseudonymized operational pilot. Alerts are transparent review queues "
@@ -75,29 +98,39 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "local_cases": "local cases",
             "total_alerts": "total alerts",
             "open_alerts": "open alerts",
-            "filters": "Filters",
+            "filters": "Worklist filters",
             "type": "Type",
             "severity": "Severity",
             "facility": "Facility",
             "team": "Team",
             "status": "Status",
-            "queues": "Queues by UBS/team",
+            "queues": "Queues by facility/team",
             "alerts": "Alerts",
             "high": "High",
             "moderate": "Moderate",
             "open": "Open",
             "no_operational_alerts": "No operational alerts generated yet.",
-            "alert_queue": "Alert queue",
+            "alert_queue": "Operational alert queue",
             "case": "Case",
             "due": "Due",
             "signal": "Signal",
             "no_alert_matches": "No alerts match the selected filters.",
         },
+        "health_territory_readiness": {
+            "public_subterritory_geometry": "Public reference geometry",
+            "cnes_facility_context": "CNES facility context",
+            "official_health_territory_boundaries": "Official health-territory boundaries",
+            "tb_health_territory_indicators": "TB indicators by health territory",
+            "public_reference_polygons": "public reference polygons",
+            "cnes_facilities": "CNES facilities",
+            "municipalities": "municipalities",
+            "not_available_public_mvp": "not available from current public sources",
+        },
         "readiness": {
             "public_sources": "Public sources",
             "geometry": "Geometry",
             "indicator_validation": "Indicator validation",
-            "generated_scenarios": "Generated scenarios",
+            "generated_scenarios": "Generated signals",
             "core_sources_successful": "core public source runs successful",
             "municipalities_with_geometry": "municipalities with geometry",
             "with": "with",
@@ -152,6 +185,20 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "no_geometry": (
                 "No municipality geometries available. Run ingestion to cache IBGE Malhas data."
             ),
+            "subterritory_caveat": (
+                "Reference neighborhoods are public geographic context; TB indicators and "
+                "prioritization remain municipality-level."
+            ),
+            "subterritory_select_municipality": (
+                "Select a municipality to view reference neighborhoods."
+            ),
+            "subterritory_loading": "Loading reference neighborhoods...",
+            "subterritory_empty": (
+                "No public reference neighborhoods available for this municipality."
+            ),
+            "subterritory_unavailable": "Reference neighborhoods unavailable.",
+            "reference_neighborhoods": "Reference neighborhoods",
+            "public_reference": "public reference",
             "unavailable": "Unavailable",
             "loading": "Loading...",
             "detail_unavailable": "Detail unavailable.",
@@ -163,7 +210,7 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "indicators": "Indicators",
             "caveats": "Caveats",
             "priority_score": "Priority score",
-            "scenarios": "Scenarios",
+            "scenarios": "Signals",
             "top_severity": "Top severity",
             "data_status": "Data status",
             "no_scenarios_triggered": "No scenarios triggered.",
@@ -206,27 +253,51 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "language_name": "Português",
         "other_language_name": "English",
         "language_label": "Idioma",
-        "nav_label": "Navegação do painel",
-        "mvp1_nav": "MVP1 Territorial",
-        "mvp2_nav": "MVP2 Operações",
+        "nav_label": "Navegação do produto",
+        "product_subtitle": "Inteligência em tuberculose",
+        "territorial_nav": "Análise territorial",
+        "care_nav": "Acompanhamento da atenção",
+        "current_context": "Contexto atual",
+        "year": "Ano",
+        "mvp1_nav": "Análise territorial",
+        "mvp2_nav": "Acompanhamento da atenção",
         "apply": "Aplicar",
         "all": "Todos",
+        "comparison_scope_labels": {
+            "uf": "UF selecionada",
+            "national": "Brasil",
+        },
         "mvp1": {
-            "title": "TB-IA painel territorial",
-            "subtitle": "MVP de inteligência territorial pública por município",
+            "title": "Análise territorial",
+            "subtitle": "Inteligência pública municipal para planejamento em tuberculose",
             "badge_public": "dado público agregado",
             "scope_label": "Escopo de dados atual",
             "scope_controls": "Controles de escopo",
+            "comparison_scope": "Comparação",
+            "comparison_badge_prefix": "comparação",
             "caveat": (
                 "Painel com dados públicos agregados. Pequenos números são suprimidos e as "
                 "saídas apoiam a revisão profissional; não são diagnóstico."
             ),
             "data_readiness": "Prontidão dos dados",
+            "data_governance": "Dados e governança",
+            "data_governance_note": (
+                "Situação das fontes, limites dos dados públicos e prontidão para contexto "
+                "territorial de saúde."
+            ),
             "summary_metrics": "Indicadores-resumo",
             "territories": "territórios",
             "indicator_values": "valores de indicadores",
-            "triggered_scenarios": "cenários acionados",
-            "territorial_map": "Mapa territorial",
+            "triggered_scenarios": "sinais ativos",
+            "territorial_map": "Mapa de prioridade territorial",
+            "map_view": "Visualização do mapa",
+            "municipality_priority": "Prioridade municipal",
+            "reference_neighborhoods": "Bairros de referência",
+            "health_territories": "Territórios de saúde",
+            "health_territory_note": (
+                "Prontidão das fontes públicas para contexto de territórios de saúde; "
+                "a priorização de TB permanece no nível municipal."
+            ),
             "municipality": "Município",
             "search_municipality": "Buscar município",
             "severity": "Gravidade",
@@ -237,16 +308,16 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "lower_concern": "menor atenção",
             "moderate_concern": "atenção moderada",
             "higher_concern": "maior atenção",
-            "priority_ranking": "Ranking de prioridade",
+            "priority_ranking": "Municípios prioritários",
             "loading_ranking": "Carregando ranking...",
             "territory": "Território",
             "score": "Pontuação",
-            "scenarios": "Cenários",
-            "top_scenario": "Cenário principal",
+            "scenarios": "Sinais",
+            "top_scenario": "Sinal principal",
             "data": "Dados",
             "explanation": "Explicação",
             "no_scenarios_generated": (
-                "Nenhum cenário foi gerado ainda. Execute os comandos ingest, "
+                "Nenhum sinal territorial foi gerado ainda. Execute os comandos ingest, "
                 "compute-indicators e build-scenarios."
             ),
             "source_freshness": "Atualização das fontes",
@@ -258,8 +329,8 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "no_import_runs": "Nenhuma execução de importação registrada ainda.",
         },
         "mvp2": {
-            "title": "TB-IA MVP2 operações",
-            "subtitle": "piloto operacional municipal",
+            "title": "Acompanhamento da atenção",
+            "subtitle": "fila operacional de revisão",
             "badge_synthetic": "demonstração sintética/pseudonimizada",
             "caveat": (
                 "Piloto operacional sintético/pseudonimizado. Os alertas são filas transparentes "
@@ -268,29 +339,39 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "local_cases": "casos locais",
             "total_alerts": "alertas totais",
             "open_alerts": "alertas abertos",
-            "filters": "Filtros",
+            "filters": "Filtros da fila",
             "type": "Tipo",
             "severity": "Gravidade",
             "facility": "Unidade",
             "team": "Equipe",
             "status": "Situação",
-            "queues": "Filas por UBS/equipe",
+            "queues": "Filas por unidade/equipe",
             "alerts": "Alertas",
             "high": "Alta",
             "moderate": "Moderada",
             "open": "Abertos",
             "no_operational_alerts": "Nenhum alerta operacional foi gerado ainda.",
-            "alert_queue": "Fila de alertas",
+            "alert_queue": "Fila operacional de alertas",
             "case": "Caso",
             "due": "Prazo",
             "signal": "Sinal",
             "no_alert_matches": "Nenhum alerta corresponde aos filtros selecionados.",
         },
+        "health_territory_readiness": {
+            "public_subterritory_geometry": "Geometria pública de referência",
+            "cnes_facility_context": "Contexto CNES de unidades",
+            "official_health_territory_boundaries": "Limites oficiais de territórios de saúde",
+            "tb_health_territory_indicators": "Indicadores de TB por território de saúde",
+            "public_reference_polygons": "polígonos públicos de referência",
+            "cnes_facilities": "unidades CNES",
+            "municipalities": "municípios",
+            "not_available_public_mvp": "indisponível nas fontes públicas atuais",
+        },
         "readiness": {
             "public_sources": "Fontes públicas",
             "geometry": "Geometria",
             "indicator_validation": "Validação dos indicadores",
-            "generated_scenarios": "Cenários gerados",
+            "generated_scenarios": "Sinais gerados",
             "core_sources_successful": "fontes públicas centrais com sucesso",
             "municipalities_with_geometry": "municípios com geometria",
             "with": "com",
@@ -347,6 +428,20 @@ UI_TEXT: dict[str, dict[str, Any]] = {
                 "Nenhuma geometria municipal disponível. Execute a ingestão para armazenar "
                 "dados do IBGE Malhas."
             ),
+            "subterritory_caveat": (
+                "Bairros são referência geográfica pública; indicadores e priorização de TB "
+                "permanecem no nível municipal."
+            ),
+            "subterritory_select_municipality": (
+                "Selecione um município para ver bairros de referência."
+            ),
+            "subterritory_loading": "Carregando bairros de referência...",
+            "subterritory_empty": (
+                "Nenhum bairro de referência público disponível para este município."
+            ),
+            "subterritory_unavailable": "Bairros de referência indisponíveis.",
+            "reference_neighborhoods": "Bairros de referência",
+            "public_reference": "referência pública",
             "unavailable": "Indisponível",
             "loading": "Carregando...",
             "detail_unavailable": "Detalhe indisponível.",
@@ -358,7 +453,7 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "indicators": "Indicadores",
             "caveats": "Ressalvas",
             "priority_score": "Pontuação de prioridade",
-            "scenarios": "Cenários",
+            "scenarios": "Sinais",
             "top_severity": "Maior gravidade",
             "data_status": "Situação dos dados",
             "no_scenarios_triggered": "Nenhum cenário acionado.",
@@ -449,12 +544,42 @@ INDICATOR_CAVEATS_PT = {
     ),
 }
 
+SOURCE_LABELS_EN = {
+    "cnes": "CNES",
+    "ibge_localidades": "IBGE Localidades",
+    "ibge_malhas": "IBGE territorial meshes",
+    "ibge_intramunicipal": "Normalized public intramunicipal references",
+    "ibge_population": "IBGE population denominator",
+    "indicator_validation": "Indicator sanity validation",
+    "local_contacts": "Pseudonymized contact investigations",
+    "local_lab_events": "Pseudonymized local lab events",
+    "local_pharmacy_dispensing": "Pseudonymized pharmacy dispensing",
+    "local_resources": "Local resource inventory",
+    "local_tb_cases": "Pseudonymized local TB cases",
+    "local_teams": "Local team registry",
+    "local_territories": "Local territory registry",
+    "operational_alerts": "Generated operational alerts",
+    "sih_sus": "SIH/SUS",
+    "sim": "SIM",
+    "sinan_tb": "SINAN-TB / DATASUS",
+    "sinan_validation": "SINAN-TB mapping audit",
+}
+
 SOURCE_LABELS_PT = {
     "cnes": "CNES",
     "ibge_localidades": "IBGE Localidades",
     "ibge_malhas": "IBGE Malhas territoriais",
+    "ibge_intramunicipal": "IBGE intramunicipal normalizado",
     "ibge_population": "Denominador populacional IBGE",
-    "indicator_validation": "Validação de sanidade dos indicadores MVP1",
+    "indicator_validation": "Validação de sanidade dos indicadores",
+    "local_contacts": "Investigações de contatos pseudonimizadas",
+    "local_lab_events": "Eventos laboratoriais locais pseudonimizados",
+    "local_pharmacy_dispensing": "Dispensação farmacêutica pseudonimizada",
+    "local_resources": "Inventário local de recursos",
+    "local_tb_cases": "Casos locais de TB pseudonimizados",
+    "local_teams": "Cadastro local de equipes",
+    "local_territories": "Cadastro local de territórios",
+    "operational_alerts": "Alertas operacionais gerados",
     "sih_sus": "SIH/SUS",
     "sim": "SIM",
     "sinan_tb": "SINAN-TB / DATASUS",
@@ -469,6 +594,10 @@ SOURCE_CAVEATS_PT = {
     "ibge_malhas": (
         "Malha web simplificada para visualização territorial; não é fonte de localização "
         "de pacientes ou endereços."
+    ),
+    "ibge_intramunicipal": (
+        "Bairros ou polígonos intramunicipais públicos são contexto geográfico; não "
+        "representam territórios oficiais de saúde nem indicadores de TB por bairro."
     ),
     "sinan_tb": (
         "Mapeamentos oficiais de tipo de entrada, encerramento, HIV, TRM-TB e "
@@ -539,8 +668,8 @@ def language_context(language: str | None) -> dict[str, Any]:
 def localize_dashboard_context(context: Mapping[str, Any], language: str) -> dict[str, Any]:
     localized = dict(context)
     localized["caveat"] = UI_TEXT[language]["mvp1"]["caveat"]
+    localized["sources"] = [localize_source_row(row, language) for row in context["sources"]]
     if language == "pt":
-        localized["sources"] = [localize_source_row(row, language) for row in context["sources"]]
         localized["ranking"] = [localize_ranking_row(row, language) for row in context["ranking"]]
     return localized
 
@@ -575,6 +704,16 @@ def localize_map_payload(payload: dict[str, Any], language: str) -> dict[str, An
     return localized
 
 
+def localize_subterritory_payload(payload: dict[str, Any], language: str) -> dict[str, Any]:
+    if language == FALLBACK_LANGUAGE:
+        return payload
+    localized = deepcopy(payload)
+    metadata = localized.get("metadata", {})
+    if isinstance(metadata, dict):
+        metadata["caveat"] = UI_TEXT[language]["js"]["subterritory_caveat"]
+    return localized
+
+
 def localize_territory_report(report: dict[str, Any], language: str) -> dict[str, Any]:
     if language == FALLBACK_LANGUAGE:
         return report
@@ -602,10 +741,31 @@ def localize_ranking_row(row: Mapping[str, Any], language: str) -> dict[str, Any
 def localize_source_row(row: Mapping[str, Any], language: str) -> dict[str, Any]:
     localized = dict(row)
     source_id = str(row.get("source_id", ""))
+    labels = SOURCE_LABELS_PT if language == "pt" else SOURCE_LABELS_EN
+    localized["name"] = labels.get(source_id, product_source_text(str(row.get("name", source_id))))
+    localized["message"] = product_source_text(str(row.get("message", "")))
     if language == "pt":
-        localized["name"] = SOURCE_LABELS_PT.get(source_id, str(row.get("name", source_id)))
-        localized["caveats"] = SOURCE_CAVEATS_PT.get(source_id, str(row.get("caveats", "")))
+        localized["caveats"] = SOURCE_CAVEATS_PT.get(
+            source_id, product_source_text(str(row.get("caveats", "")))
+        )
+    else:
+        localized["caveats"] = product_source_text(str(row.get("caveats", "")))
     return localized
+
+
+def product_source_text(value: str) -> str:
+    replacements = {
+        "loaded MVP2 local CSV": "loaded local demonstration CSV",
+        "generated MVP2 operational alerts": "generated operational alerts",
+        "MVP1 ": "",
+        "MVP2 ": "",
+        "MVP1": "",
+        "MVP2": "",
+    }
+    text = value
+    for old, new in replacements.items():
+        text = text.replace(old, new)
+    return text.strip()
 
 
 def localize_indicator_row(row: Mapping[str, Any], language: str) -> dict[str, Any]:
