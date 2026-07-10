@@ -84,6 +84,7 @@ Core outputs:
 
 - municipality-level TB indicator dashboard;
 - municipality-level public aggregate choropleth using cached IBGE Malhas geometry;
+- optional public submunicipal reference polygons for contextual municipality drill-down, not TB prioritization;
 - incidence, mortality, cure, treatment interruption, retreatment, laboratory confirmation, TB-HIV, and demographic profiles;
 - scenario and subscenario classification;
 - priority territory ranking;
@@ -91,7 +92,7 @@ Core outputs:
 - recommendation summary linked to a strategy library;
 - data-quality warnings and source freshness indicators.
 
-Current MVP 1 UI implementation note: the dashboard is a public aggregate, demo-oriented workbench. It is Portuguese-first with optional English through a `lang` query parameter, and exposes data readiness, UF/year scope controls, municipality search, map/ranking synchronization, transparent scenario explanations, recommendations, indicators, caveats, and source freshness without patient-level maps or clinical automation.
+Current MVP 1 UI implementation note: the dashboard is a public aggregate, demo-oriented workbench. It is Portuguese-first with optional English through a `lang` query parameter, and exposes data readiness, UF/year scope controls, municipality search, map/ranking synchronization, optional public bairro reference overlays for selected municipalities, transparent scenario explanations, recommendations, indicators, caveats, and source freshness without patient-level maps or clinical automation. Bairros or other public intramunicipal polygons are reference geography only; official UBS/team/microarea boundaries and TB outcomes by health territory are unavailable in the public-only MVP.
 
 This should be the first engineering target for a buildable platform.
 
@@ -501,6 +502,7 @@ Example contract summary:
 | CNES | facility and service capacity snapshots by module, UF, and month | FTP DBC files by submodule, for example `CNES/200508_/Dados/ST/STCE2401.dbc` | facility inventory, SUS linkage, establishment type, selected service/capacity proxies |
 | IBGE population | territory-year demographics | SIDRA/API JSON, CSV/XLSX export | denominators for incidence, mortality, hospitalizations, and capacity ratios |
 | IBGE malhas | municipality territorial geometry | GeoJSON from the Malhas API, cached during ingestion | MVP 1 public aggregate municipality maps only |
+| IBGE intramunicipal or municipal open geography, normalized | public submunicipal reference polygons | normalized GeoJSON under `data/raw/public_sources/ibge_intramunicipal/`; FeatureCollection properties `territory_id`, `name`, `territory_type`, `parent_id`, `uf_code`, `uf_sigla`; Polygon or MultiPolygon geometry | contextual bairro/reference overlays only; no TB indicators, ranking, scenarios, or health-territory inference |
 | SIA/SUS | UF-month ambulatory production records | FTP DBC files by SIA layout/module; procedure interpretation requires SIGTAP | optional diagnostic/ambulatory production proxies, not a required first release source |
 | SIGTAP | procedure terminology and attributes | public tables/downloads | procedure-code dictionary for SIA/SUS and selected SIH/SUS analyses |
 | SISAB/e-Gestor APS | aggregate APS production and coverage | public reports, CSV/XLSX/ODS where available | optional APS context; not required for first public-data MVP |
@@ -697,7 +699,7 @@ These decisions should be resolved before implementation:
 1. Which Boletim 2026 indicators are mandatory for the first public-data release, and which should
    remain backlog items?
 1. MVP 1 now supports direct DATASUS file transfer into local DBC samples, DBF/DBC ingestion, and manual CSV fallback. For CE/2023, the default denominator is IBGE Census 2022 resident population from SIDRA table 4714; rates must be labeled as 2023 events over 2022 Census population. Remaining decision: which public-source extracts become the validated acceptance dataset.
-1. What is the first geographic scope: Brazil, one state, one municipality, or demonstration data?
+1. The implemented public geographic scopes are one UF at a time or Brazil (`uf=BR`). National scope orchestrates the 27 UFs and uses national percentiles for national ranking; UF views can use either intra-UF percentiles or national comparison when national scenarios are available.
 1. What is the first time window for indicators?
 1. Which indicators are mandatory for the first scenario classification?
 1. Which thresholds are fixed by guidelines and which are relative rankings?

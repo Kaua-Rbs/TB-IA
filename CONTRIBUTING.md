@@ -2,7 +2,7 @@
 
 ## Current Repository State
 
-This repository contains product/planning documentation, the MVP 1 public-data Python implementation, and the MVP 2 synthetic municipal operational pilot for a tuberculosis public health decision-support platform.
+This repository contains product/planning documentation, the public-data Python backend, the synthetic municipal operational pilot, and a dedicated React/Vite frontend for a tuberculosis public health decision-support platform.
 
 The active quality setup checks the MVP package in `src/tbia/`, lightweight repository tooling in `scripts/`, and tests in `tests/`.
 
@@ -47,6 +47,25 @@ make mutation
 - `make complexity` reports large files and Python complexity metrics.
 - `make deps` checks the current local Python import graph for cycles, including `src/` layout imports.
 - `make mutation` is outside the default gate until a mutation tool is configured for critical application logic.
+
+## Frontend Commands
+
+The frontend is intentionally separate from the Python fast gate while the project transitions to a dedicated UI stack. Run these commands when changing `frontend/`:
+
+```bash
+make frontend-install
+make frontend-check
+make frontend-build
+```
+
+For local development, run FastAPI on port 8000 and Vite on port 5173:
+
+```bash
+python -m tbia serve --host 127.0.0.1 --port 8000
+make frontend-dev
+```
+
+After `make frontend-build`, FastAPI serves the compiled SPA on `/`, `/territorios`, and `/acompanhamento`. Without `frontend/dist`, the Jinja templates remain the fallback.
 
 ## MVP 1 Commands
 

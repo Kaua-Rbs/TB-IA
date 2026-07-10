@@ -4,7 +4,7 @@ Documentation and MVP 1 implementation workspace for an intelligent tuberculosis
 
 The product concept focuses on helping primary care and municipal surveillance teams identify priority territories, missed screening opportunities, patient follow-up risks, and operational strategies for tuberculosis control. The current application code implements the first public-data territorial intelligence slice for MVP 1 and a synthetic, pseudonymized municipal operations slice for MVP 2.
 
-The application is implemented in Python. The active stack includes public-data ingestion, synthetic local municipal CSV ingestion, canonical SQLite storage, transparent indicator/scenario/alert logic, and small local FastAPI dashboards.
+The backend is implemented in Python. The active stack includes public-data ingestion, synthetic local municipal CSV ingestion, canonical SQLite storage, transparent indicator/scenario/alert logic, FastAPI APIs, and a dedicated React/Vite frontend served by FastAPI after build.
 
 ## Key Documents
 
@@ -29,16 +29,28 @@ python -m pip install -r requirements-dev.txt
 
 ```bash
 python -m tbia download-datasus-samples --uf CE --year 2023 --sih-all-months
-python -m tbia ingest --uf CE --uf-code 23 --year 2023
-python -m tbia validate-sinan-mappings --uf CE --uf-code 23 --year 2023
+python -m tbia ingest --uf CE --year 2023
+python -m tbia validate-sinan-mappings --uf CE --year 2023
 python -m tbia compute-indicators --uf CE --year 2023
 python -m tbia build-scenarios --uf CE --year 2023
 python -m tbia serve
 ```
 
-`download-datasus-samples` stores public DATASUS DBC files under `data/raw/public_sources/datasus_samples/`; use `--sih-all-months` for the full SIH/SUS hospitalization year. MVP 1 CE/2023 uses 2022 IBGE Census resident population as the default denominator, so rates are explicitly caveated as 2023 events over 2022 Census population. `ingest` also caches simplified municipality GeoJSON from IBGE Malhas under `data/raw/public_sources/ibge_malhas/` for the dashboard choropleth map. `validate-sinan-mappings` writes a technical audit under `data/processed/mvp1/validation/`; it does not replace domain review against official SINAN-TB dictionaries and indicator handbooks. `compute-indicators` writes `indicator_validation_<year>.json` in the same validation directory and records `indicator_validation` in source freshness; a failed status means mechanical invariants such as bounded proportions need review, while warning-only zero denominators document expected missingness and suppressed public values remain `null`. Manual CSV fallbacks are read from `data/raw/public_sources/manual/`.
+`download-datasus-samples` stores public DATASUS DBC files under `data/raw/public_sources/datasus_samples/`; use `--sih-all-months` for the full SIH/SUS hospitalization year. `--uf-code` is inferred from `--uf` when omitted. Use `--uf BR` to orchestrate all 27 UFs: SINAN-TB Brasil is downloaded/read once, while SIM, SIH/SUS, CNES, IBGE Localidades, population denominators, and IBGE Malhas are handled by UF. MVP 1 CE/2023 uses 2022 IBGE Census resident population as the default denominator, so rates are explicitly caveated as 2023 events over 2022 Census population. `ingest` also caches simplified municipality GeoJSON from IBGE Malhas under `data/raw/public_sources/ibge_malhas/` for the dashboard choropleth map. `validate-sinan-mappings` writes a technical audit under `data/processed/mvp1/validation/`; it does not replace domain review against official SINAN-TB dictionaries and indicator handbooks. `compute-indicators` writes `indicator_validation_<year>.json` in the same validation directory and records `indicator_validation` in source freshness; a failed status means mechanical invariants such as bounded proportions need review, while warning-only zero denominators document expected missingness and suppressed public values remain `null`. Manual CSV fallbacks are read from `data/raw/public_sources/manual/`.
 
-The local dashboard at `/` is a public aggregate territorial workbench with Portuguese default UI text, optional English via `?lang=en`, data readiness tiles, UF/year scope controls, municipality search, map/ranking selection sync, source freshness, and grouped territory detail reports. The ranking is built from the same enriched map payload used by the choropleth, including `top_scenarios`, severity, priority score, and data status. The map does not use external tile providers and does not display patient-level, address-level, or MVP 2 operational alert locations. If the map panel is blank, first verify that `ingest` recorded a successful `ibge_malhas` run and that `/api/map/municipalities?uf=CE&year=2023` has non-null geometries; if geometries exist, check whether the browser can load the Leaflet CDN assets.
+The product frontend at `/` and `/territorios` is a public aggregate territorial workbench with Portuguese default UI text, optional English via `?lang=en`, data readiness tiles, UF/year/comparison controls, municipality search, MapLibre municipality map/ranking selection sync, source freshness, and grouped territory detail reports. `uf=BR` shows a national municipality map using national percentiles; a single UF can switch between the existing intra-UF ranking (`comparison_scope=uf`) and national comparison (`comparison_scope=national`). The ranking is built from the same enriched map payload used by the choropleth, including `top_scenarios`, severity, priority score, and data status. The map does not use external tile providers and does not display patient-level, address-level, or operational alert locations. If the map panel is blank, first verify that `ingest` recorded a successful `ibge_malhas` run and that `/api/territorial/map?uf=CE&year=2023&comparison_scope=uf` has non-null geometries.
+
+Public submunicipal map context is optional and contextual only. `ingest` scans normalized GeoJSON files under `data/raw/public_sources/ibge_intramunicipal/`; each FeatureCollection feature must provide `territory_id`, `name`, `territory_type`, `parent_id`, `uf_code`, and `uf_sigla`, with Polygon or MultiPolygon geometry. Current bairro records use `territory_type=neighborhood_reference` and `parent_id=<municipality_id>`. These polygons are public geographic references for drill-down only: TB indicators, scenarios, ranking, reports, and prioritization remain municipality-level. Convert public IBGE or municipal GPKG/SHP/KML sources to this normalized GeoJSON contract before ingestion; the MVP does not add GeoPandas/Fiona/Shapely parsing.
+
+National MVP 1 example:
+
+```bash
+python -m tbia download-datasus-samples --uf BR --year 2023 --sih-all-months
+python -m tbia ingest --uf BR --year 2023
+python -m tbia compute-indicators --uf BR --year 2023
+python -m tbia build-scenarios --uf BR --year 2023
+python -m tbia serve
+```
 
 ## MVP 2 Synthetic Municipal Demo
 
@@ -50,6 +62,25 @@ python -m tbia serve
 ```
 
 The MVP 2 demo uses synthetic, pseudonymized local CSVs only. It rejects obvious identifiable columns in patient-level files and exposes operational alert queues at `/mvp2` plus `/api/mvp2/summary`, `/api/mvp2/alerts`, and `/api/mvp2/alerts/{alert_id}`. The MVP 2 dashboard keeps this synthetic/pseudonymized demo scope visible in the shared navigation shell and follows the same `lang=pt` / `lang=en` language switch. See `mvp2_municipal_contracts.md` for schemas and alert rules.
+
+## Frontend Development
+
+The dedicated product UI lives in `frontend/` and is built with React, Vite, TypeScript, and MapLibre GL. Use npm for the JavaScript workspace:
+
+```bash
+make frontend-install
+python -m tbia serve --host 127.0.0.1 --port 8000
+make frontend-dev
+```
+
+During development, Vite serves the UI on port 5173 and proxies `/api` to the FastAPI backend on port 8000. For the integrated local app, build the SPA and start FastAPI:
+
+```bash
+make frontend-build
+python -m tbia serve --host 127.0.0.1 --port 8000
+```
+
+When `frontend/dist/index.html` exists, FastAPI serves the SPA for `/`, `/territorios`, and `/acompanhamento`, with static assets under `/static/app`. If the frontend build is absent, the existing Jinja templates remain as a fallback so the Python application can still run. Product-facing frontend code should call `/api/territorial/*` and `/api/operations/*`; the older `/api/map/*` and `/api/mvp2/*` routes remain available for compatibility.
 
 ## Exploratory Notebooks
 
