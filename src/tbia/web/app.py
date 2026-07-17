@@ -45,6 +45,7 @@ from tbia.web.i18n import (
     localize_dashboard_context,
     localize_map_payload,
     localize_mvp2_context,
+    localize_product_alert,
     localize_subterritory_payload,
     localize_territory_report,
     normalize_language,
@@ -519,9 +520,11 @@ def register_product_operations_api_routes(app: FastAPI, session_factory: Sessio
         facility_id: str | None = Query(None),
         team_id: str | None = Query(None),
         status: str | None = Query(None),
+        lang: str = Query(DEFAULT_LANGUAGE),
     ) -> list[dict[str, Any]]:
+        language = normalize_language(lang)
         with session_factory() as session:
-            return mvp2_alert_rows(
+            rows = mvp2_alert_rows(
                 session,
                 year,
                 alert_type=alert_type,
@@ -530,14 +533,19 @@ def register_product_operations_api_routes(app: FastAPI, session_factory: Sessio
                 team_id=team_id,
                 status=status,
             )
+        return [localize_product_alert(row, language) for row in rows]
 
     @app.get("/api/operations/alerts/{alert_id}")
-    def operations_alert(alert_id: str) -> dict[str, Any]:
+    def operations_alert(
+        alert_id: str,
+        lang: str = Query(DEFAULT_LANGUAGE),
+    ) -> dict[str, Any]:
+        language = normalize_language(lang)
         with session_factory() as session:
             row = mvp2_alert_detail(session, alert_id)
         if row is None:
             raise HTTPException(status_code=404, detail="alert not found")
-        return row
+        return localize_product_alert(row, language)
 
 
 def register_mvp2_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:

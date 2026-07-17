@@ -50,7 +50,9 @@ export function formatDate(value: string | null | undefined, lang: Language) {
   if (!value) return '-';
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat(lang === 'pt' ? 'pt-BR' : 'en-US').format(date);
+  return new Intl.DateTimeFormat(lang === 'pt' ? 'pt-BR' : 'en-US', {
+    timeZone: 'UTC'
+  }).format(date);
 }
 export function formatMonthCoverage(
   coverage: MonthCoverage,

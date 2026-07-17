@@ -813,6 +813,7 @@ tbody tr:hover,
 .status-badge {
   width: fit-content;
   min-height: 22px;
+  overflow-wrap: normal;
   padding: 2px 8px;
   font-size: 11px;
 }

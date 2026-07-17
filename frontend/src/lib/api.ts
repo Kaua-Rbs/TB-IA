@@ -235,6 +235,7 @@ interface TerritorialParams {
 
 interface OperationFilters {
   year: number;
+  lang?: Language;
   alertType?: string;
   severity?: string;
   facilityId?: string;
@@ -356,12 +357,15 @@ export function fetchOperationAlerts(filters: OperationFilters) {
       facility_id: filters.facilityId,
       team_id: filters.teamId,
       status: filters.status,
+      lang: normalizeLanguage(filters.lang ?? "pt"),
     })}`,
   );
 }
 
-export function fetchOperationAlert(alertId: string) {
+export function fetchOperationAlert(alertId: string, lang: Language = "pt") {
   return getJson<OperationalAlert>(
-    `/api/operations/alerts/${encodeURIComponent(alertId)}`,
+    `/api/operations/alerts/${encodeURIComponent(alertId)}?${queryString({
+      lang: normalizeLanguage(lang),
+    })}`,
   );
 }

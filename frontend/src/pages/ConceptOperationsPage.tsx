@@ -33,7 +33,7 @@ export function ConceptOperationsPage() {
     queryFn: () => fetchOperationsSummary(year),
   });
   const alertsQuery = useQuery({
-    queryKey: ['operations-alerts', year, filters],
+    queryKey: ['operations-alerts', year, filters, lang],
     queryFn: () =>
       fetchOperationAlerts({
         year,
@@ -42,11 +42,12 @@ export function ConceptOperationsPage() {
         facilityId: filters.facilityId,
         teamId: filters.teamId,
         status: filters.status,
+        lang,
       }),
   });
   const detailQuery = useQuery({
-    queryKey: ['operations-alert', selectedAlertId],
-    queryFn: () => fetchOperationAlert(selectedAlertId ?? ''),
+    queryKey: ['operations-alert', selectedAlertId, lang],
+    queryFn: () => fetchOperationAlert(selectedAlertId ?? '', lang),
     enabled: Boolean(selectedAlertId),
   });
 

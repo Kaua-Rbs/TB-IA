@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from copy import deepcopy
 from typing import Any
 
@@ -128,6 +128,7 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         },
         "readiness": {
             "public_sources": "Public sources",
+            "hospitalization_coverage": "Annual SIH/SUS coverage",
             "geometry": "Geometry",
             "indicator_validation": "Indicator validation",
             "generated_scenarios": "Generated signals",
@@ -369,6 +370,7 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         },
         "readiness": {
             "public_sources": "Fontes públicas",
+            "hospitalization_coverage": "Cobertura anual do SIH/SUS",
             "geometry": "Geometria",
             "indicator_validation": "Validação dos indicadores",
             "generated_scenarios": "Sinais gerados",
@@ -640,12 +642,42 @@ RULE_LABELS_PT = {
     "high_hospitalization_burden": "alta carga de internações",
 }
 
-ALERT_MESSAGES_PT = {
-    "pending_lab_result": "Resultado laboratorial pendente para o caso {case_id}.",
-    "medication_pickup_delay": "Retirada de medicamento atrasada para o caso aberto {case_id}.",
-    "contact_pending_evaluation": "Avaliação de contato pendente para o caso índice {case_id}.",
-    "resistance_vigilance": "Vigilância de resistência para o caso {case_id}.",
+ALERT_MESSAGE_TEMPLATES = {
+    "en": {
+        "pending_lab_result": "Laboratory result pending for case {case_id}.",
+        "medication_pickup_delay": ("Medication pickup is delayed for open case {case_id}."),
+        "contact_pending_evaluation": ("Contact evaluation is pending for index case {case_id}."),
+        "resistance_vigilance": "Resistance vigilance for case {case_id}.",
+    },
+    "pt": {
+        "pending_lab_result": "Resultado laboratorial pendente para o caso {case_id}.",
+        "medication_pickup_delay": (
+            "Retirada de medicamento atrasada para o caso aberto {case_id}."
+        ),
+        "contact_pending_evaluation": (
+            "Avaliação de contato pendente para o caso índice {case_id}."
+        ),
+        "resistance_vigilance": "Vigilância de resistência para o caso {case_id}.",
+    },
 }
+
+DASHBOARD_READINESS_KEYS = frozenset(
+    {
+        "public_sources",
+        "hospitalization_coverage",
+        "geometry",
+        "indicator_validation",
+        "generated_scenarios",
+    }
+)
+HEALTH_TERRITORY_READINESS_KEYS = frozenset(
+    {
+        "public_subterritory_geometry",
+        "cnes_facility_context",
+        "official_health_territory_boundaries",
+        "tb_health_territory_indicators",
+    }
+)
 
 
 def normalize_language(language: str | None) -> str:
@@ -669,9 +701,293 @@ def localize_dashboard_context(context: Mapping[str, Any], language: str) -> dic
     localized = dict(context)
     localized["caveat"] = UI_TEXT[language]["mvp1"]["caveat"]
     localized["sources"] = [localize_source_row(row, language) for row in context["sources"]]
+    hospitalization_source = next(
+        (
+            row
+            for row in context["sources"]
+            if isinstance(row, Mapping) and row.get("source_id") == "sih_sus"
+        ),
+        None,
+    )
+    localized["readiness"] = localize_readiness_items(
+        context["readiness"],
+        language,
+        hospitalization_source=hospitalization_source,
+    )
+    localized["health_territory_readiness"] = localize_readiness_items(
+        context["health_territory_readiness"],
+        language,
+    )
     if language == "pt":
         localized["ranking"] = [localize_ranking_row(row, language) for row in context["ranking"]]
     return localized
+
+
+def localize_readiness_items(
+    items: Mapping[str, Any],
+    language: str,
+    *,
+    hospitalization_source: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    localized_items: dict[str, Any] = {}
+    for key, item in items.items():
+        if not isinstance(item, Mapping):
+            localized_items[key] = item
+            continue
+
+        localized_item = dict(item)
+        if key in DASHBOARD_READINESS_KEYS:
+            localized_item["label"] = UI_TEXT[language]["readiness"][key]
+        elif key in HEALTH_TERRITORY_READINESS_KEYS:
+            localized_item["label"] = UI_TEXT[language]["health_territory_readiness"][key]
+        else:
+            localized_items[key] = localized_item
+            continue
+
+        localized_item["detail"] = localized_readiness_detail(
+            key,
+            item,
+            language,
+            hospitalization_source=hospitalization_source,
+        )
+        localized_items[key] = localized_item
+    return localized_items
+
+
+def localized_readiness_detail(
+    key: str,
+    item: Mapping[str, Any],
+    language: str,
+    *,
+    hospitalization_source: Mapping[str, Any] | None,
+) -> str:
+    if key == "hospitalization_coverage":
+        return localized_hospitalization_coverage_detail(
+            hospitalization_source,
+            language,
+        )
+    formatter = READINESS_DETAIL_FORMATTERS.get(key)
+    if formatter is None:
+        return str(item.get("detail", ""))
+    return formatter(item, language)
+
+
+def localized_public_sources_detail(item: Mapping[str, Any], language: str) -> str:
+    successful = readiness_count(item.get("success_count"))
+    expected = readiness_count(item.get("expected_count"))
+    return language_text(
+        language,
+        pt=(
+            f"{successful}/{expected} execuções das fontes públicas centrais concluídas com sucesso"
+        ),
+        en=f"{successful}/{expected} core public source runs successful",
+    )
+
+
+def localized_geometry_detail(item: Mapping[str, Any], language: str) -> str:
+    geometry_count = readiness_count(item.get("geometry_count"))
+    territory_count = readiness_count(item.get("territory_count"))
+    return language_text(
+        language,
+        pt=f"{geometry_count}/{territory_count} municípios com geometria",
+        en=f"{geometry_count}/{territory_count} municipalities with geometry",
+    )
+
+
+def localized_indicator_validation_detail(
+    item: Mapping[str, Any],
+    language: str,
+) -> str:
+    source_status = str(item.get("source_status", "missing"))
+    if source_status == "missing":
+        return language_text(
+            language,
+            pt="Nenhuma execução de validação registrada",
+            en="No validation run recorded",
+        )
+    warning_count = readiness_count(item.get("warning_count"))
+    status = localized_status(source_status, language)
+    if not warning_count:
+        return status
+    return language_text(
+        language,
+        pt=f"{status} com {warning_count} {'aviso' if warning_count == 1 else 'avisos'}",
+        en=f"{status} with {warning_count} {'warning' if warning_count == 1 else 'warnings'}",
+    )
+
+
+def localized_generated_scenarios_detail(
+    item: Mapping[str, Any],
+    language: str,
+) -> str:
+    scenario_count = readiness_count(item.get("scenario_count"))
+    territory_count = readiness_count(item.get("territory_count"))
+    return language_text(
+        language,
+        pt=f"{scenario_count} sinais gerados em {territory_count} territórios",
+        en=f"{scenario_count} generated signals in {territory_count} territories",
+    )
+
+
+def localized_public_subterritory_geometry_detail(
+    item: Mapping[str, Any],
+    language: str,
+) -> str:
+    drawable_count = readiness_count(item.get("drawable_geometry_count"))
+    feature_count = readiness_count(item.get("feature_count"))
+    return language_text(
+        language,
+        pt=(
+            f"{drawable_count}/{feature_count} polígonos públicos de referência "
+            "disponíveis para detalhamento contextual"
+        ),
+        en=(
+            f"{drawable_count}/{feature_count} public reference polygons available "
+            "for contextual drill-down"
+        ),
+    )
+
+
+def localized_cnes_facility_context_detail(
+    item: Mapping[str, Any],
+    language: str,
+) -> str:
+    facility_count = readiness_count(item.get("facility_count"))
+    municipality_count = readiness_count(item.get("municipality_count"))
+    return language_text(
+        language,
+        pt=(
+            f"{facility_count} registros públicos de unidades CNES em "
+            f"{municipality_count} municípios"
+        ),
+        en=(
+            f"{facility_count} public CNES facility records in {municipality_count} municipalities"
+        ),
+    )
+
+
+def localized_health_boundaries_detail(
+    _item: Mapping[str, Any],
+    language: str,
+) -> str:
+    return language_text(
+        language,
+        pt=(
+            "Limites oficiais de UBS, equipes e microáreas não estão disponíveis "
+            "nas fontes exclusivamente públicas atuais."
+        ),
+        en=(
+            "Official UBS, team, and microarea boundaries are not available from "
+            "the current public-only sources."
+        ),
+    )
+
+
+def localized_health_indicators_detail(
+    _item: Mapping[str, Any],
+    language: str,
+) -> str:
+    return language_text(
+        language,
+        pt=(
+            "Desfechos de TB por UBS, equipe, microárea ou bairro não são calculados "
+            "nesta versão; os indicadores públicos de TB permanecem no nível municipal."
+        ),
+        en=(
+            "TB outcomes by UBS, team, microarea, or neighborhood are not computed in "
+            "this version; public TB indicators remain municipality-level."
+        ),
+    )
+
+
+def localized_hospitalization_coverage_detail(
+    source: Mapping[str, Any] | None,
+    language: str,
+) -> str:
+    if source is None:
+        return language_text(
+            language,
+            pt="Nenhuma execução de importação do SIH/SUS registrada para o escopo",
+            en="No scoped SIH/SUS import run recorded",
+        )
+
+    coverage = source.get("month_coverage")
+    if not isinstance(coverage, Mapping):
+        return language_text(
+            language,
+            pt="A cobertura mensal do SIH/SUS não foi registrada",
+            en="SIH/SUS monthly coverage was not recorded",
+        )
+
+    scope_count = readiness_count(coverage.get("scope_count"), default=1)
+    if scope_count > 1:
+        return localized_hospitalization_scope_detail(coverage, language, scope_count)
+    return localized_hospitalization_month_detail(coverage, language)
+
+
+def localized_hospitalization_scope_detail(
+    coverage: Mapping[str, Any],
+    language: str,
+    scope_count: int,
+) -> str:
+    complete_count = readiness_count(coverage.get("complete_scope_count"))
+    return language_text(
+        language,
+        pt=(f"{complete_count}/{scope_count} UFs com cobertura completa de 12 meses do SIH/SUS"),
+        en=(f"{complete_count}/{scope_count} states with complete 12-month SIH/SUS coverage"),
+    )
+
+
+def localized_hospitalization_month_detail(
+    coverage: Mapping[str, Any],
+    language: str,
+) -> str:
+    loaded_months = coverage.get("loaded_months")
+    if not isinstance(loaded_months, list):
+        return language_text(
+            language,
+            pt="Cobertura mensal do SIH/SUS desconhecida; indicadores anuais são excluídos",
+            en="SIH/SUS monthly coverage is unknown; annual indicators are excluded",
+        )
+
+    expected_months = coverage.get("expected_months")
+    expected_count = len(expected_months) if isinstance(expected_months, list) else 12
+    detail = language_text(
+        language,
+        pt=f"{len(loaded_months)}/{expected_count} meses do SIH/SUS carregados",
+        en=f"{len(loaded_months)}/{expected_count} SIH/SUS months loaded",
+    )
+
+    missing_months = coverage.get("missing_months")
+    if not isinstance(missing_months, list) or not missing_months:
+        return detail
+    missing = ", ".join(f"{readiness_count(month):02d}" for month in missing_months)
+    return language_text(
+        language,
+        pt=f"{detail}; faltam {missing}",
+        en=f"{detail}; missing {missing}",
+    )
+
+
+def language_text(language: str, *, pt: str, en: str) -> str:
+    return pt if language == "pt" else en
+
+
+def readiness_count(value: object, *, default: int = 0) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) else default
+
+
+ReadinessDetailFormatter = Callable[[Mapping[str, Any], str], str]
+READINESS_DETAIL_FORMATTERS: dict[str, ReadinessDetailFormatter] = {
+    "public_sources": localized_public_sources_detail,
+    "geometry": localized_geometry_detail,
+    "indicator_validation": localized_indicator_validation_detail,
+    "generated_scenarios": localized_generated_scenarios_detail,
+    "public_subterritory_geometry": localized_public_subterritory_geometry_detail,
+    "cnes_facility_context": localized_cnes_facility_context_detail,
+    "official_health_territory_boundaries": localized_health_boundaries_detail,
+    "tb_health_territory_indicators": localized_health_indicators_detail,
+}
 
 
 def localize_mvp2_context(context: Mapping[str, Any], language: str) -> dict[str, Any]:
@@ -811,13 +1127,22 @@ def localize_alert_row(row: Mapping[str, Any], language: str) -> dict[str, Any]:
     localized["severity_label"] = labels["severity_labels"].get(severity, severity)
     localized["status_label"] = labels["status_labels"].get(status, status)
     if language == "pt":
-        template = ALERT_MESSAGES_PT.get(alert_type)
+        template = ALERT_MESSAGE_TEMPLATES["pt"].get(alert_type)
         if template:
             localized["message_label"] = template.format(case_id=row.get("local_case_id", ""))
         else:
             localized["message_label"] = row.get("message", "")
     else:
         localized["message_label"] = row.get("message", "")
+    return localized
+
+
+def localize_product_alert(row: Mapping[str, Any], language: str) -> dict[str, Any]:
+    localized = dict(row)
+    templates = ALERT_MESSAGE_TEMPLATES[normalize_language(language)]
+    template = templates.get(str(row.get("alert_type", "")))
+    if template is not None:
+        localized["message"] = template.format(case_id=row.get("local_case_id", ""))
     return localized
 
 

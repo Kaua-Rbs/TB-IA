@@ -150,6 +150,16 @@ const secondOperationAlert = {
   message: "Retirada de medicamento atrasada.",
 };
 
+const englishOperationAlert = {
+  ...operationAlert,
+  message: "Laboratory result pending for case CASE-1.",
+};
+
+const secondEnglishOperationAlert = {
+  ...secondOperationAlert,
+  message: "Medication pickup is delayed for open case CASE-2.",
+};
+
 beforeEach(() => {
   vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = String(input);
@@ -241,11 +251,21 @@ beforeEach(() => {
       });
     }
     if (url.includes("/api/operations/alerts/alert-1"))
-      return jsonResponse(operationAlert);
+      return jsonResponse(
+        url.includes("lang=en") ? englishOperationAlert : operationAlert,
+      );
     if (url.includes("/api/operations/alerts/alert-2"))
-      return jsonResponse(secondOperationAlert);
+      return jsonResponse(
+        url.includes("lang=en")
+          ? secondEnglishOperationAlert
+          : secondOperationAlert,
+      );
     if (url.includes("/api/operations/alerts"))
-      return jsonResponse([operationAlert, secondOperationAlert]);
+      return jsonResponse(
+        url.includes("lang=en")
+          ? [englishOperationAlert, secondEnglishOperationAlert]
+          : [operationAlert, secondOperationAlert],
+      );
     if (url.includes("/api/territories/2304400/report")) {
       return jsonResponse({
         territory_id: "2304400",
@@ -450,6 +470,32 @@ describe("App", () => {
       "Equipe",
       "Prazo",
     ]);
+  });
+
+  it("renders localized alert detail fields and requests the selected language", async () => {
+    window.history.pushState({}, "", "/acompanhamento?year=2023&lang=en");
+    render(<App />);
+
+    const heading = await screen.findByRole("heading", {
+      name: "Alert detail",
+    });
+    const detailPanel = heading.closest("aside");
+    expect(detailPanel).not.toBeNull();
+    const detail = within(detailPanel as HTMLElement);
+
+    expect(
+      await detail.findByText("Laboratory result pending for case CASE-1."),
+    ).toBeInTheDocument();
+    expect(detail.getByText("Pending laboratory result")).toBeInTheDocument();
+    expect(detail.getAllByText("open").length).toBeGreaterThan(0);
+    expect(detail.getByText("6/29/2026")).toBeInTheDocument();
+    expect(detail.getByText("7/2/2026")).toBeInTheDocument();
+    expect(detail.queryByText("pending_lab_result")).not.toBeInTheDocument();
+    expect(detail.queryByText("2026-06-29")).not.toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/operations/alerts/alert-1?lang=en"),
+      expect.any(Object),
+    );
   });
 
   it("renders the territorial concept route as a product console", async () => {

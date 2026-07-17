@@ -53,23 +53,30 @@ def test_mvp2_storage_and_api_expose_operational_alerts_without_patient_pseudony
     with TestClient(create_app(database_url)) as client:
         summary_response = client.get("/api/mvp2/summary?year=2023")
         alerts_response = client.get("/api/mvp2/alerts?year=2023&severity=high")
+        all_alerts_response = client.get("/api/mvp2/alerts?year=2023")
+        legacy_alerts_with_lang = client.get("/api/mvp2/alerts?year=2023&lang=pt")
         product_summary_response = client.get("/api/operations/summary?year=2023")
-        product_alerts_response = client.get("/api/operations/alerts?year=2023&severity=high")
+        product_alerts_response = client.get("/api/operations/alerts?year=2023")
+        english_product_alerts_response = client.get("/api/operations/alerts?year=2023&lang=en")
         page_response = client.get("/mvp2?year=2023&severity=high")
         product_page_response = client.get("/acompanhamento?year=2023&severity=high")
         english_page_response = client.get("/acompanhamento?year=2023&severity=high&lang=en")
 
     assert summary_response.status_code == 200
     assert alerts_response.status_code == 200
+    assert all_alerts_response.status_code == 200
+    assert legacy_alerts_with_lang.status_code == 200
     assert product_summary_response.status_code == 200
     assert product_alerts_response.status_code == 200
+    assert english_product_alerts_response.status_code == 200
     assert page_response.status_code == 200
     assert product_page_response.status_code == 200
     assert english_page_response.status_code == 200
     assert summary_response.json()["alert_count"] == len(alerts)
     assert product_summary_response.json()["alert_count"] == len(alerts)
     assert all(row["severity"] == "high" for row in alerts_response.json())
-    assert product_alerts_response.json() == alerts_response.json()
+    assert legacy_alerts_with_lang.json() == all_alerts_response.json()
+    assert len(product_alerts_response.json()) == len(all_alerts_response.json())
     assert "pseudonymized_patient_id" not in alerts_response.text
     assert "PAT-" not in alerts_response.text
     assert "Análise territorial" in page_response.text
@@ -82,17 +89,69 @@ def test_mvp2_storage_and_api_expose_operational_alerts_without_patient_pseudony
     assert "Care follow-up" in english_page_response.text
     assert "synthetic/pseudonymized demo" in english_page_response.text
 
-    first_alert_id = alerts_response.json()[0]["alert_id"]
+    templates = {
+        "pt": {
+            "pending_lab_result": "Resultado laboratorial pendente para o caso {case_id}.",
+            "medication_pickup_delay": (
+                "Retirada de medicamento atrasada para o caso aberto {case_id}."
+            ),
+            "contact_pending_evaluation": (
+                "Avaliação de contato pendente para o caso índice {case_id}."
+            ),
+            "resistance_vigilance": "Vigilância de resistência para o caso {case_id}.",
+        },
+        "en": {
+            "pending_lab_result": "Laboratory result pending for case {case_id}.",
+            "medication_pickup_delay": ("Medication pickup is delayed for open case {case_id}."),
+            "contact_pending_evaluation": (
+                "Contact evaluation is pending for index case {case_id}."
+            ),
+            "resistance_vigilance": "Resistance vigilance for case {case_id}.",
+        },
+    }
+    legacy_by_id = {row["alert_id"]: row for row in all_alerts_response.json()}
+    for language, rows in (
+        ("pt", product_alerts_response.json()),
+        ("en", english_product_alerts_response.json()),
+    ):
+        assert {row["alert_type"] for row in rows} == set(templates[language])
+        for row in rows:
+            legacy = legacy_by_id[row["alert_id"]]
+            assert {key: value for key, value in row.items() if key != "message"} == {
+                key: value for key, value in legacy.items() if key != "message"
+            }
+            assert row["message"] == templates[language][row["alert_type"]].format(
+                case_id=row["local_case_id"]
+            )
+
+    first_alert_id = all_alerts_response.json()[0]["alert_id"]
     with TestClient(create_app(database_url)) as client:
         detail_response = client.get(f"/api/mvp2/alerts/{first_alert_id}")
+        legacy_detail_with_lang = client.get(f"/api/mvp2/alerts/{first_alert_id}?lang=pt")
         product_detail_response = client.get(f"/api/operations/alerts/{first_alert_id}")
+        english_product_detail_response = client.get(
+            f"/api/operations/alerts/{first_alert_id}?lang=en"
+        )
         missing_response = client.get("/api/mvp2/alerts/missing-alert")
         product_missing_response = client.get("/api/operations/alerts/missing-alert")
 
     assert detail_response.status_code == 200
+    assert legacy_detail_with_lang.status_code == 200
     assert product_detail_response.status_code == 200
+    assert english_product_detail_response.status_code == 200
     assert detail_response.json()["alert_id"] == first_alert_id
-    assert product_detail_response.json() == detail_response.json()
+    assert legacy_detail_with_lang.json() == detail_response.json()
+    detail_type = detail_response.json()["alert_type"]
+    detail_case_id = detail_response.json()["local_case_id"]
+    assert product_detail_response.json()["message"] == templates["pt"][detail_type].format(
+        case_id=detail_case_id
+    )
+    assert english_product_detail_response.json()["message"] == templates["en"][detail_type].format(
+        case_id=detail_case_id
+    )
+    assert {
+        key: value for key, value in product_detail_response.json().items() if key != "message"
+    } == {key: value for key, value in detail_response.json().items() if key != "message"}
     assert missing_response.status_code == 404
     assert product_missing_response.status_code == 404
 

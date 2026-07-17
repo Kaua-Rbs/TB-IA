@@ -43,6 +43,7 @@ from tbia.storage import (
 )
 from tbia.web import app as web_app
 from tbia.web.app import create_app
+from tbia.web.i18n import localize_dashboard_context
 
 
 def test_public_aggregate_savers_replace_only_target_territories(tmp_path: Path) -> None:
@@ -105,6 +106,102 @@ def test_storage_pipeline_persists_dashboard_context(tmp_path: Path) -> None:
         territories = load_territories(session, "CE")
     engine.dispose()
     assert all(territory.geometry is not None for territory in territories)
+
+
+def test_product_readiness_is_localized_from_structured_fields(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'readiness.db'}"
+    populate_database(database_url)
+    timestamp = datetime(2023, 12, 31, tzinfo=UTC)
+    engine = create_engine_for_url(database_url)
+    session_factory = create_session_factory(engine)
+    with session_factory() as session:
+        save_import_run(
+            session,
+            ImportRun(
+                source_id="sih_sus",
+                status="partial",
+                started_at=timestamp,
+                finished_at=timestamp,
+                row_count=3,
+                message="fixture",
+                year=2023,
+                geographic_scope="CE",
+                loaded_months=(1, 2, 3),
+            ),
+        )
+        session.commit()
+        raw_context = dashboard_context(session, 2023, "CE")
+        raw_context["readiness"]["future_readiness"] = {
+            "label": "Future readiness",
+            "status": "partial",
+            "detail": "Original detail",
+        }
+        fallback = localize_dashboard_context(raw_context, "pt")["readiness"]["future_readiness"]
+    engine.dispose()
+
+    with TestClient(create_app(database_url)) as client:
+        pt_response = client.get("/api/territorial/context?uf=CE&year=2023&lang=pt")
+        en_response = client.get("/api/territorial/context?uf=CE&year=2023&lang=en")
+
+    assert pt_response.status_code == 200
+    assert en_response.status_code == 200
+    pt_payload = pt_response.json()
+    en_payload = en_response.json()
+    pt_readiness = pt_payload["readiness"]
+    en_readiness = en_payload["readiness"]
+
+    assert {key: item["label"] for key, item in pt_readiness.items()} == {
+        "public_sources": "Fontes públicas",
+        "hospitalization_coverage": "Cobertura anual do SIH/SUS",
+        "geometry": "Geometria",
+        "indicator_validation": "Validação dos indicadores",
+        "generated_scenarios": "Sinais gerados",
+    }
+    assert {key: item["label"] for key, item in en_readiness.items()} == {
+        "public_sources": "Public sources",
+        "hospitalization_coverage": "Annual SIH/SUS coverage",
+        "geometry": "Geometry",
+        "indicator_validation": "Indicator validation",
+        "generated_scenarios": "Generated signals",
+    }
+    assert pt_readiness["hospitalization_coverage"]["detail"] == (
+        "3/12 meses do SIH/SUS carregados; faltam 04, 05, 06, 07, 08, 09, 10, 11, 12"
+    )
+    assert en_readiness["hospitalization_coverage"]["detail"] == (
+        "3/12 SIH/SUS months loaded; missing 04, 05, 06, 07, 08, 09, 10, 11, 12"
+    )
+    assert pt_readiness["geometry"]["detail"] == "6/6 municípios com geometria"
+    assert en_readiness["geometry"]["detail"] == "6/6 municipalities with geometry"
+    assert pt_readiness["generated_scenarios"]["detail"].endswith("territórios")
+    assert en_readiness["generated_scenarios"]["detail"].endswith("territories")
+    assert {key: item["status"] for key, item in pt_readiness.items()} == {
+        key: item["status"] for key, item in en_readiness.items()
+    }
+
+    pt_health = pt_payload["health_territory_readiness"]
+    en_health = en_payload["health_territory_readiness"]
+    assert {key: item["label"] for key, item in pt_health.items()} == {
+        "public_subterritory_geometry": "Geometria pública de referência",
+        "cnes_facility_context": "Contexto CNES de unidades",
+        "official_health_territory_boundaries": ("Limites oficiais de territórios de saúde"),
+        "tb_health_territory_indicators": ("Indicadores de TB por território de saúde"),
+    }
+    assert {key: item["label"] for key, item in en_health.items()} == {
+        "public_subterritory_geometry": "Public reference geometry",
+        "cnes_facility_context": "CNES facility context",
+        "official_health_territory_boundaries": ("Official health-territory boundaries"),
+        "tb_health_territory_indicators": "TB indicators by health territory",
+    }
+    assert (
+        "fontes exclusivamente públicas"
+        in (pt_health["official_health_territory_boundaries"]["detail"])
+    )
+    assert "public-only sources" in (en_health["official_health_territory_boundaries"]["detail"])
+    assert fallback == {
+        "label": "Future readiness",
+        "status": "partial",
+        "detail": "Original detail",
+    }
 
 
 def test_import_run_readiness_is_scoped_by_year_and_geography(tmp_path: Path) -> None:

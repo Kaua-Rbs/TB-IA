@@ -11,7 +11,7 @@ import {
   fetchOperationsSummary,
   type OperationalAlert
 } from '../lib/api';
-import { formatDate, formatNumber, labelAlertType } from '../lib/format';
+import { formatDate, formatNumber, labelAlertType, labelStatus } from '../lib/format';
 import { copy, normalizeLanguage } from '../lib/i18n';
 
 export function OperationsPage() {
@@ -32,7 +32,7 @@ export function OperationsPage() {
     queryFn: () => fetchOperationsSummary(year)
   });
   const alertsQuery = useQuery({
-    queryKey: ['operations-alerts', year, filters],
+    queryKey: ['operations-alerts', year, filters, lang],
     queryFn: () =>
       fetchOperationAlerts({
         year,
@@ -40,12 +40,13 @@ export function OperationsPage() {
         severity: filters.severity,
         facilityId: filters.facilityId,
         teamId: filters.teamId,
-        status: filters.status
+        status: filters.status,
+        lang
       })
   });
   const detailQuery = useQuery({
-    queryKey: ['operations-alert', selectedAlertId],
-    queryFn: () => fetchOperationAlert(selectedAlertId ?? ''),
+    queryKey: ['operations-alert', selectedAlertId, lang],
+    queryFn: () => fetchOperationAlert(selectedAlertId ?? '', lang),
     enabled: Boolean(selectedAlertId)
   });
   const highAlertCount = summaryQuery.data?.by_severity.find((row) => row.severity === 'high')?.count ?? 0;
@@ -184,7 +185,7 @@ export function OperationsPage() {
         <aside className="detail-panel operations-detail">
           <h2>{labels.operations.alertDetail}</h2>
           {!selectedAlertId ? <p className="muted-copy">{labels.operations.selectAlert}</p> : null}
-          {detailQuery.data ? <AlertDetail alert={detailQuery.data} /> : null}
+          {detailQuery.data ? <AlertDetail alert={detailQuery.data} lang={lang} /> : null}
         </aside>
       </section>
 
@@ -249,7 +250,14 @@ function AlertRow({
   );
 }
 
-function AlertDetail({ alert }: { alert: OperationalAlert }) {
+function AlertDetail({
+  alert,
+  lang
+}: {
+  alert: OperationalAlert;
+  lang: ReturnType<typeof normalizeLanguage>;
+}) {
+  const labels = copy[lang];
   return (
     <div className="detail-stack">
       <div>
@@ -261,10 +269,10 @@ function AlertDetail({ alert }: { alert: OperationalAlert }) {
         <p>{alert.message}</p>
       </div>
       <div className="indicator-list">
-        <div><span>Tipo</span><strong>{alert.alert_type}</strong></div>
-        <div><span>Status</span><strong>{alert.status}</strong></div>
-        <div><span>Referência</span><strong>{alert.reference_date}</strong></div>
-        <div><span>Prazo</span><strong>{alert.due_date ?? '-'}</strong></div>
+        <div><span>{labels.operations.type}</span><strong>{labelAlertType(alert.alert_type, labels)}</strong></div>
+        <div><span>{labels.common.status}</span><strong>{labelStatus(alert.status, lang)}</strong></div>
+        <div><span>{labels.operations.reference}</span><strong>{formatDate(alert.reference_date, lang)}</strong></div>
+        <div><span>{labels.operations.due}</span><strong>{formatDate(alert.due_date, lang)}</strong></div>
       </div>
     </div>
   );
