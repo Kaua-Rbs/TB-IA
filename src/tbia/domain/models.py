@@ -65,6 +65,7 @@ class ImportRun:
     message: str = ""
     year: int | None = None
     geographic_scope: str | None = None
+    loaded_months: tuple[int, ...] | None = None
 
 
 @dataclass(frozen=True)

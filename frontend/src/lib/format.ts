@@ -1,4 +1,5 @@
 import { copy, type AppCopy, type Language } from './i18n';
+import type { MonthCoverage } from './api';
 
 export function formatNumber(value: number | null | undefined, lang: Language, digits = 0) {
   if (value === null || value === undefined || Number.isNaN(value)) {
@@ -50,4 +51,28 @@ export function formatDate(value: string | null | undefined, lang: Language) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return new Intl.DateTimeFormat(lang === 'pt' ? 'pt-BR' : 'en-US').format(date);
+}
+export function formatMonthCoverage(
+  coverage: MonthCoverage,
+  lang: Language
+) {
+  if (coverage.scope_count > 1) {
+    return lang === 'pt'
+      ? `${coverage.complete_scope_count}/${coverage.scope_count} UFs com 12 meses de SIH/SUS`
+      : `${coverage.complete_scope_count}/${coverage.scope_count} states with 12 SIH/SUS months`;
+  }
+  if (coverage.loaded_months === null) {
+    return lang === 'pt'
+      ? 'Cobertura mensal do SIH/SUS não informada'
+      : 'SIH/SUS monthly coverage not declared';
+  }
+
+  const base = `${coverage.loaded_months.length}/12 ${lang === 'pt' ? 'meses do SIH/SUS' : 'SIH/SUS months'}`;
+  if (!coverage.missing_months?.length) return base;
+  const missing = coverage.missing_months
+    .map((month) => String(month).padStart(2, '0'))
+    .join(', ');
+  return lang === 'pt'
+    ? `${base}; faltam ${missing}`
+    : `${base}; missing ${missing}`;
 }

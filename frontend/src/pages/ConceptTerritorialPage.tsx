@@ -21,6 +21,7 @@ import {
 } from '../lib/api';
 import {
   formatIndicatorValue,
+  formatMonthCoverage,
   formatNumber,
   labelSeverity,
   labelStatus,
@@ -100,7 +101,7 @@ export function ConceptTerritorialPage() {
   });
   const loadYearMutation = useMutation<LoadYearJob>({
     mutationFn: () =>
-      startTerritorialYearLoad({ ...queryParams, sihAllMonths: false }),
+      startTerritorialYearLoad({ ...queryParams, sihAllMonths: true }),
     onSuccess: (job) => setLoadJobId(job.job_id),
   });
   const loadJobQuery = useQuery<LoadYearJob>({
@@ -611,6 +612,9 @@ function SourceRows({ sources, lang }: { sources: SourceRow[]; lang: Language })
           <div>
             <strong>{source.name}</strong>
             <small>{source.message}</small>
+            {source.month_coverage ? (
+              <small>{formatMonthCoverage(source.month_coverage, lang)}</small>
+            ) : null}
           </div>
           <StatusBadge value={source.status} lang={lang} />
         </div>

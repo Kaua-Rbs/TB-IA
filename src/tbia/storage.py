@@ -97,6 +97,7 @@ class ImportRunRecord(Base):
     message: Mapped[str] = mapped_column(Text, default="")
     year: Mapped[int | None] = mapped_column(Integer, nullable=True)
     geographic_scope: Mapped[str | None] = mapped_column(String(2), nullable=True)
+    loaded_months: Mapped[list[int] | None] = mapped_column(JSON, nullable=True)
 
 
 class TerritoryRecord(Base):
@@ -410,6 +411,8 @@ def migrate_import_run_scope_columns(engine: Engine) -> None:
             connection.execute(
                 text("ALTER TABLE import_runs ADD COLUMN geographic_scope VARCHAR(2)")
             )
+        if "loaded_months" not in existing_columns:
+            connection.execute(text("ALTER TABLE import_runs ADD COLUMN loaded_months JSON"))
         connection.execute(
             text(
                 "CREATE INDEX IF NOT EXISTS ix_import_runs_source_year_scope "
@@ -510,6 +513,9 @@ def save_import_run(session: Session, import_run: ImportRun) -> None:
             message=import_run.message,
             year=import_run.year,
             geographic_scope=import_run.geographic_scope,
+            loaded_months=(
+                list(import_run.loaded_months) if import_run.loaded_months is not None else None
+            ),
         )
     )
 
@@ -1306,6 +1312,8 @@ MAP_LAYER_INDICATOR_IDS = frozenset(
     }
 )
 SEVERITY_ORDER = {"low": 1, "moderate": 2, "high": 3}
+SIH_SOURCE_ID = "sih_sus"
+SIH_EXPECTED_MONTHS = tuple(range(1, 13))
 CORE_PUBLIC_SOURCE_IDS = (
     "ibge_localidades",
     "ibge_population",
@@ -1462,6 +1470,49 @@ def latest_import_runs_for_scope(
     return rows
 
 
+def normalized_loaded_months(months: Sequence[int] | None) -> tuple[int, ...] | None:
+    if months is None:
+        return None
+    return tuple(sorted({int(month) for month in months if 1 <= int(month) <= 12}))
+
+
+def is_complete_sih_run(run: ImportRunRecord) -> bool:
+    return (
+        run.status == "success"
+        and normalized_loaded_months(run.loaded_months) == SIH_EXPECTED_MONTHS
+    )
+
+
+def effective_import_run_status(source_id: str, run: ImportRunRecord) -> str:
+    if source_id == SIH_SOURCE_ID and run.status == "success" and not is_complete_sih_run(run):
+        return "partial"
+    return run.status
+
+
+def complete_sih_scopes(
+    session: Session,
+    *,
+    year: int,
+    geographic_scopes: Iterable[str],
+) -> set[str]:
+    scopes = {normalize_geographic_scope(scope) for scope in geographic_scopes}
+    latest_by_scope: dict[str, ImportRunRecord] = {}
+    records = (
+        session.query(ImportRunRecord)
+        .filter(
+            ImportRunRecord.source_id == SIH_SOURCE_ID,
+            ImportRunRecord.year == year,
+            ImportRunRecord.geographic_scope.in_(scopes),
+        )
+        .order_by(ImportRunRecord.import_run_id)
+        .all()
+    )
+    for record in records:
+        if record.geographic_scope is not None:
+            latest_by_scope[record.geographic_scope] = record
+    return {scope for scope, run in latest_by_scope.items() if is_complete_sih_run(run)}
+
+
 def scoped_import_run_row(
     source_id: str,
     year: int,
@@ -1525,6 +1576,55 @@ def regional_import_run_row(
     return row
 
 
+def import_run_month_coverage(
+    source_id: str,
+    run: ImportRunRecord,
+) -> dict[str, Any] | None:
+    if source_id != SIH_SOURCE_ID:
+        return None
+    loaded_months = normalized_loaded_months(run.loaded_months)
+    missing_months = (
+        sorted(set(SIH_EXPECTED_MONTHS) - set(loaded_months)) if loaded_months is not None else None
+    )
+    complete = is_complete_sih_run(run)
+    return {
+        "expected_months": list(SIH_EXPECTED_MONTHS),
+        "loaded_months": list(loaded_months) if loaded_months is not None else None,
+        "missing_months": missing_months,
+        "complete": complete,
+        "scope_count": 1,
+        "complete_scope_count": 1 if complete else 0,
+    }
+
+
+def national_month_coverage(
+    source_id: str,
+    component_runs: dict[str, ImportRunRecord],
+) -> dict[str, Any] | None:
+    if source_id != SIH_SOURCE_ID:
+        return None
+    expected_ufs = ufs_for_scope(BRAZIL_SCOPE)
+    loaded_in_every_scope = set(SIH_EXPECTED_MONTHS)
+    for uf in expected_ufs:
+        run = component_runs.get(uf)
+        months = normalized_loaded_months(run.loaded_months) if run is not None else ()
+        loaded_in_every_scope.intersection_update(months or ())
+    complete_scope_count = sum(
+        1
+        for uf in expected_ufs
+        if (run := component_runs.get(uf)) is not None and is_complete_sih_run(run)
+    )
+    loaded_months = sorted(loaded_in_every_scope)
+    return {
+        "expected_months": list(SIH_EXPECTED_MONTHS),
+        "loaded_months": loaded_months,
+        "missing_months": sorted(set(SIH_EXPECTED_MONTHS) - set(loaded_months)),
+        "complete": complete_scope_count == len(expected_ufs),
+        "scope_count": len(expected_ufs),
+        "complete_scope_count": complete_scope_count,
+    }
+
+
 def national_import_run_row(
     source_id: str,
     year: int,
@@ -1532,13 +1632,16 @@ def national_import_run_row(
     source_by_id: dict[str, DataSourceRecord],
 ) -> dict[str, Any]:
     expected_ufs = ufs_for_scope(BRAZIL_SCOPE)
-    success_ufs = sorted(uf for uf, run in component_runs.items() if run.status == "success")
-    failed_ufs = sorted(uf for uf, run in component_runs.items() if run.status == "failed")
-    skipped_ufs = sorted(uf for uf, run in component_runs.items() if run.status == "skipped")
+    component_statuses = {
+        uf: effective_import_run_status(source_id, run) for uf, run in component_runs.items()
+    }
+    success_ufs = sorted(uf for uf, status in component_statuses.items() if status == "success")
+    failed_ufs = sorted(uf for uf, status in component_statuses.items() if status == "failed")
+    skipped_ufs = sorted(uf for uf, status in component_statuses.items() if status == "skipped")
     other_ufs = sorted(
         uf
-        for uf, run in component_runs.items()
-        if run.status not in {"success", "failed", "skipped"}
+        for uf, status in component_statuses.items()
+        if status not in {"success", "failed", "skipped"}
     )
     missing_ufs = sorted(set(expected_ufs) - set(component_runs))
 
@@ -1585,6 +1688,7 @@ def national_import_run_row(
         "year": year,
         "geographic_scope": BRAZIL_SCOPE,
         "scope_inherited": False,
+        "month_coverage": national_month_coverage(source_id, component_runs),
     }
 
 
@@ -1599,7 +1703,7 @@ def import_run_api_row(
     return {
         "source_id": source_id,
         "name": source.name if source is not None else source_id,
-        "status": run.status,
+        "status": effective_import_run_status(source_id, run),
         "row_count": run.row_count,
         "finished_at": run.finished_at.isoformat() if run.finished_at else None,
         "message": run.message,
@@ -1607,6 +1711,7 @@ def import_run_api_row(
         "year": run.year,
         "geographic_scope": run.geographic_scope,
         "scope_inherited": scope_inherited,
+        "month_coverage": import_run_month_coverage(source_id, run),
     }
 
 
@@ -1858,6 +1963,7 @@ def dashboard_readiness(
         1 for row in public_source_runs if row is not None and row["status"] == "failed"
     )
     validation_run = source_by_id.get("indicator_validation")
+    hospitalization_run = source_by_id.get(SIH_SOURCE_ID)
     scenario_territory_count = len({scenario.territory_id for scenario in scenarios})
     warning_count = validation_warning_count(validation_run)
 
@@ -1875,6 +1981,7 @@ def dashboard_readiness(
                 "source runs successful"
             ),
         },
+        "hospitalization_coverage": hospitalization_coverage_readiness(hospitalization_run),
         "geometry": {
             "label": "Geometry",
             "status": coverage_readiness_status(geometry_count, territory_count),
@@ -1955,6 +2062,65 @@ def health_territory_readiness(
                 "public TB indicators remain municipality-level."
             ),
         },
+    }
+
+
+def hospitalization_coverage_status(source_status: str, complete: bool) -> str:
+    if source_status == "failed":
+        return "warning"
+    if complete:
+        return "ready"
+    if source_status == "skipped":
+        return "missing"
+    return "partial"
+
+
+def hospitalization_coverage_detail(coverage: dict[str, Any]) -> str:
+    scope_count = int(coverage.get("scope_count", 1))
+    complete_scope_count = int(coverage.get("complete_scope_count", 0))
+    loaded_months = coverage.get("loaded_months")
+    if scope_count > 1:
+        return f"{complete_scope_count}/{scope_count} UFs with complete 12-month SIH/SUS coverage"
+    if loaded_months is None:
+        return "SIH/SUS monthly coverage is unknown; annual indicators are excluded"
+
+    missing_months = coverage.get("missing_months") or []
+    detail = f"{len(loaded_months)}/12 SIH/SUS months loaded"
+    if not missing_months:
+        return detail
+    missing_text = ",".join(f"{int(month):02d}" for month in missing_months)
+    return f"{detail}; missing {missing_text}"
+
+
+def hospitalization_coverage_readiness(
+    source_run: dict[str, Any] | None,
+) -> dict[str, Any]:
+    label = "Annual SIH/SUS coverage"
+    if source_run is None:
+        return {
+            "label": label,
+            "status": "missing",
+            "complete": False,
+            "detail": "No scoped SIH/SUS import run recorded",
+        }
+
+    coverage = source_run.get("month_coverage")
+    if not isinstance(coverage, dict):
+        return {
+            "label": label,
+            "status": "partial",
+            "complete": False,
+            "detail": "SIH/SUS monthly coverage was not recorded",
+        }
+
+    complete = bool(coverage.get("complete"))
+    return {
+        "label": label,
+        "status": hospitalization_coverage_status(
+            str(source_run.get("status", "missing")), complete
+        ),
+        "complete": complete,
+        "detail": hospitalization_coverage_detail(coverage),
     }
 
 

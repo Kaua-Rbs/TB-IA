@@ -50,15 +50,18 @@ def territorial_result(status: str = "ready") -> TerritorialPreparationResult:
         indicator_count=12 if status in {"ready", "warning", "partial"} else 0,
         scenario_count=5 if status in {"ready", "warning"} else 0,
         recommendation_count=5 if status in {"ready", "warning"} else 0,
+        sih_coverage_complete=status in {"ready", "warning"},
     )
 
 
 def test_territorial_preparation_status_requires_usable_outputs_for_warning() -> None:
-    assert territorial_preparation_status(download_result(), 12, 5) == "ready"
-    assert territorial_preparation_status(download_result(failed=1), 12, 5) == "warning"
-    assert territorial_preparation_status(download_result(failed=1), 12, 0) == "partial"
-    assert territorial_preparation_status(download_result(failed=1), 0, 0) == "failed"
-    assert territorial_preparation_status(download_result(), 0, 0) == "missing"
+    status = territorial_preparation_status
+    assert status(download_result(), 12, 5, sih_coverage_complete=True) == "ready"
+    assert status(download_result(failed=1), 12, 5, sih_coverage_complete=True) == "warning"
+    assert status(download_result(), 12, 5, sih_coverage_complete=False) == "warning"
+    assert status(download_result(failed=1), 12, 0, sih_coverage_complete=False) == "partial"
+    assert status(download_result(failed=1), 0, 0, sih_coverage_complete=False) == "failed"
+    assert status(download_result(), 0, 0, sih_coverage_complete=False) == "missing"
     missing_demo = DemoPreparationResult(
         territorial=territorial_result("missing"),
         sample_file_count=7,
@@ -160,6 +163,11 @@ def test_prepare_territorial_data_emits_ordered_stages(tmp_path: Path, monkeypat
         fake_build,
     )
 
+    monkeypatch.setattr(
+        preparation,
+        "complete_sih_scopes",
+        lambda session, *, year, geographic_scopes: set(geographic_scopes),
+    )
     result = prepare_territorial_data(
         session_factory,
         Mvp1Config(raw_dir=tmp_path),
@@ -170,6 +178,7 @@ def test_prepare_territorial_data_emits_ordered_stages(tmp_path: Path, monkeypat
     engine.dispose()
 
     assert result.result_status == "ready"
+    assert result.sih_coverage_complete is True
     assert calls == ["ingest", "indicators", "scenarios"]
     assert [event["stage"] for event in events] == [
         "download",

@@ -91,6 +91,15 @@ export interface ReadinessItem {
   [key: string]: string | number | boolean | null | undefined;
 }
 
+export interface MonthCoverage {
+  expected_months: number[];
+  loaded_months: number[] | null;
+  missing_months: number[] | null;
+  complete: boolean;
+  scope_count: number;
+  complete_scope_count: number;
+}
+
 export interface SourceRow {
   source_id: string;
   name: string;
@@ -102,6 +111,7 @@ export interface SourceRow {
   year: number | null;
   geographic_scope: string | null;
   scope_inherited: boolean;
+  month_coverage: MonthCoverage | null;
 }
 
 export interface TerritorialContext {
@@ -288,7 +298,7 @@ export function fetchTerritorialMap(params: TerritorialParams) {
 }
 
 export function startTerritorialYearLoad(
-  params: TerritorialParams & { sihAllMonths?: boolean },
+  params: TerritorialParams & { sihAllMonths: boolean },
 ) {
   return postJson<LoadYearJob>(
     `/api/territorial/load-year?${queryString({

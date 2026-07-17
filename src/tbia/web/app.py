@@ -481,7 +481,7 @@ def register_product_territorial_api_routes(app: FastAPI, session_factory: Sessi
         background_tasks: BackgroundTasks,
         uf: str = Query("BR", min_length=2, max_length=2),
         year: int = Query(2023, ge=2000, le=2100),
-        sih_all_months: bool = Query(False),
+        sih_all_months: bool = Query(True),
         timeout: int = Query(60, ge=1, le=300),
     ) -> dict[str, Any]:
         config = Mvp1Config(uf=uf.upper(), year=year)

@@ -110,6 +110,14 @@ const territorialContext = {
       finished_at: null,
       message: "ok",
       caveats: "",
+      month_coverage: {
+        expected_months: Array.from({ length: 12 }, (_, index) => index + 1),
+        loaded_months: [1],
+        missing_months: Array.from({ length: 11 }, (_, index) => index + 2),
+        complete: false,
+        scope_count: 1,
+        complete_scope_count: 0,
+      },
     },
   ],
 };
@@ -152,7 +160,7 @@ beforeEach(() => {
         job_id: "job-1",
         uf: "BR",
         year: 2024,
-        sih_all_months: false,
+        sih_all_months: true,
         status: "running",
         result_status: null,
         stage: "download",
@@ -175,7 +183,7 @@ beforeEach(() => {
         job_id: "job-1",
         uf: "BR",
         year: 2024,
-        sih_all_months: false,
+        sih_all_months: true,
         status: "queued",
         result_status: null,
         stage: "queued",
@@ -257,6 +265,9 @@ describe("App", () => {
     expect(screen.getByText("Acompanhamento da atenção")).toBeInTheDocument();
     expect((await screen.findAllByText("Fortaleza")).length).toBeGreaterThan(0);
     expect(
+      await screen.findByText(/1\/12 meses do SIH\/SUS/),
+    ).toBeInTheDocument();
+    expect(
       screen.getByRole("button", { name: "Expandir ranking" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("MVP1")).not.toBeInTheDocument();
@@ -295,6 +306,29 @@ describe("App", () => {
     expect(
       await screen.findByText("1/4 baixando: SINAN-TB Brazil 2024 preliminary"),
     ).toBeInTheDocument();
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("sih_all_months=true"),
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("requests all SIH months from the territorial concept route", async () => {
+    const user = userEvent.setup();
+    window.history.pushState(
+      {},
+      "",
+      "/conceito/territorios?uf=BR&year=2024&lang=pt",
+    );
+    render(<App />);
+
+    await user.click(
+      await screen.findByRole("button", { name: "Carregar ano selecionado" }),
+    );
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("sih_all_months=true"),
+      expect.objectContaining({ method: "POST" }),
+    );
   });
 
   it("renders the operational queue through the product route", async () => {

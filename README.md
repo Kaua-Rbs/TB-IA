@@ -41,8 +41,10 @@ months by default, runs the territorial pipeline, regenerates the seven
 deterministic synthetic municipal CSVs, and builds operational alerts in the
 same database. It safely replaces the selected scope/year and preserves other
 years and UFs. Use `--sih-january-only` for a faster partial SIH/SUS
-demonstration, or pass the same `--database-url` to `prepare-demo` and
-`serve` when using a non-default database.
+demonstration. Partial or coverage-unknown SIH/SUS aggregates remain available
+for audit but are excluded from annual hospitalization indicators and rankings.
+Pass the same `--database-url` to `prepare-demo` and `serve` when using a
+non-default database.
 
 The individual commands remain available for source-specific debugging:
 

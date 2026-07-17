@@ -27,6 +27,7 @@ import {
 } from "../lib/api";
 import {
   formatIndicatorValue,
+  formatMonthCoverage,
   formatNumber,
   labelSeverity,
   labelStatus,
@@ -106,7 +107,7 @@ export function TerritorialPage() {
   });
   const loadYearMutation = useMutation<LoadYearJob>({
     mutationFn: () =>
-      startTerritorialYearLoad({ ...queryParams, sihAllMonths: false }),
+      startTerritorialYearLoad({ ...queryParams, sihAllMonths: true }),
     onSuccess: (job) => {
       setLoadJobId(job.job_id);
     },
@@ -615,6 +616,11 @@ export function TerritorialPage() {
                 <div>
                   <strong>{source.name}</strong>
                   <small>{source.message}</small>
+                  {source.month_coverage ? (
+                    <small>
+                      {formatMonthCoverage(source.month_coverage, lang)}
+                    </small>
+                  ) : null}
                 </div>
                 <StatusBadge value={source.status} lang={lang} />
               </div>

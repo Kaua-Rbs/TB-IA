@@ -16,6 +16,7 @@ from tbia.domain.models import (
     PopulationDenominator,
     Territory,
 )
+from tbia.geography import UF_SIGLAS
 from tbia.pipeline import (
     Mvp1Config,
     build_and_store_scenarios,
@@ -31,6 +32,7 @@ from tbia.storage import (
     latest_import_runs_for_scope,
     load_cases,
     load_territories,
+    load_territory_scenarios,
     save_case_aggregates,
     save_facilities,
     save_import_run,
@@ -119,6 +121,7 @@ def test_import_run_readiness_is_scoped_by_year_and_geography(tmp_path: Path) ->
             ImportRun("cnes", "failed", timestamp, timestamp, 1, "older", 2023, "CE"),
             ImportRun("cnes", "success", timestamp, timestamp, 3, "current", 2023, "CE"),
             ImportRun("cnes", "failed", timestamp, timestamp, 2, "offline", 2023, "PE"),
+            ImportRun("sih_sus", "success", timestamp, timestamp, 5, "legacy", 2023, "CE"),
             ImportRun(
                 "indicator_validation",
                 "success",
@@ -156,6 +159,8 @@ def test_import_run_readiness_is_scoped_by_year_and_geography(tmp_path: Path) ->
     assert ce_rows["cnes"]["status"] == "success"
     assert ce_rows["cnes"]["row_count"] == 3
     assert ce_rows["cnes"]["geographic_scope"] == "CE"
+    assert ce_rows["sih_sus"]["status"] == "partial"
+    assert ce_rows["sih_sus"]["month_coverage"]["loaded_months"] is None
     assert ce_rows["sinan_tb"]["geographic_scope"] == "BR"
     assert ce_rows["sinan_tb"]["scope_inherited"] is True
     assert ce_rows["indicator_validation"]["scope_inherited"] is False
@@ -168,6 +173,83 @@ def test_import_run_readiness_is_scoped_by_year_and_geography(tmp_path: Path) ->
     assert national_rows["cnes"]["geographic_scope"] == "BR"
     assert "failed=PE" in national_rows["cnes"]["message"]
     assert "missing=" in national_rows["cnes"]["message"]
+
+
+def test_national_hospitalization_scenarios_require_complete_sih_coverage(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine_for_url(f"sqlite:///{tmp_path / 'national-coverage.db'}")
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    timestamp = datetime(2023, 12, 31, tzinfo=UTC)
+
+    with session_factory() as session:
+        seed_reference_data(session)
+        save_territories(
+            session,
+            [
+                *fixture_scope_territories("23", "CE", "23", [20, 19, 18, 17, 16]),
+                *fixture_scope_territories("26", "PE", "26", [10, 9, 8, 7, 6]),
+            ],
+        )
+        hospitalization_values = [
+            IndicatorValue(
+                "hospitalization_burden_per_100k",
+                f"{prefix}{index:05d}",
+                2023,
+                float(value),
+                value,
+                100_000,
+                False,
+                ("sih_sus", "ibge_population"),
+                "",
+            )
+            for prefix, values in (
+                ("23", [20, 19, 18, 17, 16]),
+                ("26", [10, 9, 8, 7, 6]),
+            )
+            for index, value in enumerate(values, start=1)
+        ]
+        save_indicator_values(session, hospitalization_values, 2023)
+        for uf in UF_SIGLAS:
+            loaded_months = (1,) if uf == "CE" else tuple(range(1, 13))
+            save_import_run(
+                session,
+                ImportRun(
+                    source_id="sih_sus",
+                    status="partial" if uf == "CE" else "success",
+                    started_at=timestamp,
+                    finished_at=timestamp,
+                    row_count=1,
+                    message="fixture",
+                    year=2023,
+                    geographic_scope=uf,
+                    loaded_months=loaded_months,
+                ),
+            )
+
+        build_and_store_scenarios(session, Mvp1Config(uf="BR", year=2023))
+        session.commit()
+        national_source = next(
+            row
+            for row in latest_import_runs_for_scope(session, year=2023, geographic_scope="BR")
+            if row["source_id"] == "sih_sus"
+        )
+        uf_scenarios = load_territory_scenarios(session, 2023, "uf")
+        national_scenarios = load_territory_scenarios(session, 2023, "national")
+    engine.dispose()
+
+    assert national_source["status"] == "partial"
+    assert national_source["month_coverage"]["complete"] is False
+    assert national_source["month_coverage"]["scope_count"] == 27
+    assert national_source["month_coverage"]["complete_scope_count"] == 26
+    assert national_source["month_coverage"]["loaded_months"] == [1]
+    assert len(uf_scenarios) == 2
+    assert all(
+        scenario.territory_id.startswith("26") and scenario.rule_id == "high_hospitalization_burden"
+        for scenario in uf_scenarios
+    )
+    assert all(scenario.rule_id != "high_hospitalization_burden" for scenario in national_scenarios)
 
 
 def test_initialize_database_migrates_legacy_import_run_scope_columns(tmp_path: Path) -> None:
@@ -187,15 +269,36 @@ def test_initialize_database_migrates_legacy_import_run_scope_columns(tmp_path: 
             )
         )
 
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO import_runs "
+                "(source_id, status, started_at, row_count, message) "
+                "VALUES (:source_id, :status, :started_at, :row_count, :message)"
+            ),
+            {
+                "source_id": "sih_sus",
+                "status": "success",
+                "started_at": "2023-01-01",
+                "row_count": 1,
+                "message": "legacy",
+            },
+        )
+
     initialize_database(engine)
+    with engine.connect() as connection:
+        legacy_row = connection.execute(
+            text("SELECT year, geographic_scope, loaded_months FROM import_runs")
+        ).one()
 
     database_inspector = inspect(engine)
     column_names = {column["name"] for column in database_inspector.get_columns("import_runs")}
     index_names = {index["name"] for index in database_inspector.get_indexes("import_runs")}
     engine.dispose()
 
-    assert {"year", "geographic_scope"} <= column_names
+    assert {"year", "geographic_scope", "loaded_months"} <= column_names
     assert "ix_import_runs_source_year_scope" in index_names
+    assert tuple(legacy_row) == (None, None, None)
 
 
 def test_national_and_uf_scenario_scopes_coexist(tmp_path: Path) -> None:
@@ -549,6 +652,7 @@ def test_territorial_load_year_endpoint_runs_public_pipeline_without_auto_naviga
             indicator_count=12,
             scenario_count=5,
             recommendation_count=5,
+            sih_coverage_complete=True,
         )
 
     monkeypatch.setattr(web_app, "prepare_territorial_data", fake_prepare_territorial_data)
@@ -563,6 +667,7 @@ def test_territorial_load_year_endpoint_runs_public_pipeline_without_auto_naviga
     assert start_payload["status"] == "queued"
     assert start_payload["uf"] == "CE"
     assert start_payload["year"] == 2024
+    assert start_payload["sih_all_months"] is True
 
     assert status_response.status_code == 200
     payload = status_response.json()

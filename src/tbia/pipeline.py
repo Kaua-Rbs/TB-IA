@@ -47,6 +47,8 @@ from tbia.ingest.sinan_validation import (
 from tbia.storage import (
     COMPARISON_SCOPE_NATIONAL,
     COMPARISON_SCOPE_UF,
+    SIH_EXPECTED_MONTHS,
+    complete_sih_scopes,
     load_cases,
     load_hospitalizations,
     load_indicator_values,
@@ -68,6 +70,8 @@ from tbia.storage import (
     save_territories,
     save_territory_scenarios,
 )
+
+HOSPITALIZATION_INDICATOR_ID = "hospitalization_burden_per_100k"
 
 T = TypeVar("T")
 DEFAULT_CENSUS_POPULATION_YEAR = 2022
@@ -132,6 +136,7 @@ def public_import_run(
     finished_at: datetime | None = None,
     row_count: int = 0,
     message: str = "",
+    loaded_months: tuple[int, ...] | None = None,
 ) -> ImportRun:
     return ImportRun(
         source_id=source_id,
@@ -142,6 +147,7 @@ def public_import_run(
         message=message,
         year=config.year,
         geographic_scope=config.uf,
+        loaded_months=loaded_months,
     )
 
 
@@ -546,6 +552,7 @@ def ingest_uf_regional_datasus_public_samples(session: Session, config: Mvp1Conf
         session,
         config,
         source_id="sih_sus",
+        track_month_coverage=True,
         paths=datasus_source_candidates(config, "sih_sus"),
         transform=lambda records: transform_sih_records(
             records, municipality_map, year=config.year
@@ -610,6 +617,7 @@ def ingest_uf_datasus_public_samples(session: Session, config: Mvp1Config) -> se
         session,
         config,
         source_id="sih_sus",
+        track_month_coverage=True,
         paths=datasus_source_candidates(config, "sih_sus"),
         transform=lambda records: transform_sih_records(
             records, municipality_map, year=config.year
@@ -669,6 +677,16 @@ def select_existing_datasus_paths(paths: Sequence[Path]) -> list[Path]:
     return list(selected_by_stem.values())
 
 
+def sih_month_for_path(path: Path, config: Mvp1Config) -> int:
+    prefix = f"sih_{config.uf.lower()}_{config.year}_"
+    if not path.stem.startswith(prefix):
+        raise ValueError(f"unexpected SIH/SUS filename for {config.uf}/{config.year}: {path.name}")
+    month_text = path.stem.removeprefix(prefix)
+    if not month_text.isdigit() or int(month_text) not in SIH_EXPECTED_MONTHS:
+        raise ValueError(f"invalid SIH/SUS month in filename: {path.name}")
+    return int(month_text)
+
+
 def load_datasus_source(
     session: Session,
     config: Mvp1Config,
@@ -677,9 +695,11 @@ def load_datasus_source(
     paths: Sequence[Path],
     transform: Callable[[Sequence[dict[str, object]]], Sequence[T]],
     saver: Callable[[Session, Sequence[T]], None],
+    track_month_coverage: bool = False,
 ) -> bool:
     started_at = datetime.now(UTC)
     existing_paths = select_existing_datasus_paths(paths)
+    loaded_months: list[int] | None = [] if track_month_coverage else None
     if not existing_paths:
         save_import_run(
             session,
@@ -690,12 +710,18 @@ def load_datasus_source(
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
                 message="DATASUS public sample file not found",
+                loaded_months=() if loaded_months is not None else None,
             ),
         )
         return False
 
     try:
-        records = [record for path in existing_paths for record in read_datasus_records(path)]
+        records: list[dict[str, object]] = []
+        for path in existing_paths:
+            records.extend(read_datasus_records(path))
+            if loaded_months is not None:
+                loaded_months.append(sih_month_for_path(path, config))
+        recorded_months = tuple(sorted(set(loaded_months))) if loaded_months is not None else None
         rows = transform(records)
         if not rows:
             save_import_run(
@@ -709,24 +735,39 @@ def load_datasus_source(
                     message=(
                         f"no canonical rows produced from {datasus_path_message(existing_paths)}"
                     ),
+                    loaded_months=recorded_months,
                 ),
             )
             return False
+
         saver(session, rows)
+        complete_coverage = recorded_months is None or recorded_months == SIH_EXPECTED_MONTHS
+        status = "success" if complete_coverage else "partial"
+        message = f"loaded DATASUS public sample: {datasus_path_message(existing_paths)}"
+        if recorded_months is not None and not complete_coverage:
+            missing_months = sorted(set(SIH_EXPECTED_MONTHS) - set(recorded_months))
+            missing_text = ",".join(f"{month:02d}" for month in missing_months)
+            message = (
+                f"loaded {len(recorded_months)}/12 SIH/SUS months; "
+                f"annual hospitalization indicators excluded; missing {missing_text}: "
+                f"{datasus_path_message(existing_paths)}"
+            )
         save_import_run(
             session,
             public_import_run(
                 config,
                 source_id=source_id,
-                status="success",
+                status=status,
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
                 row_count=len(rows),
-                message=f"loaded DATASUS public sample: {datasus_path_message(existing_paths)}",
+                message=message,
+                loaded_months=recorded_months,
             ),
         )
         return True
     except Exception as exc:
+        recorded_months = tuple(sorted(set(loaded_months))) if loaded_months is not None else None
         save_import_run(
             session,
             public_import_run(
@@ -736,6 +777,7 @@ def load_datasus_source(
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
                 message=f"{datasus_path_message(existing_paths)}: {exc}",
+                loaded_months=recorded_months,
             ),
         )
         return False
@@ -883,27 +925,39 @@ def load_optional_csv_source(
 
     rows = reader(path)
     saver(session, rows)
+    coverage_unknown = source_id == "sih_sus"
+    status = "partial" if coverage_unknown else "success"
+    message = f"loaded manual CSV fallback: {path}"
+    if coverage_unknown:
+        message = (
+            "loaded manual SIH/SUS aggregates with unknown monthly coverage; "
+            f"annual hospitalization indicators excluded: {path}"
+        )
     save_import_run(
         session,
         public_import_run(
             config,
             source_id=source_id,
-            status="success",
+            status=status,
             started_at=started_at,
             finished_at=datetime.now(UTC),
             row_count=len(rows),
-            message=f"loaded manual CSV fallback: {path}",
+            message=message,
         ),
     )
 
 
 def compute_and_store_indicators(session: Session, config: Mvp1Config) -> int:
     territory_ids = target_municipality_ids(session, config)
+    hospitalization_territory_ids = complete_hospitalization_territory_ids(session, config)
     values = compute_indicator_values(
         filter_public_rows(load_populations(session, config.year), territory_ids),
         filter_public_rows(load_cases(session, config.year), territory_ids),
         filter_public_rows(load_mortalities(session, config.year), territory_ids),
-        filter_public_rows(load_hospitalizations(session, config.year), territory_ids),
+        filter_public_rows(
+            load_hospitalizations(session, config.year),
+            hospitalization_territory_ids,
+        ),
         year=config.year,
         minimum_count=config.minimum_count,
     )
@@ -914,6 +968,28 @@ def compute_and_store_indicators(session: Session, config: Mvp1Config) -> int:
 
 def target_municipality_ids(session: Session, config: Mvp1Config) -> set[str]:
     return {territory.territory_id for territory in load_territories(session, config.uf)}
+
+
+def complete_hospitalization_territory_ids(
+    session: Session,
+    config: Mvp1Config,
+) -> set[str]:
+    complete_scopes = complete_sih_scopes(
+        session,
+        year=config.year,
+        geographic_scopes=ufs_for_scope(config.uf),
+    )
+    return {
+        territory.territory_id
+        for territory in load_territories(session, config.uf)
+        if territory.uf_sigla in complete_scopes
+    }
+
+
+def exclude_hospitalization_values(
+    values: Sequence[IndicatorValue],
+) -> list[IndicatorValue]:
+    return [value for value in values if value.indicator_id != HOSPITALIZATION_INDICATOR_ID]
 
 
 def filter_public_rows(rows: Sequence[T], territory_ids: set[str]) -> list[T]:
@@ -994,6 +1070,14 @@ def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int
 
     if config.is_national:
         national_values = load_indicator_values(session, config.year, territory_ids)
+        expected_scopes = set(ufs_for_scope(BRAZIL_SCOPE))
+        nationally_complete_sih = complete_sih_scopes(
+            session,
+            year=config.year,
+            geographic_scopes=expected_scopes,
+        )
+        if nationally_complete_sih != expected_scopes:
+            national_values = exclude_hospitalization_values(national_values)
         national_scenarios = build_territory_scenarios(
             national_values, comparison_scope=COMPARISON_SCOPE_NATIONAL
         )
@@ -1021,16 +1105,25 @@ def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int
 def build_uf_scope_scenarios(
     session: Session, config: Mvp1Config, territory_ids: set[str]
 ) -> list[Any]:
+    complete_scopes = complete_sih_scopes(
+        session,
+        year=config.year,
+        geographic_scopes=ufs_for_scope(config.uf),
+    )
     scenarios: list[Any] = []
     if not config.is_national:
         values = load_indicator_values(session, config.year, territory_ids)
+        if config.uf not in complete_scopes:
+            values = exclude_hospitalization_values(values)
         return build_territory_scenarios(values, comparison_scope=COMPARISON_SCOPE_UF)
 
     territories_by_uf: dict[str, set[str]] = {}
     for territory in load_territories(session, BRAZIL_SCOPE):
         if territory.territory_id in territory_ids:
             territories_by_uf.setdefault(territory.uf_sigla, set()).add(territory.territory_id)
-    for uf_territory_ids in territories_by_uf.values():
+    for uf, uf_territory_ids in territories_by_uf.items():
         values = load_indicator_values(session, config.year, uf_territory_ids)
+        if uf not in complete_scopes:
+            values = exclude_hospitalization_values(values)
         scenarios.extend(build_territory_scenarios(values, comparison_scope=COMPARISON_SCOPE_UF))
     return scenarios

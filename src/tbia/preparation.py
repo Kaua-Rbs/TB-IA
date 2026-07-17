@@ -7,6 +7,7 @@ from typing import Any, cast
 
 from sqlalchemy.orm import Session
 
+from tbia.geography import ufs_for_scope
 from tbia.ingest.datasus import datasus_demo_files, download_datasus_file
 from tbia.mvp2 import (
     Mvp2Config,
@@ -20,7 +21,7 @@ from tbia.pipeline import (
     compute_and_store_indicators,
     ingest_public_data,
 )
-from tbia.storage import dashboard_context, mvp2_summary
+from tbia.storage import complete_sih_scopes, dashboard_context, mvp2_summary
 
 SessionProvider = Callable[[], Session]
 ProgressCallback = Callable[[dict[str, Any]], None]
@@ -34,6 +35,7 @@ class TerritorialPreparationResult:
     indicator_count: int
     scenario_count: int
     recommendation_count: int
+    sih_coverage_complete: bool
 
     @property
     def usable(self) -> bool:
@@ -184,11 +186,15 @@ def download_missing_datasus_files(
 
 
 def territorial_preparation_status(
-    download_result: dict[str, Any], indicator_count: int, scenario_count: int
+    download_result: dict[str, Any],
+    indicator_count: int,
+    scenario_count: int,
+    *,
+    sih_coverage_complete: bool,
 ) -> str:
     failed_downloads = int(download_result["failed_file_count"])
     if indicator_count and scenario_count:
-        return "warning" if failed_downloads else "ready"
+        return "warning" if failed_downloads or not sih_coverage_complete else "ready"
     if indicator_count:
         return "partial"
     if failed_downloads:
@@ -200,7 +206,7 @@ def territorial_preparation_completion_message(result_status: str) -> str:
     if result_status == "ready":
         return "Carga concluída; indicadores e cenários foram atualizados."
     if result_status == "warning":
-        return "Carga concluída com falhas em algumas fontes; confira a prontidão dos dados."
+        return "Carga concluída com fontes incompletas; confira a prontidão dos dados."
     if result_status == "partial":
         return (
             "Carga parcial; indicadores foram gerados, mas cenários ainda exigem revisão dos dados."
@@ -271,14 +277,29 @@ def prepare_territorial_data(
         )
         scenario_count, recommendation_count = build_and_store_scenarios(session, config)
         session.commit()
+        expected_sih_scopes = set(ufs_for_scope(config.uf))
+        sih_coverage_complete = (
+            complete_sih_scopes(
+                session,
+                year=config.year,
+                geographic_scopes=expected_sih_scopes,
+            )
+            == expected_sih_scopes
+        )
 
-    result_status = territorial_preparation_status(download_result, indicator_count, scenario_count)
+    result_status = territorial_preparation_status(
+        download_result,
+        indicator_count,
+        scenario_count,
+        sih_coverage_complete=sih_coverage_complete,
+    )
     result = TerritorialPreparationResult(
         download=download_result,
         result_status=result_status,
         indicator_count=indicator_count,
         scenario_count=scenario_count,
         recommendation_count=recommendation_count,
+        sih_coverage_complete=sih_coverage_complete,
     )
     emit_progress(
         progress,
@@ -289,6 +310,7 @@ def prepare_territorial_data(
         indicator_count=indicator_count,
         scenario_count=scenario_count,
         recommendation_count=recommendation_count,
+        sih_coverage_complete=sih_coverage_complete,
         result_status=result_status,
     )
     return result

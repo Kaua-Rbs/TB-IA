@@ -79,6 +79,8 @@ python -m tbia serve
 
 The workflow is cache-aware, uses the full SIH/SUS year, and upserts only the
 selected scope/year. Existing files under `data/raw/municipal_demo` are
+Partial or coverage-unknown SIH/SUS aggregates are retained for audit but do
+not contribute hospitalization indicators or scenarios to annual rankings.
 regenerated as deterministic synthetic samples. Use the individual commands
 below when debugging a specific stage:
 

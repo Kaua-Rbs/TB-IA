@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
 from pytest import MonkeyPatch
 
-from tbia.domain.models import Territory
+from tbia.domain.models import (
+    HospitalizationAggregate,
+    PopulationDenominator,
+    Territory,
+)
 from tbia.ingest.datasus import datasus_demo_files, format_month
 from tbia.ingest.readers import (
     read_case_aggregates_csv,
@@ -18,13 +23,18 @@ from tbia.ingest.readers import (
 from tbia.ingest.tabnet import parse_tabnet_prn_html
 from tbia.pipeline import (
     Mvp1Config,
+    build_and_store_scenarios,
+    compute_and_store_indicators,
     datasus_source_candidates,
     ibge_malhas_url,
     ibge_population_url,
     ingest_ibge_malhas_geometries,
     ingest_public_subterritory_geometries,
+    load_datasus_source,
+    load_optional_csv_source,
     population_source_year,
     preserve_existing_geometries,
+    seed_reference_data,
     select_existing_datasus_paths,
 )
 from tbia.storage import (
@@ -32,7 +42,13 @@ from tbia.storage import (
     create_session_factory,
     initialize_database,
     latest_import_runs,
+    latest_import_runs_for_scope,
+    load_hospitalizations,
+    load_indicator_values,
     load_territories,
+    load_territory_scenarios,
+    save_hospitalizations,
+    save_populations,
     save_territories,
 )
 
@@ -463,3 +479,177 @@ def test_ingest_ibge_malhas_failure_records_failed_run(
     assert runs[0]["source_id"] == "ibge_malhas"
     assert runs[0]["status"] == "failed"
     assert "offline" in runs[0]["message"]
+
+
+def test_partial_sih_coverage_is_persisted_but_excluded_from_ranking(
+    tmp_path: Path, monkeypatch: MonkeyPatch
+) -> None:
+    config = Mvp1Config(
+        uf="CE",
+        year=2023,
+        raw_dir=tmp_path / "raw",
+        processed_dir=tmp_path / "processed",
+    )
+    config.datasus_sample_dir.mkdir(parents=True)
+    sih_paths = [
+        config.datasus_sample_dir / f"sih_ce_2023_{month:02d}.dbc" for month in range(1, 13)
+    ]
+    for path in sih_paths:
+        path.touch()
+
+    monkeypatch.setattr("tbia.pipeline.read_datasus_records", lambda path: [{}])
+    engine = create_engine_for_url(f"sqlite:///{tmp_path / 'coverage.db'}")
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    territory_ids = {f"23{index:05d}" for index in range(1, 6)}
+
+    def transformed_hospitalizations(
+        records: Sequence[dict[str, object]],
+    ) -> list[HospitalizationAggregate]:
+        return [
+            HospitalizationAggregate(territory_id, 2023, len(records) * 10)
+            for territory_id in sorted(territory_ids)
+        ]
+
+    with session_factory() as session:
+        seed_reference_data(session)
+        save_territories(
+            session,
+            [
+                Territory(territory_id, territory_id, "municipality", "23", "CE")
+                for territory_id in sorted(territory_ids)
+            ],
+        )
+        save_populations(
+            session,
+            [
+                PopulationDenominator(territory_id, 2023, 100_000, "ibge_population")
+                for territory_id in sorted(territory_ids)
+            ],
+        )
+
+        assert load_datasus_source(
+            session,
+            config,
+            source_id="sih_sus",
+            paths=sih_paths,
+            transform=transformed_hospitalizations,
+            saver=lambda active_session, rows: save_hospitalizations(
+                active_session,
+                rows,
+                replace_territory_ids=territory_ids,
+            ),
+            track_month_coverage=True,
+        )
+        compute_and_store_indicators(session, config)
+        build_and_store_scenarios(session, config)
+        session.commit()
+
+        full_source = next(
+            row
+            for row in latest_import_runs_for_scope(session, year=2023, geographic_scope="CE")
+            if row["source_id"] == "sih_sus"
+        )
+        full_indicator_ids = {value.indicator_id for value in load_indicator_values(session, 2023)}
+        full_scenario_ids = {
+            scenario.rule_id for scenario in load_territory_scenarios(session, 2023, "uf")
+        }
+
+        assert load_datasus_source(
+            session,
+            config,
+            source_id="sih_sus",
+            paths=sih_paths[:1],
+            transform=transformed_hospitalizations,
+            saver=lambda active_session, rows: save_hospitalizations(
+                active_session,
+                rows,
+                replace_territory_ids=territory_ids,
+            ),
+            track_month_coverage=True,
+        )
+        compute_and_store_indicators(session, config)
+        build_and_store_scenarios(session, config)
+        session.commit()
+
+        partial_source = next(
+            row
+            for row in latest_import_runs_for_scope(session, year=2023, geographic_scope="CE")
+            if row["source_id"] == "sih_sus"
+        )
+        partial_indicator_ids = {
+            value.indicator_id for value in load_indicator_values(session, 2023)
+        }
+        partial_scenario_ids = {
+            scenario.rule_id for scenario in load_territory_scenarios(session, 2023, "uf")
+        }
+        persisted_hospitalizations = load_hospitalizations(session, 2023)
+    engine.dispose()
+
+    assert full_source["status"] == "success"
+    assert full_source["month_coverage"]["complete"] is True
+    assert full_source["month_coverage"]["loaded_months"] == list(range(1, 13))
+    assert "hospitalization_burden_per_100k" in full_indicator_ids
+    assert "high_hospitalization_burden" in full_scenario_ids
+
+    assert partial_source["status"] == "partial"
+    assert partial_source["month_coverage"]["complete"] is False
+    assert partial_source["month_coverage"]["loaded_months"] == [1]
+    assert partial_source["month_coverage"]["missing_months"] == list(range(2, 13))
+    assert "hospitalization_burden_per_100k" not in partial_indicator_ids
+    assert "high_hospitalization_burden" not in partial_scenario_ids
+    assert {row.tb_admissions for row in persisted_hospitalizations} == {10}
+
+
+def test_manual_sih_without_month_provenance_is_excluded_from_indicators(
+    tmp_path: Path,
+) -> None:
+    config = Mvp1Config(
+        uf="CE",
+        year=2023,
+        raw_dir=tmp_path / "raw",
+        processed_dir=tmp_path / "processed",
+    )
+    config.manual_dir.mkdir(parents=True)
+    manual_path = config.manual_csv("hospitalization_aggregates.csv")
+    manual_path.write_text("fixture", encoding="utf-8")
+
+    engine = create_engine_for_url(f"sqlite:///{tmp_path / 'manual-coverage.db'}")
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    with session_factory() as session:
+        seed_reference_data(session)
+        save_territories(
+            session,
+            [Territory("2304400", "Fortaleza", "municipality", "23", "CE")],
+        )
+        save_populations(
+            session,
+            [PopulationDenominator("2304400", 2023, 100_000, "ibge_population")],
+        )
+        load_optional_csv_source(
+            session,
+            config,
+            "sih_sus",
+            manual_path.name,
+            lambda path: [HospitalizationAggregate("2304400", 2023, 10)],
+            save_hospitalizations,
+            skip_sources=set(),
+        )
+        compute_and_store_indicators(session, config)
+        session.commit()
+
+        source = next(
+            row
+            for row in latest_import_runs_for_scope(session, year=2023, geographic_scope="CE")
+            if row["source_id"] == "sih_sus"
+        )
+        indicator_ids = {value.indicator_id for value in load_indicator_values(session, 2023)}
+        hospitalizations = load_hospitalizations(session, 2023)
+    engine.dispose()
+
+    assert source["status"] == "partial"
+    assert source["month_coverage"]["loaded_months"] is None
+    assert source["month_coverage"]["complete"] is False
+    assert "hospitalization_burden_per_100k" not in indicator_ids
+    assert hospitalizations[0].tb_admissions == 10
