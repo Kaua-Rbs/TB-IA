@@ -1,0 +1,11 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {"type": "Feature", "properties": {"codarea": "2304400"}, "geometry": {"type": "Polygon", "coordinates": [[[-38.60, -3.85], [-38.45, -3.85], [-38.45, -3.70], [-38.60, -3.85]]] }},
+    {"type": "Feature", "properties": {"codarea": "2303709"}, "geometry": {"type": "Polygon", "coordinates": [[[-38.75, -3.85], [-38.60, -3.85], [-38.60, -3.70], [-38.75, -3.85]]] }},
+    {"type": "Feature", "properties": {"codarea": "2312908"}, "geometry": {"type": "Polygon", "coordinates": [[[-40.45, -3.80], [-40.30, -3.80], [-40.30, -3.65], [-40.45, -3.80]]] }},
+    {"type": "Feature", "properties": {"codarea": "2304202"}, "geometry": {"type": "Polygon", "coordinates": [[[-39.50, -7.30], [-39.35, -7.30], [-39.35, -7.15], [-39.50, -7.30]]] }},
+    {"type": "Feature", "properties": {"codarea": "2307304"}, "geometry": {"type": "Polygon", "coordinates": [[[-39.40, -7.30], [-39.25, -7.30], [-39.25, -7.15], [-39.40, -7.30]]] }},
+    {"type": "Feature", "properties": {"codarea": "2306405"}, "geometry": {"type": "Polygon", "coordinates": [[[-39.70, -3.60], [-39.55, -3.60], [-39.55, -3.45], [-39.70, -3.60]]] }}
+  ]
+}

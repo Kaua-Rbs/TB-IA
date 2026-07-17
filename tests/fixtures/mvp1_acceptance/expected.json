@@ -1,0 +1,23 @@
+{
+  "territory_count": 6,
+  "top_territory_id": "2304400",
+  "fortaleza_indicators": {
+    "tb_incidence_per_100k": 10.0,
+    "cure_proportion": 100.0,
+    "laboratory_confirmation_proportion": 100.0,
+    "tb_mortality_per_100k": 12.0,
+    "hospitalization_burden_per_100k": 14.0
+  },
+  "fortaleza_scenarios": [
+    "high_incidence",
+    "high_mortality",
+    "low_cure",
+    "low_lab_confirmation",
+    "high_hospitalization_burden"
+  ],
+  "suppressed": [
+    {"territory_id": "2306405", "indicator_id": "laboratory_confirmation_proportion"},
+    {"territory_id": "2306405", "indicator_id": "tb_mortality_per_100k"},
+    {"territory_id": "2306405", "indicator_id": "hospitalization_burden_per_100k"}
+  ]
+}

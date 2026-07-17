@@ -1,0 +1,8 @@
+[
+  {"id": 2304400, "nome": "Fortaleza", "microrregiao": {"mesorregiao": {"UF": {"id": 23, "sigla": "CE"}}}},
+  {"id": 2303709, "nome": "Caucaia", "microrregiao": {"mesorregiao": {"UF": {"id": 23, "sigla": "CE"}}}},
+  {"id": 2312908, "nome": "Sobral", "microrregiao": {"mesorregiao": {"UF": {"id": 23, "sigla": "CE"}}}},
+  {"id": 2304202, "nome": "Crato", "microrregiao": {"mesorregiao": {"UF": {"id": 23, "sigla": "CE"}}}},
+  {"id": 2307304, "nome": "Juazeiro do Norte", "microrregiao": {"mesorregiao": {"UF": {"id": 23, "sigla": "CE"}}}},
+  {"id": 2306405, "nome": "Itapipoca", "microrregiao": {"mesorregiao": {"UF": {"id": 23, "sigla": "CE"}}}}
+]
