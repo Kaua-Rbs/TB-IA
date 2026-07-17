@@ -50,7 +50,7 @@ make mutation
 
 ## Frontend Commands
 
-The frontend is intentionally separate from the Python fast gate while the project transitions to a dedicated UI stack. Run these commands when changing `frontend/`:
+The frontend is intentionally separate from the Python fast gate while the project transitions to a dedicated UI stack. GitHub Actions validates it in an independent Node 22 job. Run these commands when changing `frontend/`:
 
 ```bash
 make frontend-install
