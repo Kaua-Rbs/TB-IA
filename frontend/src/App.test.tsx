@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -140,6 +140,16 @@ const operationAlert = {
   message: "Resultado laboratorial pendente.",
 };
 
+const secondOperationAlert = {
+  ...operationAlert,
+  alert_id: "alert-2",
+  alert_type: "medication_pickup_delay",
+  severity: "moderate",
+  local_case_id: "CASE-2",
+  due_date: "2026-07-04",
+  message: "Retirada de medicamento atrasada.",
+};
+
 beforeEach(() => {
   vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = String(input);
@@ -232,8 +242,10 @@ beforeEach(() => {
     }
     if (url.includes("/api/operations/alerts/alert-1"))
       return jsonResponse(operationAlert);
+    if (url.includes("/api/operations/alerts/alert-2"))
+      return jsonResponse(secondOperationAlert);
     if (url.includes("/api/operations/alerts"))
-      return jsonResponse([operationAlert]);
+      return jsonResponse([operationAlert, secondOperationAlert]);
     if (url.includes("/api/territories/2304400/report")) {
       return jsonResponse({
         territory_id: "2304400",
@@ -272,6 +284,50 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("MVP1")).not.toBeInTheDocument();
     expect(screen.queryByText("MVP2")).not.toBeInTheDocument();
+  });
+
+  it("opens and closes the localized mobile navigation menu", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/territorios?uf=BR&year=2023&lang=pt");
+    render(<App />);
+
+    const menuButton = screen.getByRole("button", { name: "Abrir menu" });
+    expect(menuButton).toHaveAttribute("aria-expanded", "false");
+    expect(menuButton).toHaveAttribute(
+      "aria-controls",
+      "product-navigation-panel",
+    );
+
+    await user.click(menuButton);
+    expect(screen.getByRole("button", { name: "Fechar menu" })).toHaveAttribute(
+      "aria-expanded",
+      "true",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Fechar menu" }));
+    expect(screen.getByRole("button", { name: "Abrir menu" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("closes the mobile menu after navigation", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/territorios?uf=BR&year=2023&lang=pt");
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Abrir menu" }));
+    await user.click(
+      screen.getByRole("link", { name: "Acompanhamento da atenção" }),
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Acompanhamento da atenção" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Abrir menu" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
   });
 
   it("expands and hides the priority ranking", async () => {
@@ -348,6 +404,52 @@ describe("App", () => {
     ).toBeGreaterThan(0);
     expect(screen.queryByText("MVP1")).not.toBeInTheDocument();
     expect(screen.queryByText("MVP2")).not.toBeInTheDocument();
+  });
+
+  it("selects operational alert rows with Enter and Space", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/acompanhamento?year=2023&lang=pt");
+    render(<App />);
+
+    const firstRow = await screen.findByRole("row", {
+      name: /Resultado laboratorial pendente/,
+    });
+    const secondRow = screen.getByRole("row", {
+      name: /Atraso na retirada de medicamento/,
+    });
+    await waitFor(() =>
+      expect(firstRow).toHaveAttribute("aria-selected", "true"),
+    );
+    expect(secondRow).toHaveAttribute("tabindex", "0");
+
+    secondRow.focus();
+    await user.keyboard(" ");
+    expect(secondRow).toHaveAttribute("aria-selected", "true");
+
+    firstRow.focus();
+    await user.keyboard("{Enter}");
+    expect(firstRow).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("provides localized labels for every mobile alert-card field", async () => {
+    window.history.pushState({}, "", "/acompanhamento?year=2023&lang=pt");
+    render(<App />);
+
+    const row = await screen.findByRole("row", {
+      name: /Resultado laboratorial pendente/,
+    });
+    expect(
+      within(row)
+        .getAllByRole("cell")
+        .map((cell) => cell.getAttribute("data-label")),
+    ).toEqual([
+      "Tipo",
+      "Gravidade",
+      "Situação",
+      "Unidade",
+      "Equipe",
+      "Prazo",
+    ]);
   });
 
   it("renders the territorial concept route as a product console", async () => {

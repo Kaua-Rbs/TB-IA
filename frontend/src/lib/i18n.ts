@@ -16,6 +16,9 @@ export const copy = {
       governance: "Dados e governança",
     },
     languageToggle: "English",
+    navigationLabel: "Navegação principal",
+    openMenu: "Abrir menu",
+    closeMenu: "Fechar menu",
     common: {
       all: "Todos",
       apply: "Aplicar",
@@ -166,6 +169,9 @@ export const copy = {
       governance: "Data and governance",
     },
     languageToggle: "Português",
+    navigationLabel: "Primary navigation",
+    openMenu: "Open menu",
+    closeMenu: "Close menu",
     common: {
       all: "All",
       apply: "Apply",

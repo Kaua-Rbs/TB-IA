@@ -225,14 +225,26 @@ function AlertRow({
   onSelect: (alertId: string) => void;
 }) {
   const labels = copy[lang];
+  function selectWithKeyboard(event: React.KeyboardEvent<HTMLTableRowElement>) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    onSelect(alert.alert_id);
+  }
+
   return (
-    <tr className={selected ? 'selected-row' : ''} onClick={() => onSelect(alert.alert_id)}>
-      <td>{labelAlertType(alert.alert_type, labels)}</td>
-      <td><StatusBadge value={alert.severity} kind="severity" lang={lang} /></td>
-      <td><StatusBadge value={alert.status} lang={lang} /></td>
-      <td>{alert.facility_id}</td>
-      <td>{alert.team_name}</td>
-      <td>{formatDate(alert.due_date, lang)}</td>
+    <tr
+      className={selected ? 'selected-row' : ''}
+      onClick={() => onSelect(alert.alert_id)}
+      onKeyDown={selectWithKeyboard}
+      tabIndex={0}
+      aria-selected={selected}
+    >
+      <td data-label={labels.operations.type}>{labelAlertType(alert.alert_type, labels)}</td>
+      <td data-label={labels.common.severity}><StatusBadge value={alert.severity} kind="severity" lang={lang} /></td>
+      <td data-label={labels.common.status}><StatusBadge value={alert.status} lang={lang} /></td>
+      <td data-label={labels.operations.facility}>{alert.facility_id}</td>
+      <td data-label={labels.operations.team}>{alert.team_name}</td>
+      <td data-label={labels.operations.due}>{formatDate(alert.due_date, lang)}</td>
     </tr>
   );
 }
