@@ -4,14 +4,73 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 
+const rankingFixtures = [
+  {
+    territoryId: "2304400",
+    name: "Fortaleza",
+    score: 8,
+    scenarioCount: 2,
+    severity: "high",
+    dataStatus: "complete",
+  },
+  {
+    territoryId: "2303709",
+    name: "Caucaia",
+    score: 7.2,
+    scenarioCount: 2,
+    severity: "high",
+    dataStatus: "partial",
+  },
+  {
+    territoryId: "2307650",
+    name: "Maracanaú",
+    score: 6.4,
+    scenarioCount: 1,
+    severity: "moderate",
+    dataStatus: "complete",
+  },
+  {
+    territoryId: "2312908",
+    name: "Sobral",
+    score: 5.8,
+    scenarioCount: 1,
+    severity: "moderate",
+    dataStatus: "partial",
+  },
+  {
+    territoryId: "2307304",
+    name: "Juazeiro do Norte",
+    score: 4.9,
+    scenarioCount: 1,
+    severity: "low",
+    dataStatus: "complete",
+  },
+  {
+    territoryId: "2304202",
+    name: "Crato",
+    score: 4.2,
+    scenarioCount: 1,
+    severity: "low",
+    dataStatus: "missing",
+  },
+  {
+    territoryId: "2306405",
+    name: "Itapipoca",
+    score: 3.6,
+    scenarioCount: 1,
+    severity: "low",
+    dataStatus: "complete",
+  },
+] as const;
+
 const mapPayload = {
   type: "FeatureCollection",
   metadata: {
     geographic_scope: "BR",
     comparison_scope: "national",
     year: 2023,
-    feature_count: 1,
-    drawable_geometry_count: 1,
+    feature_count: rankingFixtures.length,
+    drawable_geometry_count: rankingFixtures.length,
     layers: {
       priority_score: {
         label: "Pontuação de prioridade",
@@ -21,50 +80,56 @@ const mapPayload = {
       },
     },
   },
-  features: [
-    {
+  features: rankingFixtures.map((municipality, index) => {
+    const isFortaleza = municipality.territoryId === "2304400";
+    const explanation = isFortaleza
+      ? "Incidência elevada"
+      : municipality.name + " requer revisão territorial";
+    return {
       type: "Feature",
       properties: {
-        territory_id: "2304400",
-        name: "Fortaleza",
+        territory_id: municipality.territoryId,
+        name: municipality.name,
         uf: "CE",
-        priority_score: 8,
-        scenario_count: 2,
-        top_severity: "high",
-        top_explanations: ["Incidência elevada"],
+        priority_score: municipality.score,
+        scenario_count: municipality.scenarioCount,
+        top_severity: municipality.severity,
+        top_explanations: [explanation],
         top_scenarios: [
           {
-            rule_id: "high_incidence",
+            rule_id: isFortaleza ? "high_incidence" : "priority_signal",
             indicator_id: "tb_incidence_per_100k",
-            severity: "high",
-            score: 4,
-            explanation: "Incidência elevada",
+            severity: municipality.severity,
+            score: municipality.score,
+            explanation,
           },
         ],
-        data_status: "complete",
-        indicators: {
-          tb_incidence_per_100k: {
-            name: "Incidência de TB",
-            value: 80,
-            is_suppressed: false,
-            unit: "per_100k",
-            direction: "high_bad",
-          },
-        },
+        data_status: municipality.dataStatus,
+        indicators: isFortaleza
+          ? {
+              tb_incidence_per_100k: {
+                name: "Incidência de TB",
+                value: 80,
+                is_suppressed: false,
+                unit: "per_100k",
+                direction: "high_bad",
+              },
+            }
+          : {},
       },
       geometry: {
         type: "Polygon",
         coordinates: [
           [
-            [0, 0],
-            [1, 0],
-            [1, 1],
-            [0, 0],
+            [index, 0],
+            [index + 0.75, 0],
+            [index + 0.75, 0.75],
+            [index, 0],
           ],
         ],
       },
-    },
-  ],
+    };
+  }),
 };
 
 const territorialContext = {
@@ -72,26 +137,24 @@ const territorialContext = {
   geographic_scope: "BR",
   comparison_scope: "national",
   year: 2023,
-  territory_count: 1,
+  territory_count: rankingFixtures.length,
   indicator_count: 1,
-  scenario_count: 2,
+  scenario_count: 9,
   caveat: "Painel público agregado.",
-  ranking: [
-    {
-      territory_id: "2304400",
-      territory_name: "Fortaleza",
-      score: 8,
-      scenario_count: 2,
-      top_severity: "high",
-      top_explanations: ["Incidência elevada"],
-      top_scenarios: mapPayload.features[0].properties.top_scenarios,
-    },
-  ],
+  ranking: rankingFixtures.map((municipality, index) => ({
+    territory_id: municipality.territoryId,
+    territory_name: municipality.name,
+    score: municipality.score,
+    scenario_count: municipality.scenarioCount,
+    top_severity: municipality.severity,
+    top_explanations: mapPayload.features[index].properties.top_explanations,
+    top_scenarios: mapPayload.features[index].properties.top_scenarios,
+  })),
   readiness: {
     geometry: {
       label: "Geometria",
       status: "ready",
-      detail: "1/1 municípios com geometria",
+      detail: "7/7 municípios com geometria",
     },
   },
   health_territory_readiness: {
@@ -300,10 +363,30 @@ describe("App", () => {
       await screen.findByText(/1\/12 meses do SIH\/SUS/),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("button", { name: "Expandir ranking" }),
+      screen.getByRole("button", { name: "Ver ranking completo" }),
     ).toBeInTheDocument();
     expect(screen.queryByText("MVP1")).not.toBeInTheDocument();
     expect(screen.queryByText("MVP2")).not.toBeInTheDocument();
+  });
+
+  it("opens the highest-priority municipality in the territorial dossier", async () => {
+    window.history.pushState({}, "", "/territorios?uf=BR&year=2023&lang=pt");
+    render(<App />);
+
+    const dossierTitle = await screen.findByText("Dossiê territorial");
+    const detailPanel = dossierTitle.closest("aside");
+    expect(detailPanel).not.toBeNull();
+    const detail = within(detailPanel as HTMLElement);
+
+    expect(
+      await detail.findByRole("heading", { name: "Fortaleza" }),
+    ).toBeInTheDocument();
+    expect(detail.getByText("Índice de prioridade")).toBeInTheDocument();
+    expect(detail.getByText("8,0")).toBeInTheDocument();
+    expect(detail.getByText("Incidência elevada")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: /Fortaleza/ }),
+    ).toHaveAttribute("aria-pressed", "true");
   });
 
   it("opens and closes the localized mobile navigation menu", async () => {
@@ -350,19 +433,82 @@ describe("App", () => {
     );
   });
 
-  it("expands and hides the priority ranking", async () => {
+  it("keeps ranking filters visible and shows six rows before expansion", async () => {
     const user = userEvent.setup();
     window.history.pushState({}, "", "/territorios?uf=BR&year=2023&lang=pt");
     render(<App />);
 
-    await screen.findByRole("heading", { name: "Análise territorial" });
-    await user.click(screen.getByRole("button", { name: "Expandir ranking" }));
+    const heading = await screen.findByRole("heading", {
+      name: "Municípios prioritários",
+    });
+    const section = heading.closest("section");
+    expect(section).not.toBeNull();
+    const ranking = within(section as HTMLElement);
+    const rankingButtons = () =>
+      ranking
+        .getAllByRole("button")
+        .filter((button) => button.hasAttribute("aria-pressed"));
 
     expect(
-      screen.getByRole("button", { name: "Ocultar ranking" }),
+      ranking.getByRole("combobox", { name: "Buscar município" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("columnheader", { name: "Score" }),
+      ranking.getByRole("combobox", { name: "Gravidade" }),
+    ).toBeInTheDocument();
+    expect(
+      ranking.getByRole("combobox", { name: "Situação" }),
+    ).toBeInTheDocument();
+    expect(rankingButtons()).toHaveLength(6);
+    expect(
+      ranking.queryByRole("button", { name: /Itapipoca/ }),
+    ).not.toBeInTheDocument();
+
+    const fortaleza = ranking.getByRole("button", { name: /Fortaleza/ });
+    expect(fortaleza).toHaveAttribute("aria-pressed", "true");
+    expect(fortaleza).toHaveAccessibleName(
+      "1 Fortaleza 2 sinais maior atenção Índice de prioridade: 8,0",
+    );
+
+    await user.click(
+      ranking.getByRole("button", { name: "Ver ranking completo" }),
+    );
+
+    expect(
+      ranking.getByRole("button", { name: "Mostrar 6 primeiros" }),
+    ).toBeInTheDocument();
+    expect(
+      ranking.getByRole("combobox", { name: "Buscar município" }),
+    ).toBeInTheDocument();
+    expect(
+      ranking.getByRole("combobox", { name: "Gravidade" }),
+    ).toBeInTheDocument();
+    expect(
+      ranking.getByRole("combobox", { name: "Situação" }),
+    ).toBeInTheDocument();
+    expect(rankingButtons()).toHaveLength(7);
+    expect(
+      ranking.getByRole("button", { name: /Itapipoca/ }),
+    ).toBeInTheDocument();
+
+    const caucaia = ranking.getByRole("button", { name: /Caucaia/ });
+    caucaia.focus();
+    await user.keyboard("{Enter}");
+    expect(caucaia).toHaveAttribute("aria-pressed", "true");
+    expect(fortaleza).toHaveAttribute("aria-pressed", "false");
+
+    await user.selectOptions(
+      ranking.getByRole("combobox", { name: "Gravidade" }),
+      "moderate",
+    );
+    expect(rankingButtons()).toHaveLength(2);
+    expect(
+      ranking.queryByRole("button", { name: "Mostrar 6 primeiros" }),
+    ).not.toBeInTheDocument();
+    expect(
+      ranking.getByRole("combobox", { name: "Buscar município" }),
+    ).toBeInTheDocument();
+    expect(
+      ranking.getByRole("combobox", { name: "Situação" }),
     ).toBeInTheDocument();
   });
 
@@ -382,25 +528,6 @@ describe("App", () => {
     expect(
       await screen.findByText("1/4 baixando: SINAN-TB Brazil 2024 preliminary"),
     ).toBeInTheDocument();
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      expect.stringContaining("sih_all_months=true"),
-      expect.objectContaining({ method: "POST" }),
-    );
-  });
-
-  it("requests all SIH months from the territorial concept route", async () => {
-    const user = userEvent.setup();
-    window.history.pushState(
-      {},
-      "",
-      "/conceito/territorios?uf=BR&year=2024&lang=pt",
-    );
-    render(<App />);
-
-    await user.click(
-      await screen.findByRole("button", { name: "Carregar ano selecionado" }),
-    );
-
     expect(globalThis.fetch).toHaveBeenCalledWith(
       expect.stringContaining("sih_all_months=true"),
       expect.objectContaining({ method: "POST" }),
@@ -498,49 +625,39 @@ describe("App", () => {
     );
   });
 
-  it("renders the territorial concept route as a product console", async () => {
-    window.history.pushState({}, "", "/conceito/territorios?uf=BR&year=2023&lang=pt");
+  it("redirects the legacy territorial route with its query and hash", async () => {
+    window.history.pushState(
+      {},
+      "",
+      "/conceito/territorios?uf=BR&year=2023&lang=pt#dados",
+    );
     render(<App />);
 
+    await waitFor(() => expect(window.location.pathname).toBe("/territorios"));
+    expect(window.location.search).toBe("?uf=BR&year=2023&lang=pt");
+    expect(window.location.hash).toBe("#dados");
     expect(
       await screen.findByRole("heading", { name: "Análise territorial" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByAltText("TB-IA - Painel gestor de saúde"),
-    ).toBeInTheDocument();
     expect(screen.getByAltText("Sistema Único de Saúde")).toBeInTheDocument();
-    expect(screen.getByText("Dados públicos")).toBeInTheDocument();
-    expect(screen.getByText("Ajuda")).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Mapa territorial" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Municípios prioritários" }),
-    ).toBeInTheDocument();
-    expect((await screen.findAllByText("Fortaleza")).length).toBeGreaterThan(0);
-    expect(screen.queryByText("MVP1")).not.toBeInTheDocument();
-    expect(screen.queryByText("MVP2")).not.toBeInTheDocument();
   });
 
-  it("renders the operations concept route as a review queue", async () => {
-    window.history.pushState({}, "", "/conceito/acompanhamento?year=2023&lang=pt");
+  it("redirects the legacy operations route with its query and hash", async () => {
+    window.history.pushState(
+      {},
+      "",
+      "/conceito/acompanhamento?year=2023&lang=pt#fila",
+    );
     render(<App />);
 
+    await waitFor(() =>
+      expect(window.location.pathname).toBe("/acompanhamento"),
+    );
+    expect(window.location.search).toBe("?year=2023&lang=pt");
+    expect(window.location.hash).toBe("#fila");
     expect(
       await screen.findByRole("heading", { name: "Acompanhamento da atenção" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Fila operacional" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Detalhe do alerta" }),
-    ).toBeInTheDocument();
-    expect(
-      (await screen.findAllByText("Resultado laboratorial pendente")).length,
-    ).toBeGreaterThan(0);
-    expect((await screen.findAllByText("Equipe Centro")).length).toBeGreaterThan(0);
-    expect(screen.queryByText("MVP1")).not.toBeInTheDocument();
-    expect(screen.queryByText("MVP2")).not.toBeInTheDocument();
   });
 });
 

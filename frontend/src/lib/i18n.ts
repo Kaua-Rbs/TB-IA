@@ -12,6 +12,7 @@ export const copy = {
     appSubtitle: "Inteligência territorial para tuberculose",
     productContext: "Sala de situação municipal",
     evidenceBoundary: "Dados públicos · revisão humana",
+    susName: "Sistema Único de Saúde",
     nav: {
       territorial: "Análise territorial",
       operations: "Acompanhamento da atenção",
@@ -36,34 +37,6 @@ export const copy = {
       severity: "Gravidade",
       source: "Fonte",
       detail: "Detalhe",
-    },
-    concept: {
-      visualConcept: "Painel municipal",
-      managerConsole: "Painel gestor de saúde",
-      currentVersion: "Interface atual",
-      susName: "Sistema Único de Saúde",
-      ministryOfHealth: "Ministério da Saúde",
-      publicData: "Dados públicos",
-      alerts: "Alertas",
-      reports: "Relatórios",
-      userManagement: "Gestão de usuários",
-      settings: "Configurações",
-      help: "Ajuda",
-      territorialBrief:
-        "Mapa, priorização e prontidão em uma superfície de decisão para vigilância e atenção primária.",
-      operationsBrief:
-        "Fila de revisão para equipes municipais acompanharem pendências, prazos e sinais operacionais.",
-      rankingBrief:
-        "Lista compacta para triagem rápida; expanda quando precisar comparar todo o escopo.",
-      readinessBrief:
-        "Estado das fontes públicas, geometria, validação e geração dos sinais territoriais.",
-      queueBrief:
-        "Pendências priorizadas para revisão humana, sem diagnóstico ou prescrição automatizada.",
-      alertDetailBrief:
-        "Resumo do sinal, contexto da equipe e próximos pontos de revisão.",
-      teamBrief:
-        "Distribuição de alertas por unidade e equipe para organizar a rotina local.",
-      searchQueue: "Buscar caso, unidade ou equipe",
     },
     territorial: {
       title: "Análise territorial",
@@ -99,10 +72,10 @@ export const copy = {
       healthTerritories: "Territórios de saúde",
       sourceFreshness: "Atualização das fontes",
       noSignals: "Sem sinais territoriais para o escopo selecionado.",
-      expandRanking: "Expandir ranking",
-      collapseRanking: "Ocultar ranking",
-      rankingCollapsed:
-        "Ranking oculto para facilitar a leitura inicial. Expanda para ver e filtrar a lista completa.",
+      signalSingular: "sinal",
+      signalCount: "sinais",
+      expandRanking: "Ver ranking completo",
+      collapseRanking: "Mostrar 6 primeiros",
       loadYearTitle: "Dados do ano selecionado não estão processados",
       loadYearText:
         "A aplicação pode tentar baixar arquivos públicos do DATASUS/IBGE para o escopo e ano selecionados e recalcular indicadores e cenários.",
@@ -174,6 +147,7 @@ export const copy = {
     appSubtitle: "Territorial intelligence for tuberculosis",
     productContext: "Municipal situation room",
     evidenceBoundary: "Public data · human review",
+    susName: "Brazilian Unified Health System",
     nav: {
       territorial: "Territorial analysis",
       operations: "Care follow-up",
@@ -198,34 +172,6 @@ export const copy = {
       severity: "Severity",
       source: "Source",
       detail: "Detail",
-    },
-    concept: {
-      visualConcept: "Municipal console",
-      managerConsole: "Health manager console",
-      currentVersion: "Current interface",
-      susName: "Brazilian Unified Health System",
-      ministryOfHealth: "Ministry of Health",
-      publicData: "Public data",
-      alerts: "Alerts",
-      reports: "Reports",
-      userManagement: "User management",
-      settings: "Settings",
-      help: "Help",
-      territorialBrief:
-        "Map, prioritization, and readiness in one decision surface for surveillance and primary care.",
-      operationsBrief:
-        "Review queue for municipal teams to follow pending tasks, due dates, and operational signals.",
-      rankingBrief:
-        "Compact list for quick triage; expand when the full scope needs comparison.",
-      readinessBrief:
-        "Status of public sources, geometry, validation, and generated territorial signals.",
-      queueBrief:
-        "Prioritized pending items for human review, without automated diagnosis or prescription.",
-      alertDetailBrief:
-        "Signal summary, team context, and next review points.",
-      teamBrief:
-        "Alert distribution by facility and team to organize local routines.",
-      searchQueue: "Search case, facility, or team",
     },
     territorial: {
       title: "Territorial analysis",
@@ -262,10 +208,10 @@ export const copy = {
       healthTerritories: "Health territories",
       sourceFreshness: "Source freshness",
       noSignals: "No territorial signals for the selected scope.",
-      expandRanking: "Expand ranking",
-      collapseRanking: "Hide ranking",
-      rankingCollapsed:
-        "Ranking is hidden to keep the first view compact. Expand it to view and filter the full list.",
+      signalSingular: "signal",
+      signalCount: "signals",
+      expandRanking: "View full ranking",
+      collapseRanking: "Show first 6",
       loadYearTitle: "Selected year data is not processed",
       loadYearText:
         "The app can try to download public DATASUS/IBGE files for the selected scope and year, then recompute indicators and scenarios.",

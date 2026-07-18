@@ -725,7 +725,7 @@
 }
 
 .product-shell .secondary-action {
-  min-height: 36px;
+  min-height: 40px;
   border-color: var(--situation-line-strong);
   background: var(--situation-paper);
   color: var(--situation-petrol);
@@ -733,29 +733,35 @@
   font-weight: 600;
 }
 
-.product-shell .ranking-preview {
-  display: grid;
-  gap: 10px;
+.product-shell .ranking-tools {
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--situation-line);
 }
 
-.product-shell .ranking-preview > p {
+.product-shell .priority-ranking-list {
+  display: grid;
+  gap: 6px;
   margin: 0;
-  font-size: 12px;
+  padding: 0;
+  list-style: none;
 }
 
-.product-shell .ranking-preview-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-  gap: 7px;
+.product-shell .priority-ranking-list li {
+  min-width: 0;
 }
 
-.product-shell .ranking-preview-list button {
+.product-shell .priority-ranking-row {
   position: relative;
   display: grid;
-  grid-template-columns: 26px minmax(0, 1fr) auto;
-  min-height: 48px;
+  grid-template-areas: "rank name signals severity score";
+  grid-template-columns:
+    28px minmax(0, 1fr) minmax(92px, 0.36fr)
+    minmax(118px, auto) 64px;
+  width: 100%;
+  min-height: 50px;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   overflow: hidden;
   padding: 8px 10px;
   border: 1px solid var(--situation-line);
@@ -765,13 +771,13 @@
   text-align: left;
 }
 
-.product-shell .ranking-preview-list button:hover,
-.product-shell .ranking-preview-list button.selected {
+.product-shell .priority-ranking-row:hover,
+.product-shell .priority-ranking-row.selected {
   border-color: rgba(19, 128, 111, 0.34);
   background: var(--situation-map-soft);
 }
 
-.product-shell .ranking-preview-list button.selected::before {
+.product-shell .priority-ranking-row.selected::before {
   position: absolute;
   inset: 0 auto 0 0;
   width: 3px;
@@ -779,16 +785,52 @@
   content: "";
 }
 
-.product-shell .ranking-preview-list button > span:first-child {
+.product-shell .priority-ranking-index {
+  grid-area: rank;
+  display: inline-grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  border-radius: 999px;
   background: var(--situation-map-soft);
   color: var(--situation-map);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
-.product-shell .ranking-preview-list strong {
-  overflow: hidden;
+.product-shell .priority-ranking-name {
+  grid-area: name;
+  min-width: 0;
   font-size: 13px;
-  text-overflow: ellipsis;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.product-shell .priority-ranking-signals {
+  grid-area: signals;
+  color: var(--situation-muted);
+  font-size: 11px;
   white-space: nowrap;
+}
+
+.product-shell .priority-ranking-signals strong {
+  color: var(--situation-ink);
+  font-weight: 600;
+}
+
+.product-shell .priority-ranking-row .status-badge {
+  grid-area: severity;
+  justify-self: start;
+}
+
+.product-shell .priority-ranking-score {
+  grid-area: score;
+  justify-self: end;
+  color: var(--situation-petrol);
+  font-size: 14px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .product-shell .table-shell {
@@ -1239,8 +1281,31 @@
     min-height: 380px;
   }
 
-  .product-shell .ranking-preview-list {
-    grid-template-columns: 1fr;
+  .product-shell .priority-ranking-row {
+    grid-template-areas:
+      "rank name score"
+      "rank signals severity";
+    grid-template-columns: 28px minmax(0, 1fr) auto;
+    min-height: 62px;
+    align-items: start;
+    gap: 5px 8px;
+    padding: 9px 10px;
+  }
+
+  .product-shell .priority-ranking-index {
+    align-self: center;
+  }
+
+  .product-shell .priority-ranking-name,
+  .product-shell .priority-ranking-score {
+    align-self: end;
+  }
+
+  .product-shell .priority-ranking-row .status-badge {
+    max-width: 132px;
+    justify-self: end;
+    text-align: center;
+    white-space: normal;
   }
 
   .product-shell .operations-filters {

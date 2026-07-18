@@ -10,7 +10,6 @@ interface TerritorialMapProps {
   layerId: string;
   selectedId: string | null;
   referenceMode: boolean;
-  visualTone?: 'current' | 'concept';
   onSelect: (territoryId: string) => void;
 }
 
@@ -44,24 +43,6 @@ const municipalityFillColor: maplibregl.ExpressionSpecification = [
   '#d9e7e7'
 ];
 
-const conceptMunicipalityFillColor: maplibregl.ExpressionSpecification = [
-  'match',
-  ['get', 'layer_bucket'],
-  'high',
-  '#b4232f',
-  'moderate',
-  '#d77a1f',
-  'low',
-  '#7fc6a6',
-  'none',
-  '#dcebea',
-  'suppressed',
-  '#eef2f4',
-  'missing',
-  '#c9d4df',
-  '#dcebea'
-];
-
 type WritableGeoJsonSource = {
   setData: (data: FeatureCollection) => void;
 };
@@ -72,7 +53,6 @@ export function TerritorialMap({
   layerId,
   selectedId,
   referenceMode,
-  visualTone = 'current',
   onSelect
 }: TerritorialMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -108,28 +88,13 @@ export function TerritorialMap({
     if (!map || !isReady) return;
     setOrAddSource(map, 'municipalities', styledPayload);
     ensureMunicipalityLayers(map);
-    map.setPaintProperty(
-      'municipalities-fill',
-      'fill-color',
-      visualTone === 'concept' ? conceptMunicipalityFillColor : municipalityFillColor
-    );
-    map.setPaintProperty(
-      'municipalities-line',
-      'line-color',
-      visualTone === 'concept' ? '#4d6472' : '#50606f'
-    );
-    map.setPaintProperty(
-      'municipality-selected',
-      'line-color',
-      visualTone === 'concept' ? '#063f4f' : '#083c5f'
-    );
     const bounds = mapBounds(styledPayload);
     const fitKey = `${styledPayload.metadata.geographic_scope ?? ''}-${styledPayload.metadata.year ?? ''}-${styledPayload.metadata.comparison_scope ?? ''}`;
     if (bounds && fitKeyRef.current !== fitKey) {
       map.fitBounds(bounds, { padding: 36, duration: 0 });
       fitKeyRef.current = fitKey;
     }
-  }, [isReady, styledPayload, visualTone]);
+  }, [isReady, styledPayload]);
 
   useEffect(() => {
     const map = mapRef.current;

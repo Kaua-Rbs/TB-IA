@@ -10,7 +10,7 @@ from typing import Any, cast
 from uuid import uuid4
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -138,8 +138,19 @@ def register_routes(app: FastAPI, session_factory: SessionProvider) -> None:
 
 
 def register_dashboard_routes(app: FastAPI, session_factory: SessionProvider) -> None:
+    @app.get("/conceito/territorios", include_in_schema=False)
+    def redirect_legacy_territorial(request: Request) -> RedirectResponse:
+        query = request.url.query
+        location = f"/territorios?{query}" if query else "/territorios"
+        return RedirectResponse(location, status_code=307)
+
+    @app.get("/conceito/acompanhamento", include_in_schema=False)
+    def redirect_legacy_operations(request: Request) -> RedirectResponse:
+        query = request.url.query
+        location = f"/acompanhamento?{query}" if query else "/acompanhamento"
+        return RedirectResponse(location, status_code=307)
+
     @app.get("/", response_class=HTMLResponse)
-    @app.get("/conceito/territorios", response_class=HTMLResponse)
     @app.get("/territorios", response_class=HTMLResponse)
     def index(
         request: Request,
@@ -164,7 +175,6 @@ def register_dashboard_routes(app: FastAPI, session_factory: SessionProvider) ->
         )
 
     @app.get("/mvp2", response_class=HTMLResponse)
-    @app.get("/conceito/acompanhamento", response_class=HTMLResponse)
     @app.get("/acompanhamento", response_class=HTMLResponse)
     def mvp2(
         request: Request,

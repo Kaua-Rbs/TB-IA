@@ -1,17 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
-  ChevronDown,
-  ChevronUp,
   CheckCircle2,
   DownloadCloud,
   Layers,
-  Search,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
 import { MetricCard } from "../components/MetricCard";
+import { PriorityRankingList } from "../components/PriorityRankingList";
 import { StatusBadge } from "../components/StatusBadge";
 import { TerritorialMap } from "../components/TerritorialMap";
 import {
@@ -29,7 +27,6 @@ import {
   formatIndicatorValue,
   formatMonthCoverage,
   formatNumber,
-  labelSeverity,
   labelStatus,
 } from "../lib/format";
 import { layerLabel, layerOptions } from "../lib/geojson";
@@ -81,7 +78,6 @@ export function TerritorialPage() {
   const [severityFilter, setSeverityFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
-  const [isRankingExpanded, setIsRankingExpanded] = useState(false);
   const [loadJobId, setLoadJobId] = useState<string | null>(null);
   const [handledLoadJobId, setHandledLoadJobId] = useState<string | null>(null);
 
@@ -177,6 +173,12 @@ export function TerritorialPage() {
     }
   }, [mapQuery.data, selectedId]);
 
+  useEffect(() => {
+    if (!selectedId && filteredRanking.length) {
+      setSelectedId(filteredRanking[0].territory_id);
+    }
+  }, [filteredRanking, selectedId]);
+
   function updateScope(next: Record<string, string | number>) {
     const params = new URLSearchParams(searchParams);
     for (const [key, value] of Object.entries(next)) {
@@ -219,20 +221,10 @@ export function TerritorialPage() {
     shouldOfferYearLoad || Boolean(loadJob) || loadYearMutation.isPending;
 
   return (
-    <div className="page-stack">
+    <div className="page-stack territory-page">
       <header className="page-hero compact-hero">
         <div>
-          <div className="badge-row">
-            <span className="product-badge">
-              {labels.territorial.publicBadge}
-            </span>
-            <span className="scope-badge">{`${uf} ${year}`}</span>
-            <span className="scope-badge">
-              {comparisonScope === "national"
-                ? labels.common.national
-                : labels.common.ufRanking}
-            </span>
-          </div>
+          <span className="situation-kicker">{labels.productContext}</span>
           <h1>{labels.territorial.title}</h1>
           <p>{labels.territorial.subtitle}</p>
         </div>
@@ -338,7 +330,7 @@ export function TerritorialPage() {
         <MetricCard
           label={labels.territorial.metrics.readiness}
           value={readinessSummary(contextQuery.data?.readiness, lang)}
-          tone="good"
+          tone={readinessTone(contextQuery.data?.readiness)}
         />
       </section>
 
@@ -413,7 +405,10 @@ export function TerritorialPage() {
           ) : null}
         </div>
 
-        <aside className="detail-panel">
+        <aside className="detail-panel territorial-dossier">
+          <span className="dossier-kicker">
+            {labels.territorial.dossierTitle}
+          </span>
           <h2>{labels.territorial.selectedTitle}</h2>
           {!selectedId ? (
             <p className="muted-copy">{labels.territorial.selectedEmpty}</p>
@@ -436,7 +431,7 @@ export function TerritorialPage() {
                 </div>
               </div>
               <div className="score-row">
-                <span>{labels.territorial.metrics.signals}</span>
+                <span>{labels.territorial.priorityScore}</span>
                 <strong>
                   {formatNumber(
                     selectedFeature.properties.priority_score,
@@ -455,145 +450,19 @@ export function TerritorialPage() {
         </aside>
       </section>
 
-      <section
-        className={`ranking-section ${isRankingExpanded ? "ranking-expanded" : "ranking-collapsed"}`}
-      >
-        <div className="panel-heading split-heading">
-          <div>
-            <h2>{labels.territorial.rankingTitle}</h2>
-            <p>{labels.territorial.rankingSubtitle}</p>
-          </div>
-          <button
-            type="button"
-            className="secondary-action"
-            onClick={() => setIsRankingExpanded((value) => !value)}
-            aria-expanded={isRankingExpanded}
-          >
-            {isRankingExpanded ? (
-              <ChevronUp size={17} aria-hidden="true" />
-            ) : (
-              <ChevronDown size={17} aria-hidden="true" />
-            )}
-            <span>
-              {isRankingExpanded
-                ? labels.territorial.collapseRanking
-                : labels.territorial.expandRanking}
-            </span>
-          </button>
-        </div>
-        {isRankingExpanded ? (
-          <>
-            <div className="table-tools ranking-tools">
-              <label className="search-control">
-                <Search size={16} aria-hidden="true" />
-                <input
-                  list="municipality-options"
-                  value={searchTerm}
-                  placeholder={labels.territorial.municipalitySearch}
-                  onChange={(event) => selectFromSearch(event.target.value)}
-                />
-              </label>
-              <datalist id="municipality-options">
-                {mapQuery.data?.features.map((feature) => (
-                  <option
-                    key={feature.properties.territory_id}
-                    value={feature.properties.name}
-                  />
-                ))}
-              </datalist>
-              <select
-                value={severityFilter}
-                onChange={(event) => setSeverityFilter(event.target.value)}
-              >
-                <option value="">
-                  {labels.common.severity}: {labels.common.all}
-                </option>
-                <option value="high">{labelSeverity("high", lang)}</option>
-                <option value="moderate">
-                  {labelSeverity("moderate", lang)}
-                </option>
-                <option value="low">{labelSeverity("low", lang)}</option>
-              </select>
-              <select
-                value={statusFilter}
-                onChange={(event) => setStatusFilter(event.target.value)}
-              >
-                <option value="">
-                  {labels.common.status}: {labels.common.all}
-                </option>
-                <option value="complete">
-                  {labelStatus("complete", lang)}
-                </option>
-                <option value="partial">{labelStatus("partial", lang)}</option>
-                <option value="missing">{labelStatus("missing", lang)}</option>
-              </select>
-            </div>
-            <div className="table-shell">
-              <table>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>{labels.territorial.selectedTitle}</th>
-                    <th>{labels.common.severity}</th>
-                    <th>{labels.territorial.metrics.signals}</th>
-                    <th>Score</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredRanking.map((row, index) => (
-                    <tr
-                      key={row.territory_id}
-                      className={
-                        row.territory_id === selectedId ? "selected-row" : ""
-                      }
-                      onClick={() => setSelectedId(row.territory_id)}
-                    >
-                      <td>{index + 1}</td>
-                      <td>{row.territory_name}</td>
-                      <td>
-                        <StatusBadge
-                          value={row.top_severity}
-                          kind="severity"
-                          lang={lang}
-                        />
-                      </td>
-                      <td>{row.scenario_count}</td>
-                      <td>{formatNumber(row.score, lang, 1)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {!filteredRanking.length ? (
-                <p className="empty-state">{labels.territorial.noSignals}</p>
-              ) : null}
-            </div>
-          </>
-        ) : (
-          <div className="ranking-preview">
-            <p>{labels.territorial.rankingCollapsed}</p>
-            <div className="ranking-preview-list">
-              {filteredRanking.slice(0, 5).map((row, index) => (
-                <button
-                  key={row.territory_id}
-                  type="button"
-                  onClick={() => setSelectedId(row.territory_id)}
-                >
-                  <span>{index + 1}</span>
-                  <strong>{row.territory_name}</strong>
-                  <StatusBadge
-                    value={row.top_severity}
-                    kind="severity"
-                    lang={lang}
-                  />
-                </button>
-              ))}
-            </div>
-            {!filteredRanking.length ? (
-              <p className="empty-state">{labels.territorial.noSignals}</p>
-            ) : null}
-          </div>
-        )}
-      </section>
+      <PriorityRankingList
+        rows={filteredRanking}
+        mapPayload={mapQuery.data}
+        selectedId={selectedId}
+        searchTerm={searchTerm}
+        severityFilter={severityFilter}
+        statusFilter={statusFilter}
+        lang={lang}
+        onSearchChange={selectFromSearch}
+        onSeverityFilterChange={setSeverityFilter}
+        onStatusFilterChange={setStatusFilter}
+        onSelect={setSelectedId}
+      />
 
       <section id="dados" className="governance-grid">
         <ReadinessPanel
@@ -625,6 +494,10 @@ export function TerritorialPage() {
                 <StatusBadge value={source.status} lang={lang} />
               </div>
             ))}
+            {!contextQuery.data?.sources.length ? (
+              <p className="empty-state">{labels.common.empty}</p>
+            ) : null}
+
           </div>
         </section>
       </section>
@@ -770,6 +643,16 @@ function ReadinessPanel({
       </div>
     </section>
   );
+}
+
+function readinessTone(
+  items: Record<string, { status: string }> | undefined,
+): "default" | "good" | "warn" | "danger" {
+  if (!items) return "default";
+  const statuses = Object.values(items).map((item) => item.status);
+  if (statuses.length && statuses.every((status) => status === "ready")) return "good";
+  if (statuses.some((status) => status === "warning" || status === "partial")) return "warn";
+  return "default";
 }
 
 function readinessSummary(

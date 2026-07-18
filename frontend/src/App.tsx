@@ -1,10 +1,13 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Route, Routes, useLocation } from 'react-router-dom';
+import {
+  BrowserRouter,
+  Navigate,
+  Route,
+  Routes,
+  useLocation
+} from 'react-router-dom';
 
-import { ConceptShell } from './components/ConceptShell';
 import { Shell } from './components/Shell';
-import { ConceptOperationsPage } from './pages/ConceptOperationsPage';
-import { ConceptTerritorialPage } from './pages/ConceptTerritorialPage';
 import { OperationsPage } from './pages/OperationsPage';
 import { TerritorialPage } from './pages/TerritorialPage';
 
@@ -28,20 +31,37 @@ export function App() {
 }
 
 function AppRoutes() {
-  const location = useLocation();
-  const isConceptRoute = location.pathname.startsWith('/conceito');
-  const Layout = isConceptRoute ? ConceptShell : Shell;
-
   return (
-    <Layout>
+    <Shell>
       <Routes>
         <Route path="/" element={<TerritorialPage />} />
         <Route path="/territorios" element={<TerritorialPage />} />
         <Route path="/acompanhamento" element={<OperationsPage />} />
-        <Route path="/conceito/territorios" element={<ConceptTerritorialPage />} />
-        <Route path="/conceito/acompanhamento" element={<ConceptOperationsPage />} />
+        <Route
+          path="/conceito/territorios"
+          element={<LegacyRouteRedirect to="/territorios" />}
+        />
+        <Route
+          path="/conceito/acompanhamento"
+          element={<LegacyRouteRedirect to="/acompanhamento" />}
+        />
         <Route path="*" element={<TerritorialPage />} />
       </Routes>
-    </Layout>
+    </Shell>
+  );
+}
+
+function LegacyRouteRedirect({ to }: { to: string }) {
+  const location = useLocation();
+
+  return (
+    <Navigate
+      replace
+      to={{
+        pathname: to,
+        search: location.search,
+        hash: location.hash
+      }}
+    />
   );
 }

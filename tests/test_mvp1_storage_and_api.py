@@ -711,6 +711,35 @@ def test_dashboard_renders_product_shell_controls_and_existing_sections(
     assert "Ressalvas" in html
 
 
+def test_legacy_concept_routes_redirect_without_built_spa(tmp_path: Path, monkeypatch: Any) -> None:
+    database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
+    populate_database(database_url)
+    monkeypatch.setattr(web_app, "FRONTEND_DIST_DIR", tmp_path / "missing-dist")
+
+    with TestClient(create_app(database_url)) as client:
+        territorial_redirect = client.get(
+            "/conceito/territorios?uf=CE&year=2023&lang=en",
+            follow_redirects=False,
+        )
+        operations_redirect = client.get(
+            "/conceito/acompanhamento?year=2023&severity=high&lang=pt",
+            follow_redirects=False,
+        )
+        territorial_page = client.get("/territorios?uf=CE&year=2023")
+        operations_page = client.get("/acompanhamento?year=2023")
+        api_response = client.get("/api/territorial/context?uf=CE&year=2023&lang=pt")
+
+    assert territorial_redirect.status_code == 307
+    assert territorial_redirect.headers["location"] == ("/territorios?uf=CE&year=2023&lang=en")
+    assert operations_redirect.status_code == 307
+    assert operations_redirect.headers["location"] == (
+        "/acompanhamento?year=2023&severity=high&lang=pt"
+    )
+    assert territorial_page.status_code == 200
+    assert operations_page.status_code == 200
+    assert api_response.status_code == 200
+
+
 def test_territorial_load_year_endpoint_runs_public_pipeline_without_auto_navigation(
     tmp_path: Path, monkeypatch: Any
 ) -> None:
@@ -796,21 +825,27 @@ def test_fastapi_serves_built_spa_without_capturing_api_routes(
     with TestClient(web_app.create_app(database_url)) as client:
         territorial_page = client.get("/territorios?uf=CE&year=2023")
         operations_page = client.get("/acompanhamento?year=2023")
-        concept_territorial_page = client.get("/conceito/territorios?uf=BR&year=2023")
-        concept_operations_page = client.get("/conceito/acompanhamento?year=2023")
+        concept_territorial_page = client.get(
+            "/conceito/territorios?uf=BR&year=2023",
+            follow_redirects=False,
+        )
+        concept_operations_page = client.get(
+            "/conceito/acompanhamento?year=2023",
+            follow_redirects=False,
+        )
         asset_response = client.get("/static/app/assets/app.js")
         api_response = client.get("/api/territorial/context?uf=CE&year=2023&lang=pt")
 
     assert territorial_page.status_code == 200
     assert operations_page.status_code == 200
-    assert concept_territorial_page.status_code == 200
-    assert concept_operations_page.status_code == 200
+    assert concept_territorial_page.status_code == 307
+    assert concept_territorial_page.headers["location"] == ("/territorios?uf=BR&year=2023")
+    assert concept_operations_page.status_code == 307
+    assert concept_operations_page.headers["location"] == ("/acompanhamento?year=2023")
     assert asset_response.status_code == 200
     assert api_response.status_code == 200
     assert "SPA TB-IA" in territorial_page.text
     assert "SPA TB-IA" in operations_page.text
-    assert "SPA TB-IA" in concept_territorial_page.text
-    assert "SPA TB-IA" in concept_operations_page.text
     assert api_response.json()["territory_count"] == 6
 
 
