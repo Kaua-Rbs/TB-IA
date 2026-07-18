@@ -2,6 +2,8 @@ import { ActivitySquare, Database, Languages, MapPinned, Menu, X } from 'lucide-
 import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 
+import susSymbol from '../assets/mockup-icons/sus-symbol.svg';
+import tbiaLockup from '../assets/mockup-icons/tbia-lockup.svg';
 import { copy, normalizeLanguage } from '../lib/i18n';
 
 interface ShellProps {
@@ -28,11 +30,8 @@ export function Shell({ children }: ShellProps) {
     <div className="product-shell">
       <aside className="sidebar" aria-label="TB-IA">
         <a className="brand" href={`/territorios${search}`} onClick={() => setIsMenuOpen(false)}>
-          <span className="brand-mark">TB</span>
-          <span>
-            <strong>{labels.appName}</strong>
-            <small>{labels.appSubtitle}</small>
-          </span>
+          <img className="brand-lockup" src={tbiaLockup} alt={`${labels.appName} — ${labels.appSubtitle}`} />
+          <span className="brand-context">{labels.productContext}</span>
         </a>
         <button
           type="button"
@@ -48,6 +47,7 @@ export function Shell({ children }: ShellProps) {
           id="product-navigation-panel"
           className={`shell-navigation ${isMenuOpen ? 'open' : ''}`}
         >
+          <div className="navigation-heading">{labels.navigationLabel}</div>
           <nav className="primary-nav" aria-label={labels.navigationLabel}>
             <NavLink to={`/territorios${search}`} onClick={() => setIsMenuOpen(false)}>
               <MapPinned size={18} aria-hidden="true" />
@@ -62,10 +62,16 @@ export function Shell({ children }: ShellProps) {
               <span>{labels.nav.governance}</span>
             </a>
           </nav>
-          <a className="language-switch" href={languagePath} onClick={() => setIsMenuOpen(false)}>
-            <Languages size={17} aria-hidden="true" />
-            <span>{labels.languageToggle}</span>
-          </a>
+          <div className="sidebar-footer">
+            <div className="shell-evidence">
+              <span>{labels.evidenceBoundary}</span>
+              <img src={susSymbol} alt={labels.concept.susName} />
+            </div>
+            <a className="language-switch" href={languagePath} onClick={() => setIsMenuOpen(false)}>
+              <Languages size={17} aria-hidden="true" />
+              <span>{labels.languageToggle}</span>
+            </a>
+          </div>
         </div>
       </aside>
       <main className="app-main">{children}</main>

@@ -10,6 +10,8 @@ export const copy = {
   pt: {
     appName: "TB-IA",
     appSubtitle: "Inteligência territorial para tuberculose",
+    productContext: "Sala de situação municipal",
+    evidenceBoundary: "Dados públicos · revisão humana",
     nav: {
       territorial: "Análise territorial",
       operations: "Acompanhamento da atenção",
@@ -84,6 +86,8 @@ export const copy = {
       rankingTitle: "Municípios prioritários",
       rankingSubtitle: "Seleção sincronizada com o mapa e o painel de detalhe.",
       selectedTitle: "Detalhe do município",
+      dossierTitle: "Dossiê territorial",
+      priorityScore: "Índice de prioridade",
       selectedEmpty: "Selecione um município no mapa ou ranking.",
       whyFlagged: "Por que foi sinalizado",
       recommendedResponse: "Resposta recomendada",
@@ -130,6 +134,10 @@ export const copy = {
       queue: "Fila operacional",
       facilityTeams: "Unidades e equipes",
       alertDetail: "Detalhe do alerta",
+      dossierTitle: "Dossiê de vigilância",
+      whereReview: "Onde revisar",
+      whyReview: "Por que revisar",
+      reviewWindow: "Janela de revisão",
       selectAlert: "Selecione um alerta para ver o detalhe.",
       case: "Caso local",
       due: "Prazo",
@@ -164,6 +172,8 @@ export const copy = {
   en: {
     appName: "TB-IA",
     appSubtitle: "Territorial intelligence for tuberculosis",
+    productContext: "Municipal situation room",
+    evidenceBoundary: "Public data · human review",
     nav: {
       territorial: "Territorial analysis",
       operations: "Care follow-up",
@@ -239,6 +249,8 @@ export const copy = {
       rankingSubtitle:
         "Selection is synchronized with the map and detail panel.",
       selectedTitle: "Municipality detail",
+      dossierTitle: "Territorial dossier",
+      priorityScore: "Priority index",
       selectedEmpty: "Select a municipality on the map or ranking.",
       whyFlagged: "Why flagged",
       recommendedResponse: "Recommended response",
@@ -284,6 +296,10 @@ export const copy = {
       queue: "Operational queue",
       facilityTeams: "Facilities and teams",
       alertDetail: "Alert detail",
+      dossierTitle: "Surveillance dossier",
+      whereReview: "Where to review",
+      whyReview: "Why review",
+      reviewWindow: "Review window",
       selectAlert: "Select an alert to view detail.",
       case: "Local case",
       due: "Due",
