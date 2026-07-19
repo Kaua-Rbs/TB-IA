@@ -5,13 +5,17 @@ import {
   DownloadCloud,
   Layers,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { MapLegend } from "../components/MapLegend";
 import { MetricCard } from "../components/MetricCard";
 import { PriorityRankingList } from "../components/PriorityRankingList";
 import { StatusBadge } from "../components/StatusBadge";
-import { TerritorialMap } from "../components/TerritorialMap";
+import {
+  TerritorialMap,
+  type MapFocusRequest,
+} from "../components/TerritorialMap";
 import {
   fetchSubterritories,
   fetchTerritorialContext,
@@ -29,7 +33,11 @@ import {
   formatNumber,
   labelStatus,
 } from "../lib/format";
-import { layerLabel, layerOptions } from "../lib/geojson";
+import {
+  buildMapLayerPresentation,
+  layerLabel,
+  layerOptions,
+} from "../lib/geojson";
 import { copy, normalizeLanguage } from "../lib/i18n";
 
 const ufOptions = [
@@ -73,6 +81,9 @@ export function TerritorialPage() {
   const comparisonScope =
     uf === "BR" ? "national" : searchParams.get("comparison_scope") || "uf";
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const focusSequenceRef = useRef(0);
+  const [mapFocusRequest, setMapFocusRequest] =
+    useState<MapFocusRequest | null>(null);
   const [mapMode, setMapMode] = useState<"priority" | "reference">("priority");
   const [layerId, setLayerId] = useState("priority_score");
   const [severityFilter, setSeverityFilter] = useState("");
@@ -128,6 +139,10 @@ export function TerritorialPage() {
     [mapQuery.data, selectedId],
   );
   const layers = layerOptions(mapQuery.data);
+  const mapPresentation = useMemo(
+    () => buildMapLayerPresentation(mapQuery.data, layerId),
+    [layerId, mapQuery.data],
+  );
   const rankingRows = useMemo(
     () => buildRankingRows(contextQuery.data?.ranking ?? [], mapQuery.data),
     [contextQuery.data, mapQuery.data],
@@ -190,6 +205,7 @@ export function TerritorialPage() {
     }
     params.set("lang", lang);
     setSearchParams(params);
+    setMapFocusRequest(null);
     setSelectedId(null);
   }
 
@@ -201,6 +217,15 @@ export function TerritorialPage() {
     if (match) {
       setSelectedId(match.properties.territory_id);
     }
+  }
+
+  function selectFromRanking(territoryId: string) {
+    setSelectedId(territoryId);
+    focusSequenceRef.current += 1;
+    setMapFocusRequest({
+      territoryId,
+      requestId: focusSequenceRef.current,
+    });
   }
 
   const isLoading = contextQuery.isLoading || mapQuery.isLoading;
@@ -386,12 +411,22 @@ export function TerritorialPage() {
               </div>
             ) : null}
             <TerritorialMap
-              payload={mapQuery.data}
+              payload={mapPresentation.payload}
               referencePayload={subterritoryQuery.data}
-              layerId={layerId}
               selectedId={selectedId}
               referenceMode={mapMode === "reference"}
+              focusRequest={mapFocusRequest}
+              ariaLabel={labels.territorial.mapAriaLabel}
               onSelect={setSelectedId}
+            />
+            <MapLegend
+              presentation={mapPresentation}
+              lang={lang}
+              selectedId={selectedId}
+              referenceMode={mapMode === "reference"}
+              referenceCount={
+                subterritoryQuery.data?.metadata.drawable_geometry_count ?? 0
+              }
             />
           </div>
           {mapMode === "reference" ? (
@@ -461,7 +496,7 @@ export function TerritorialPage() {
         onSearchChange={selectFromSearch}
         onSeverityFilterChange={setSeverityFilter}
         onStatusFilterChange={setStatusFilter}
-        onSelect={setSelectedId}
+        onSelect={selectFromRanking}
       />
 
       <section id="dados" className="governance-grid">

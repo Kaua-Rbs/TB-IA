@@ -1,4 +1,9 @@
-import type { FeatureCollection, GeoFeature, MapLayerDefinition, MunicipalityProperties } from './api';
+import type {
+  FeatureCollection,
+  GeoFeature,
+  MapLayerDefinition,
+  MunicipalityProperties
+} from './api';
 
 type Bounds = [[number, number], [number, number]];
 
@@ -8,29 +13,138 @@ const emptyCollection: FeatureCollection = {
   features: []
 };
 
-export function withLayerValues(payload: FeatureCollection | undefined, layerId: string) {
-  if (!payload) return emptyCollection;
-  const values = payload.features
-    .map((feature) => rawLayerValue(feature, layerId))
-    .filter((value): value is number => Number.isFinite(value));
-  const sortedValues = [...values].sort((a, b) => a - b);
-  const direction = payload.metadata.layers?.[layerId]?.direction;
+export type MapLayerBucket =
+  | 'high'
+  | 'moderate'
+  | 'low'
+  | 'none'
+  | 'suppressed'
+  | 'missing';
 
-  return {
+export interface MapLegendEntry {
+  bucket: MapLayerBucket;
+  count: number;
+  min: number | null;
+  max: number | null;
+}
+
+export interface MapLayerPresentation {
+  payload: FeatureCollection;
+  layer: MapLayerDefinition & { id: string };
+  method: 'severity' | 'relative';
+  entries: MapLegendEntry[];
+  drawableCount: number;
+}
+
+type LayerObservation = {
+  state: 'available' | 'suppressed' | 'missing';
+  value: number | null;
+};
+
+const attentionBuckets: MapLayerBucket[] = ['high', 'moderate', 'low', 'none'];
+const availabilityBuckets: MapLayerBucket[] = ['suppressed', 'missing'];
+
+export const mapBucketColors: Record<MapLayerBucket, string> = {
+  high: '#b91c1c',
+  moderate: '#e2a007',
+  low: '#79b7a4',
+  none: '#d9e7e7',
+  suppressed: '#f1eee5',
+  missing: '#cbd5df'
+};
+
+export function buildMapLayerPresentation(
+  payload: FeatureCollection | undefined,
+  layerId: string
+): MapLayerPresentation {
+  const layerDefinition = payload?.metadata.layers?.[layerId];
+  const layer = {
+    id: layerId,
+    label: layerDefinition?.label ?? layerId,
+    kind: layerDefinition?.kind ?? 'unknown',
+    unit: layerDefinition?.unit ?? null,
+    direction: layerDefinition?.direction ?? null
+  };
+  const method = layerId === 'priority_score' ? 'severity' : 'relative';
+  if (!payload) {
+    return {
+      payload: emptyCollection,
+      layer,
+      method,
+      entries: availabilityBuckets.map((bucket) => ({
+        bucket,
+        count: 0,
+        min: null,
+        max: null
+      })),
+      drawableCount: 0
+    };
+  }
+
+  const observations = payload.features.map((feature) =>
+    layerObservation(feature, layerId)
+  );
+  const sortedValues = observations
+    .filter(
+      (observation) =>
+        observation.state === 'available' && finiteNumber(observation.value)
+    )
+    .map((observation) => observation.value)
+    .filter((value): value is number => finiteNumber(value))
+    .filter((value) => layerId !== 'scenario_count' || value > 0)
+    .sort((a, b) => a - b);
+
+  const styledPayload = {
     ...payload,
-    features: payload.features.map((feature) => {
-      const value = rawLayerValue(feature, layerId);
-      const bucket = layerBucket(feature, layerId, value, sortedValues, direction);
+    features: payload.features.map((feature, index) => {
+      const observation = observations[index];
+      const bucket = observationBucket(
+        feature,
+        layerId,
+        observation,
+        sortedValues,
+        layer.direction
+      );
       return {
         ...feature,
         properties: {
           ...feature.properties,
-          layer_value: value,
+          layer_value: observation.value,
           layer_bucket: bucket
         }
       };
     })
   } satisfies FeatureCollection;
+
+  const drawableFeatures = styledPayload.features.filter(
+    (feature) => feature.geometry !== null
+  );
+  const entries = attentionBuckets.flatMap((bucket) => {
+    const values = drawableFeatures
+      .filter((feature) => feature.properties.layer_bucket === bucket)
+      .map((feature) => feature.properties.layer_value)
+      .filter((value): value is number => finiteNumber(value));
+    if (!values.length) return [];
+    return [legendEntry(bucket, values)];
+  });
+  entries.push(
+    ...availabilityBuckets.map((bucket) => ({
+      bucket,
+      count: drawableFeatures.filter(
+        (feature) => feature.properties.layer_bucket === bucket
+      ).length,
+      min: null,
+      max: null
+    }))
+  );
+
+  return {
+    payload: styledPayload,
+    layer,
+    method,
+    entries,
+    drawableCount: drawableFeatures.length
+  };
 }
 
 export function layerOptions(payload: FeatureCollection | undefined) {
@@ -61,35 +175,62 @@ export function mapBounds(payload: FeatureCollection | undefined): Bounds | null
   ];
 }
 
+export function mapBoundsForTerritory(
+  payload: FeatureCollection | undefined,
+  territoryId: string
+): Bounds | null {
+  if (!payload) return null;
+  const feature = payload.features.find(
+    (candidate) => candidate.properties.territory_id === territoryId
+  );
+  if (!feature) return null;
+  return mapBounds({ ...payload, features: [feature] });
+}
+
 export function layerLabel(layer: MapLayerDefinition | undefined, fallback: string) {
   return layer?.label ?? fallback;
 }
 
-function rawLayerValue(feature: GeoFeature, layerId: string) {
+function layerObservation(feature: GeoFeature, layerId: string): LayerObservation {
   const properties = feature.properties;
-  if (layerId === 'priority_score') return properties.priority_score;
-  if (layerId === 'scenario_count') return properties.scenario_count;
+  if (layerId === 'priority_score' || layerId === 'scenario_count') {
+    const value =
+      layerId === 'priority_score'
+        ? properties.priority_score
+        : properties.scenario_count;
+    return properties.data_status === 'missing' || !finiteNumber(value)
+      ? { state: 'missing', value: null }
+      : { state: 'available', value };
+  }
+
   const indicator = properties.indicators[layerId];
-  if (!indicator || indicator.is_suppressed) return null;
-  return indicator.value;
+  if (indicator?.is_suppressed) {
+    return { state: 'suppressed', value: null };
+  }
+  if (!indicator || !finiteNumber(indicator.value)) {
+    return { state: 'missing', value: null };
+  }
+  return { state: 'available', value: indicator.value };
 }
 
-function layerBucket(
+function observationBucket(
   feature: GeoFeature<MunicipalityProperties>,
   layerId: string,
-  value: number | null,
+  observation: LayerObservation,
   sortedValues: number[],
   direction: string | null | undefined
-) {
+): MapLayerBucket {
+  if (observation.state !== 'available') return observation.state;
   if (layerId === 'priority_score') {
-    return feature.properties.top_severity ?? 'none';
+    const severity = feature.properties.top_severity;
+    return severity && attentionBuckets.includes(severity as MapLayerBucket)
+      ? (severity as MapLayerBucket)
+      : 'none';
   }
-  if (value === null || value === undefined) {
-    return feature.properties.data_status === 'partial' ? 'suppressed' : 'missing';
-  }
-  if (sortedValues.length < 3) {
-    return value > 0 ? 'moderate' : 'none';
-  }
+
+  const value = observation.value;
+  if (!finiteNumber(value)) return 'missing';
+  if (layerId === 'scenario_count' && value === 0) return 'none';
   const rank = percentileRank(value, sortedValues);
   const attention = direction === 'low_bad' ? 1 - rank : rank;
   if (attention >= 0.67) return 'high';
@@ -98,10 +239,25 @@ function layerBucket(
 }
 
 function percentileRank(value: number, sortedValues: number[]) {
-  if (sortedValues.length <= 1) return 1;
-  const index = sortedValues.findIndex((candidate) => candidate >= value);
-  const boundedIndex = index === -1 ? sortedValues.length - 1 : index;
-  return boundedIndex / (sortedValues.length - 1);
+  if (sortedValues.length <= 1) return 0.5;
+  const firstIndex = sortedValues.findIndex((candidate) => candidate === value);
+  if (firstIndex === -1) return 0.5;
+  let lastIndex = firstIndex;
+  while (sortedValues[lastIndex + 1] === value) lastIndex += 1;
+  return (firstIndex + lastIndex) / 2 / (sortedValues.length - 1);
+}
+
+function legendEntry(bucket: MapLayerBucket, values: number[]): MapLegendEntry {
+  return {
+    bucket,
+    count: values.length,
+    min: Math.min(...values),
+    max: Math.max(...values)
+  };
+}
+
+function finiteNumber(value: number | null | undefined): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
 }
 
 function visitCoordinates(value: unknown, visitor: (lng: number, lat: number) => void) {

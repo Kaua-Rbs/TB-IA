@@ -1,15 +1,25 @@
 import maplibregl from 'maplibre-gl';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 import type { FeatureCollection } from '../lib/api';
-import { mapBounds, withLayerValues } from '../lib/geojson';
+import {
+  mapBounds,
+  mapBoundsForTerritory,
+  mapBucketColors
+} from '../lib/geojson';
+
+export interface MapFocusRequest {
+  territoryId: string;
+  requestId: number;
+}
 
 interface TerritorialMapProps {
   payload: FeatureCollection | undefined;
   referencePayload: FeatureCollection | undefined;
-  layerId: string;
   selectedId: string | null;
   referenceMode: boolean;
+  focusRequest: MapFocusRequest | null;
+  ariaLabel: string;
   onSelect: (territoryId: string) => void;
 }
 
@@ -29,18 +39,18 @@ const municipalityFillColor: maplibregl.ExpressionSpecification = [
   'match',
   ['get', 'layer_bucket'],
   'high',
-  '#b91c1c',
+  mapBucketColors.high,
   'moderate',
-  '#e2a007',
+  mapBucketColors.moderate,
   'low',
-  '#8ac6b0',
+  mapBucketColors.low,
   'none',
-  '#d9e7e7',
+  mapBucketColors.none,
   'suppressed',
-  '#edf0f4',
+  mapBucketColors.suppressed,
   'missing',
-  '#cbd5df',
-  '#d9e7e7'
+  mapBucketColors.missing,
+  mapBucketColors.none
 ];
 
 type WritableGeoJsonSource = {
@@ -50,9 +60,10 @@ type WritableGeoJsonSource = {
 export function TerritorialMap({
   payload,
   referencePayload,
-  layerId,
   selectedId,
   referenceMode,
+  focusRequest,
+  ariaLabel,
   onSelect
 }: TerritorialMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -60,7 +71,7 @@ export function TerritorialMap({
   const onSelectRef = useRef(onSelect);
   const [isReady, setIsReady] = useState(false);
   const fitKeyRef = useRef<string>('');
-  const styledPayload = useMemo(() => withLayerValues(payload, layerId), [payload, layerId]);
+  const focusRequestRef = useRef<number>(0);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -86,15 +97,15 @@ export function TerritorialMap({
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !isReady) return;
-    setOrAddSource(map, 'municipalities', styledPayload);
+    setOrAddSource(map, 'municipalities', payload);
     ensureMunicipalityLayers(map);
-    const bounds = mapBounds(styledPayload);
-    const fitKey = `${styledPayload.metadata.geographic_scope ?? ''}-${styledPayload.metadata.year ?? ''}-${styledPayload.metadata.comparison_scope ?? ''}`;
+    const bounds = mapBounds(payload);
+    const fitKey = `${payload?.metadata.geographic_scope ?? ''}-${payload?.metadata.year ?? ''}-${payload?.metadata.comparison_scope ?? ''}`;
     if (bounds && fitKeyRef.current !== fitKey) {
       map.fitBounds(bounds, { padding: 36, duration: 0 });
       fitKeyRef.current = fitKey;
     }
-  }, [isReady, styledPayload]);
+  }, [isReady, payload]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -124,13 +135,41 @@ export function TerritorialMap({
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !isReady || !map.getLayer('municipality-selected')) return;
-    map.setFilter('municipality-selected', [
+    if (!map || !isReady) return;
+    const filter: maplibregl.FilterSpecification = [
       '==',
       ['get', 'territory_id'],
       selectedId ?? '__none__'
-    ]);
+    ];
+    if (map.getLayer('municipality-selected-halo')) {
+      map.setFilter('municipality-selected-halo', filter);
+    }
+    if (map.getLayer('municipality-selected')) {
+      map.setFilter('municipality-selected', filter);
+    }
   }, [isReady, selectedId]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (
+      !map ||
+      !isReady ||
+      !focusRequest ||
+      focusRequestRef.current === focusRequest.requestId
+    ) {
+      return;
+    }
+    const bounds = mapBoundsForTerritory(payload, focusRequest.territoryId);
+    if (!bounds) return;
+    focusRequestRef.current = focusRequest.requestId;
+    const reduceMotion =
+      window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+    map.fitBounds(bounds, {
+      padding: 56,
+      maxZoom: 8,
+      duration: reduceMotion ? 0 : 240
+    });
+  }, [focusRequest, isReady, payload]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -141,7 +180,7 @@ export function TerritorialMap({
     map.setPaintProperty('subterritories-line', 'line-opacity', referenceMode ? 0.95 : 0);
   }, [isReady, referenceMode, referencePayload]);
 
-  return <div ref={containerRef} className="map-canvas" aria-label="Mapa territorial" />;
+  return <div ref={containerRef} className="map-canvas" aria-label={ariaLabel} />;
 }
 
 function setOrAddSource(
@@ -189,6 +228,46 @@ function ensureMunicipalityLayers(map: maplibregl.Map) {
       }
     });
   }
+  if (!map.getLayer('municipalities-suppressed')) {
+    map.addLayer({
+      id: 'municipalities-suppressed',
+      type: 'line',
+      source: 'municipalities',
+      filter: ['==', ['get', 'layer_bucket'], 'suppressed'],
+      paint: {
+        'line-color': '#837967',
+        'line-width': 1.4,
+        'line-dasharray': [2, 1.5],
+        'line-opacity': 1
+      }
+    });
+  }
+  if (!map.getLayer('municipalities-missing')) {
+    map.addLayer({
+      id: 'municipalities-missing',
+      type: 'line',
+      source: 'municipalities',
+      filter: ['==', ['get', 'layer_bucket'], 'missing'],
+      paint: {
+        'line-color': '#6f7d8b',
+        'line-width': 1.4,
+        'line-opacity': 1
+      }
+    });
+  }
+  if (!map.getLayer('municipality-selected-halo')) {
+    map.addLayer({
+      id: 'municipality-selected-halo',
+      type: 'line',
+      source: 'municipalities',
+      filter: ['==', ['get', 'territory_id'], '__none__'],
+      paint: {
+        'line-color': '#ffffff',
+        'line-width': 6.4,
+        'line-opacity': 0.96
+      }
+    });
+  }
   if (!map.getLayer('municipality-selected')) {
     map.addLayer({
       id: 'municipality-selected',
@@ -196,7 +275,7 @@ function ensureMunicipalityLayers(map: maplibregl.Map) {
       source: 'municipalities',
       filter: ['==', ['get', 'territory_id'], '__none__'],
       paint: {
-        'line-color': '#083c5f',
+        'line-color': '#073c42',
         'line-width': 3.2,
         'line-opacity': 1
       }

@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
+import { maplibreMockState } from "./test/setup";
 
 const rankingFixtures = [
   {
@@ -76,6 +77,18 @@ const mapPayload = {
         label: "Pontuação de prioridade",
         kind: "property",
         unit: "score",
+        direction: "high_bad",
+      },
+      scenario_count: {
+        label: "Quantidade de sinais",
+        kind: "property",
+        unit: "count",
+        direction: "high_bad",
+      },
+      tb_incidence_per_100k: {
+        label: "Incidência de TB",
+        kind: "indicator",
+        unit: "per_100k",
         direction: "high_bad",
       },
     },
@@ -224,6 +237,8 @@ const secondEnglishOperationAlert = {
 };
 
 beforeEach(() => {
+  maplibreMockState.fitBounds.mockClear();
+  maplibreMockState.setFilter.mockClear();
   vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
     const url = String(input);
     if (url.includes("/api/territorial/context") && url.includes("year=2024")) {
@@ -387,6 +402,74 @@ describe("App", () => {
     expect(
       screen.getByRole("button", { name: /Fortaleza/ }),
     ).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("explains layer values, availability, and units in the map legend", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/territorios?uf=BR&year=2023&lang=pt");
+    render(<App />);
+
+    const legendRegion = await screen.findByRole("region", {
+      name: "Legenda do mapa",
+    });
+    const legend = within(legendRegion);
+
+    expect(legend.getByText("Pontuação de prioridade")).toBeInTheDocument();
+    expect(legend.getByText("7,2 - 8,0")).toBeInTheDocument();
+    expect(legend.getAllByText("2 municípios no mapa")).toHaveLength(3);
+    expect(legend.getByText("1 município no mapa")).toBeInTheDocument();
+    expect(legend.getByText("0 municípios no mapa")).toBeInTheDocument();
+    expect(legend.getByText("Dado suprimido")).toBeInTheDocument();
+    expect(legend.getByText("Dado ausente")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Mapa territorial interativo"),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Camada" }),
+      "tb_incidence_per_100k",
+    );
+
+    expect(legend.getByText("Incidência de TB")).toBeInTheDocument();
+    expect(legend.getByText("80,0/100 mil")).toBeInTheDocument();
+    expect(legend.getByText("6 municípios no mapa")).toBeInTheDocument();
+    expect(
+      legend.getByText(
+        "Faixas relativas aos valores disponíveis no escopo e ano selecionados.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("focuses the selected polygon only after an explicit ranking action", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/territorios?uf=BR&year=2023&lang=pt");
+    render(<App />);
+
+    await screen.findByRole("button", { name: /Fortaleza/ });
+    await waitFor(() => {
+      expect(maplibreMockState.fitBounds).toHaveBeenCalledTimes(1);
+    });
+    expect(maplibreMockState.fitBounds).toHaveBeenLastCalledWith(
+      [
+        [0, 0],
+        [6.75, 0.75],
+      ],
+      { padding: 36, duration: 0 },
+    );
+
+    maplibreMockState.fitBounds.mockClear();
+    await user.click(screen.getByRole("button", { name: /Caucaia/ }));
+
+    await waitFor(() => {
+      expect(maplibreMockState.fitBounds).toHaveBeenCalledTimes(1);
+    });
+    expect(maplibreMockState.fitBounds).toHaveBeenCalledWith(
+      [
+        [1, 0],
+        [1.75, 0.75],
+      ],
+      { padding: 56, maxZoom: 8, duration: 240 },
+    );
   });
 
   it("opens and closes the localized mobile navigation menu", async () => {

@@ -1,6 +1,11 @@
 import '@testing-library/jest-dom/vitest';
 import { vi } from 'vitest';
 
+export const maplibreMockState = {
+  fitBounds: vi.fn(),
+  setFilter: vi.fn()
+};
+
 class MockMap {
   loaded() {
     return true;
@@ -44,11 +49,13 @@ class MockMap {
     return this;
   }
 
-  setFilter() {
+  setFilter(...args: unknown[]) {
+    maplibreMockState.setFilter(...args);
     return this;
   }
 
-  fitBounds() {
+  fitBounds(...args: unknown[]) {
+    maplibreMockState.fitBounds(...args);
     return this;
   }
 

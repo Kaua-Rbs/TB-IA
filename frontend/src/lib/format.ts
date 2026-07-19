@@ -22,10 +22,49 @@ export function formatIndicatorValue(
   if (unit === 'proportion') {
     return `${formatNumber(value * 100, lang, 1)}%`;
   }
+  if (unit === 'percent') {
+    return `${formatNumber(value, lang, 1)}%`;
+  }
   if (unit === 'per_100k') {
-    return `${formatNumber(value, lang, 1)}/100 mil`;
+    return `${formatNumber(value, lang, 1)}${lang === 'pt' ? '/100 mil' : '/100k'}`;
   }
   return formatNumber(value, lang, 1);
+}
+
+export function formatMapLayerValue(
+  value: number | null | undefined,
+  unit: string | null | undefined,
+  lang: Language
+) {
+  if (value === null || value === undefined) return '-';
+  if (unit === 'percent') return `${formatNumber(value, lang, 1)}%`;
+  if (unit === 'proportion') return `${formatNumber(value * 100, lang, 1)}%`;
+  if (unit === 'per_100k') {
+    return `${formatNumber(value, lang, 1)}${lang === 'pt' ? '/100 mil' : '/100k'}`;
+  }
+  const digits = unit === 'count' && Number.isInteger(value) ? 0 : 1;
+  return formatNumber(value, lang, digits);
+}
+
+export function formatMapLayerRange(
+  min: number | null,
+  max: number | null,
+  unit: string | null | undefined,
+  lang: Language
+) {
+  if (min === null || max === null) return '-';
+  const formattedMin = formatMapLayerValue(min, unit, lang);
+  if (min === max) return formattedMin;
+  return `${formattedMin} - ${formatMapLayerValue(max, unit, lang)}`;
+}
+
+export function labelMapUnit(
+  unit: string | null | undefined,
+  lang: Language
+) {
+  if (!unit) return '-';
+  const labels = copy[lang].territorial.mapLegend.units as Record<string, string>;
+  return labels[unit] ?? unit;
 }
 
 export function labelStatus(status: string | null | undefined, lang: Language) {

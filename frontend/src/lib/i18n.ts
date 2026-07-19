@@ -91,6 +91,35 @@ export const copy = {
         "Para Brasil inteiro a carga pode demorar; a ação só inicia quando você confirma no botão.",
       mapHelp:
         "O mapa usa polígonos públicos e não exibe dados de paciente, endereço ou alertas operacionais.",
+      mapAriaLabel: "Mapa territorial interativo",
+      mapLegend: {
+        title: "Legenda do mapa",
+        unit: "Unidade",
+        relativeNote:
+          "Faixas relativas aos valores disponíveis no escopo e ano selecionados.",
+        severityNote:
+          "As cores refletem a maior gravidade dos sinais no município.",
+        availability: "Disponibilidade da camada",
+        high: "Maior atenção",
+        moderate: "Atenção moderada",
+        low: "Menor atenção",
+        none: "Sem sinal",
+        suppressed: "Dado suprimido",
+        missing: "Dado ausente",
+        selected: "Município selecionado",
+        reference: "Limite de bairro de referência",
+        municipalitySingular: "município no mapa",
+        municipalityPlural: "municípios no mapa",
+        referenceSingular: "bairro de referência",
+        referencePlural: "bairros de referência",
+        units: {
+          score: "pontos",
+          count: "contagem",
+          percent: "percentual",
+          proportion: "proporção",
+          per_100k: "por 100 mil",
+        },
+      },
     },
     operations: {
       title: "Acompanhamento da atenção",
@@ -227,6 +256,35 @@ export const copy = {
         "For the full Brazil scope this can take a while; the action only starts after you confirm with the button.",
       mapHelp:
         "The map uses public polygons and does not display patient, address, or operational alert locations.",
+      mapAriaLabel: "Interactive territorial map",
+      mapLegend: {
+        title: "Map legend",
+        unit: "Unit",
+        relativeNote:
+          "Ranges are relative to available values in the selected scope and year.",
+        severityNote:
+          "Colors reflect the highest signal severity in each municipality.",
+        availability: "Layer availability",
+        high: "Higher attention",
+        moderate: "Moderate attention",
+        low: "Lower attention",
+        none: "No signal",
+        suppressed: "Suppressed data",
+        missing: "Missing data",
+        selected: "Selected municipality",
+        reference: "Reference neighborhood boundary",
+        municipalitySingular: "municipality on the map",
+        municipalityPlural: "municipalities on the map",
+        referenceSingular: "reference neighborhood",
+        referencePlural: "reference neighborhoods",
+        units: {
+          score: "points",
+          count: "count",
+          percent: "percent",
+          proportion: "proportion",
+          per_100k: "per 100k",
+        },
+      },
     },
     operations: {
       title: "Care follow-up",
