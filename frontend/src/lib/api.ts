@@ -169,9 +169,9 @@ export interface FacilityTeamSummary {
   team_id: string;
   team_name: string;
   alert_count: number;
-  high_count: number;
-  moderate_count: number;
-  open_count: number;
+  high: number;
+  moderate: number;
+  open: number;
 }
 
 export interface OperationalAlert {

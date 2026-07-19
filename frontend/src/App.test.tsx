@@ -321,9 +321,9 @@ beforeEach(() => {
             team_id: "TEAM-1",
             team_name: "Equipe Centro",
             alert_count: 1,
-            high_count: 1,
-            moderate_count: 0,
-            open_count: 1,
+            high: 1,
+            moderate: 0,
+            open: 1,
           },
         ],
       });
@@ -632,8 +632,100 @@ describe("App", () => {
     expect(
       (await screen.findAllByText("Resultado laboratorial pendente")).length,
     ).toBeGreaterThan(0);
+    expect(
+      screen.getByText("demonstração sintética/pseudonimizada"),
+    ).toBeInTheDocument();
+    const teamPanel = screen
+      .getByRole("heading", { name: "Unidades e equipes" })
+      .closest("section");
+    expect(teamPanel).not.toBeNull();
+    expect(teamPanel).toHaveTextContent(/Alta gravidade\s*1/);
+    expect(teamPanel).toHaveTextContent(/Alertas abertos\s*1/);
     expect(screen.queryByText("MVP1")).not.toBeInTheDocument();
     expect(screen.queryByText("MVP2")).not.toBeInTheDocument();
+  });
+
+  it("counts and resets active operational filters", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/acompanhamento?year=2023&lang=pt");
+    render(<App />);
+
+    const filterToggle = await screen.findByRole("button", {
+      name: "Ocultar filtros",
+    });
+    expect(filterToggle).toHaveAttribute("aria-expanded", "true");
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Gravidade" }),
+      "high",
+    );
+
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).get("severity")).toBe(
+        "high",
+      );
+    });
+    const activeToggle = screen.getByRole("button", {
+      name: "Ocultar filtros. 1 filtro ativo",
+    });
+    expect(within(activeToggle).getByText("1")).toBeInTheDocument();
+
+    await user.click(
+      screen.getByRole("button", { name: "Limpar filtros" }),
+    );
+
+    await waitFor(() => {
+      expect(
+        new URLSearchParams(window.location.search).has("severity"),
+      ).toBe(false);
+    });
+    expect(
+      screen.getByRole("combobox", { name: "Gravidade" }),
+    ).toHaveValue("");
+    expect(
+      screen.queryByRole("button", { name: "Limpar filtros" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("expands alert detail in place and marks overdue deadlines explicitly", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/acompanhamento?year=2023&lang=pt");
+    render(<App />);
+
+    const firstRow = await screen.findByRole("row", {
+      name: /Resultado laboratorial pendente/,
+    });
+    const secondRow = screen.getByRole("row", {
+      name: /Atraso na retirada de medicamento/,
+    });
+
+    expect(within(firstRow).getByText("Prazo vencido")).toBeInTheDocument();
+    expect(secondRow).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(secondRow);
+    expect(secondRow).toHaveAttribute("aria-expanded", "true");
+
+    const detailRow = await screen.findByRole("row", { name: /CASE-2/ });
+    const detail = within(detailRow);
+    expect(
+      detail.getByRole("heading", { name: "Onde revisar" }),
+    ).toBeInTheDocument();
+    expect(
+      detail.getByRole("heading", { name: "Por que revisar" }),
+    ).toBeInTheDocument();
+    expect(
+      detail.getByRole("heading", { name: "Janela de revisão" }),
+    ).toBeInTheDocument();
+    expect(
+      detail.getByText("Retirada de medicamento atrasada."),
+    ).toBeInTheDocument();
+
+    await user.click(secondRow);
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("row", { name: /CASE-2/ }),
+      ).not.toBeInTheDocument();
+    });
   });
 
   it("selects operational alert rows with Enter and Space", async () => {
