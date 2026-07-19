@@ -92,9 +92,23 @@ Core outputs:
 - recommendation summary linked to a strategy library;
 - data-quality warnings and source freshness indicators.
 
-Current MVP 1 UI implementation note: the dashboard is a public aggregate, demo-oriented workbench. It is Portuguese-first with optional English through a `lang` query parameter, and exposes data readiness, UF/year scope controls, municipality search, map/ranking synchronization, optional public bairro reference overlays for selected municipalities, transparent scenario explanations, recommendations, indicators, caveats, and source freshness without patient-level maps or clinical automation. Bairros or other public intramunicipal polygons are reference geography only; official UBS/team/microarea boundaries and TB outcomes by health territory are unavailable in the public-only MVP.
+Current MVP 1 UI implementation note: the React product at `/` and
+`/territorios` is a responsive public aggregate workbench. It is
+Portuguese-first with optional English through a `lang` query parameter and
+exposes scope-aware data readiness, UF/year/comparison controls, municipality
+search, automatic initial priority selection, and synchronized
+map/ranking/dossier interactions. Its layer-specific legend reports values and
+units, separates available, suppressed, and missing data, and identifies the
+selected municipality and optional public reference overlays. The dossier
+keeps transparent scenario explanations, recommendations, indicators, caveats,
+and source freshness without patient-level maps or clinical automation. The
+mobile shell reflows controls, rankings, status labels, and detail content
+without horizontal table dependence. Bairros or other public intramunicipal
+polygons are reference geography only; official UBS/team/microarea boundaries
+and TB outcomes by health territory are unavailable in the public-only MVP.
 
-This should be the first engineering target for a buildable platform.
+This is the implemented first engineering slice. Domain review,
+acceptance-dataset validation, and production deployment remain future work.
 
 ### MVP 2: municipal operational integration
 
@@ -130,7 +144,16 @@ Current first implementation slice:
 - reject obvious identifiable columns before local operational ingestion;
 - persist local teams, TB cases, lab events, pharmacy dispensing events, contact investigations, resource inventory, and generated operational alerts;
 - generate transparent alert queues for pending lab results, delayed medication pickup, pending contact evaluation, and resistance vigilance;
-- expose `/mvp2` and `/api/mvp2/*` for local operations review without patient-level maps, task assignment, authentication, or RBAC.
+- expose `/acompanhamento` and `/api/operations/*` as the canonical product
+  routes for local operations review;
+- provide URL-backed filters by alert type, severity, status, facility, and
+  team, with active-filter count and reset;
+- identify high-severity and overdue items with text and icons as well as color;
+- keep alert detail sticky beside the desktop queue and expandable in place on
+  mobile;
+- retain the Jinja `/mvp2` route and `/api/mvp2/*` as backend compatibility
+  paths;
+- remain without patient-level maps, task assignment, authentication, or RBAC.
 
 This starter slice is a workflow and data-contract pilot. It is not authorization to load real municipal patient data. Real exports require institutional approval, governance, local deployment controls, auditability, and role-based access decisions before production use.
 
@@ -185,7 +208,7 @@ Starter entities:
 | Entity | Purpose | Typical grain |
 | --- | --- | --- |
 | `DataSource` | Source metadata, owner, update frequency, access method | one record per source |
-| `ImportRun` | Ingestion execution and validation result | one record per import |
+| `ImportRun` | Scoped ingestion execution, coverage, and validation result | source-geographic scope-year-execution |
 | `Territory` | UF, municipality, neighborhood, microarea, UBS catchment | one record per territory |
 | `PopulationDenominator` | Population by territory, year, age, sex where available | territory-period-group |
 | `Facility` | CNES/UBS/service unit metadata | one record per facility |
@@ -203,6 +226,18 @@ Starter entities:
 | `Task` | Action assigned to a user/team | one record per task |
 | `ValidationEvent` | Human review of alert/recommendation | one record per review |
 | `AuditEvent` | Security and user activity log | one record per event |
+
+The implemented `ImportRun` stores `year`, `geographic_scope`, and optional
+`loaded_months` in addition to status, counts, timestamps, and message. Public
+source freshness and indicator validation are selected for the requested
+geography and year; reuse of a national source for a UF is explicit, and
+synthetic municipal imports do not satisfy public territorial readiness.
+
+SIH/SUS annual readiness requires all 12 months for the selected UF. Partial or
+coverage-unknown hospitalization aggregates remain stored for audit but do not
+produce annual hospitalization indicators or scenarios. National
+hospitalization readiness additionally requires complete coverage for every
+component UF.
 
 Additional patient-level entities should only be introduced for MVP 2 or MVP 3 with institutional authorization:
 
@@ -498,7 +533,7 @@ Example contract summary:
 | --- | --- | --- | --- |
 | SINAN-TB/DATASUS | national public TB records by year; aggregate TabNet tables for validation | FTP DBC files such as `SINAN/DADOS/PRELIM/TUBEBR23.dbc` or older `FINAIS/TUBEBRYY.dbc`; TabNet PRN/HTML fallback | case burden, outcomes, lab confirmation, HIV, TRM-TB, culture, and conditional contact indicators |
 | SIM | UF mortality records by year | FTP DBC files such as `SIM/CID10/DORES/DOCE2023.dbc` | TB mortality filtered by CID-10 A15-A19 |
-| SIH/SUS | UF-month hospital admission records | FTP DBC files such as `SIHSUS/200801_/Dados/RDCE2401.dbc` | TB-related hospitalization burden and severity proxy |
+| SIH/SUS | UF-month hospital admission records | FTP DBC files such as `SIHSUS/200801_/Dados/RDCE2401.dbc` | TB-related hospitalization burden and severity proxy only with explicit 12-month coverage; partial or unknown coverage is audit-only and excluded from annual rankings |
 | CNES | facility and service capacity snapshots by module, UF, and month | FTP DBC files by submodule, for example `CNES/200508_/Dados/ST/STCE2401.dbc` | facility inventory, SUS linkage, establishment type, selected service/capacity proxies |
 | IBGE population | territory-year demographics | SIDRA/API JSON, CSV/XLSX export | denominators for incidence, mortality, hospitalizations, and capacity ratios |
 | IBGE malhas | municipality territorial geometry | GeoJSON from the Malhas API, cached during ingestion | MVP 1 public aggregate municipality maps only |
@@ -634,7 +669,8 @@ Data validation:
 - time range checks;
 - duplicate detection;
 - denominator availability;
-- source freshness;
+- source freshness matched to geographic scope and year;
+- explicit SIH/SUS monthly coverage for annual outputs;
 - missingness reports.
 
 Indicator validation:
@@ -694,21 +730,27 @@ Future municipal deployment requirements:
 
 ## Open engineering decisions
 
-These decisions should be resolved before implementation:
+The following decisions remain open for validation or later deployment;
+implemented choices are recorded explicitly:
 
 1. Which Boletim 2026 indicators are mandatory for the first public-data release, and which should
    remain backlog items?
 1. MVP 1 now supports direct DATASUS file transfer into local DBC samples, DBF/DBC ingestion, and manual CSV fallback. For CE/2023, the default denominator is IBGE Census 2022 resident population from SIDRA table 4714; rates must be labeled as 2023 events over 2022 Census population. Remaining decision: which public-source extracts become the validated acceptance dataset.
 1. The implemented public geographic scopes are one UF at a time or Brazil (`uf=BR`). National scope orchestrates the 27 UFs and uses national percentiles for national ranking; UF views can use either intra-UF percentiles or national comparison when national scenarios are available.
-1. What is the first time window for indicators?
+1. The implemented demonstration reference year is 2023. Remaining decision: which historical and
+   prospective periods form the validated acceptance and trend-analysis windows?
 1. Which indicators are mandatory for the first scenario classification?
 1. Which thresholds are fixed by guidelines and which are relative rankings?
-1. Which map granularity is allowed in public demonstrations?
-1. Will the first UI be a dashboard only, or dashboard plus recommendation review?
+1. The public demonstration map is municipality-level, with optional public submunicipal reference
+   overlays that do not affect TB prioritization. Any future health-territory granularity remains a
+   governance and data-availability decision.
+1. The implemented first UI combines the dashboard, territorial dossier, and read-only transparent
+   recommendations. Recommendation approval and workflow validation remain future work.
 1. Will the strategy library be stored as structured configuration, database tables, or Markdown?
 1. What user roles exist in MVP 1 if there is no patient-level data?
 1. What is the minimum validation dataset for acceptance?
-1. What deployment target is assumed for demos?
+1. The implemented demo target is local FastAPI, SQLite, and a compiled React SPA. No production
+   deployment target has been selected.
 1. Which parts of the WHO TB Digital Adaptation Kit will be adopted directly?
 1. What evidence threshold is required before adopting any hotspot model beyond transparent
    rule-based territorial prioritization?
@@ -733,7 +775,8 @@ MVP 1 is complete only when:
 
 ## Practical build recommendation
 
-The first real implementation should not try to build all layers. It should build the smallest coherent public-data product:
+The implemented first slice intentionally focuses on the smallest coherent
+public-data product through this sequence:
 
 1. Import IBGE territorial identifiers and 2022 Census resident population denominators for CE/2023.
 1. Import or load selected SINAN-TB public indicators.
@@ -744,4 +787,9 @@ The first real implementation should not try to build all layers. It should buil
 1. Validate results against manual public-source calculations.
 1. Generate SINAN mapping and indicator sanity validation reports, and keep SINAN-derived formulas provisional until domain review.
 
-Once this is working, questionnaire workflows and municipal local-data modules can be added without changing the core architecture.
+Public ingestion, canonical storage, transparent rules, recommendations, the
+dashboard, and technical validation reports are implemented for the demo.
+Manual reproduction against an acceptance dataset and domain review remain
+required. The synthetic municipal data-contract pilot is implemented as a
+separate governed slice; questionnaires and real municipal integrations remain
+future work.

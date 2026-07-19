@@ -8,7 +8,9 @@ The active quality setup checks the MVP package in `src/tbia/`, lightweight repo
 
 ## Setup
 
-Install Python 3.11 or newer, then install development and application dependencies:
+Install Python 3.11 or newer, then install development and application
+dependencies. Frontend work additionally requires Node.js `^20.19.0` or
+`>=22.12.0`.
 
 ```bash
 python -m pip install -r requirements-dev.txt
@@ -28,7 +30,7 @@ make check
 - Ruff linting for `src/`, `scripts/`, and `tests/`.
 - Ruff and mdformat formatting checks.
 - mypy type checking for `src/`, `scripts/`, and `tests/`.
-- pytest tests for repository documentation rules and MVP 1 behavior.
+- pytest tests for repository documentation rules and application behavior.
 
 ## Commit Messages
 
@@ -50,7 +52,9 @@ make mutation
 
 ## Frontend Commands
 
-The frontend is intentionally separate from the Python fast gate while the project transitions to a dedicated UI stack. GitHub Actions validates it in an independent Node 22 job. Run these commands when changing `frontend/`:
+The active React/Vite frontend has a gate separate from the Python fast gate.
+GitHub Actions validates it in an independent Node 22 job. Run these commands
+when changing `frontend/`:
 
 ```bash
 make frontend-install
@@ -67,22 +71,23 @@ make frontend-dev
 
 After `make frontend-build`, FastAPI serves the compiled SPA on `/`, `/territorios`, and `/acompanhamento`. Without `frontend/dist`, the Jinja templates remain the fallback.
 
-## MVP 1 Commands
+## Demonstration Commands
 
 For a complete default CE/2023 demonstration, including the synthetic municipal
 operations layer:
 
 ```bash
 make demo
+make frontend-build
 python -m tbia serve
 ```
 
 The workflow is cache-aware, uses the full SIH/SUS year, and upserts only the
 selected scope/year. Existing files under `data/raw/municipal_demo` are
-Partial or coverage-unknown SIH/SUS aggregates are retained for audit but do
-not contribute hospitalization indicators or scenarios to annual rankings.
 regenerated as deterministic synthetic samples. Use the individual commands
-below when debugging a specific stage:
+below when debugging a specific stage. Partial or coverage-unknown SIH/SUS
+aggregates are retained for audit but do not contribute hospitalization
+indicators or scenarios to annual rankings.
 
 ```bash
 python -m tbia download-datasus-samples --uf CE --year 2023 --sih-all-months
@@ -104,7 +109,13 @@ python -m tbia build-operational-alerts --year 2023 --reference-date 2026-06-29
 python -m tbia serve
 ```
 
-MVP 2 currently accepts only synthetic or already pseudonymized municipal CSVs. Do not add CPF, CNS, person names, addresses, phone numbers, patient-level maps, task assignment, authentication, or clinical automation unless a future task explicitly changes the governed scope. The operational dashboard is `/mvp2`; the CSV schemas and alert rules are documented in `mvp2_municipal_contracts.md`.
+MVP 2 currently accepts only synthetic or already pseudonymized municipal CSVs.
+Do not add CPF, CNS, person names, addresses, phone numbers, patient-level maps,
+task assignment, authentication, or clinical automation unless a future task
+explicitly changes the governed scope. The canonical product dashboard is
+`/acompanhamento` and uses `/api/operations/*`; the Jinja `/mvp2` route and
+`/api/mvp2/*` remain for backend compatibility. The CSV schemas and alert rules
+are documented in `mvp2_municipal_contracts.md`.
 
 ## Definition Of Done
 

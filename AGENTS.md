@@ -30,6 +30,11 @@ The backend is implemented in Python. The current application includes public-da
 
 The selected local MVP stack is Python, FastAPI, SQLAlchemy, SQLite, React, Vite, TypeScript, and MapLibre GL. Preserve this stack unless an explicit task or product decision changes it. No production deployment architecture has been selected.
 
+The canonical product routes are `/` and `/territorios` for public territorial
+analysis and `/acompanhamento` for synthetic municipal operations. Product
+frontend code uses `/api/territorial/*` and `/api/operations/*`; older map and
+MVP 2 routes are compatibility surfaces.
+
 ## Setup Commands
 
 Use Python 3.11 or newer for the current documentation/tooling quality gates.
@@ -39,6 +44,8 @@ python -m pip install -r requirements-dev.txt
 ```
 
 The development requirements include the runtime stack through `requirements-app.txt`.
+
+Frontend work requires Node.js `^20.19.0` or `>=22.12.0`. CI uses Node.js 22.
 
 ## Development Commands
 
@@ -56,6 +63,7 @@ make frontend-install
 make frontend-dev
 make frontend-check
 make frontend-build
+make demo
 ```
 
 The standard Python command for Codex and developers is:

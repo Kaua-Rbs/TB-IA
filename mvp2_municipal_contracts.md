@@ -1,8 +1,12 @@
 # MVP2 Municipal Demo Contracts
 
-MVP2 starts as a synthetic, pseudonymized municipal operational pilot. It is intended for local workflow validation without real patient data, municipal production exports, authentication, RBAC, or governance approval. MVP1 public-data ingestion and dashboards remain unchanged.
+MVP2 starts as a synthetic, pseudonymized municipal operational pilot. It is intended for local workflow validation without real patient data, municipal production exports, authentication, RBAC, or governance approval. MVP1 public-data and privacy boundaries remain unchanged.
 
 ## Demo Workflow
+
+The default `make demo` preparation includes this municipal slice. Run the
+individual commands below only when preparing or debugging the operational
+slice separately:
 
 ```bash
 python -m tbia generate-mvp2-sample-data --output-dir data/raw/municipal_demo
@@ -11,11 +15,24 @@ python -m tbia build-operational-alerts --year 2023 --reference-date 2026-06-29
 python -m tbia serve
 ```
 
-The operations dashboard is available at `/mvp2` when the local server is running. The API endpoints are:
+The product operations dashboard is available at `/acompanhamento`. It works
+with these canonical product API endpoints:
 
-- `/api/mvp2/summary`
-- `/api/mvp2/alerts`
-- `/api/mvp2/alerts/{alert_id}`
+- `/api/operations/summary`
+- `/api/operations/alerts`
+- `/api/operations/alerts/{alert_id}`
+
+The alerts collection accepts `year`, `alert_type`, `severity`, `status`,
+`facility_id`, `team_id`, and `lang` query parameters. The summary accepts the
+selected `year`.
+
+The queue keeps the synthetic/pseudonymized scope visible, shows severity and
+overdue state without relying on color alone, provides URL-backed filters with
+an active count and reset, keeps alert detail beside the queue on desktop, and
+expands detail in place on mobile.
+
+The older Jinja `/mvp2` route and `/api/mvp2/*` endpoints remain available for
+backend compatibility; new product code should use the canonical routes above.
 
 ## Privacy Boundary
 

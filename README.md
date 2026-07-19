@@ -1,6 +1,7 @@
 # TB-IA
 
-Documentation and MVP 1 implementation workspace for an intelligent tuberculosis public health decision-support platform.
+Planning, documentation, and implementation workspace for an intelligent
+tuberculosis public health decision-support platform.
 
 The product concept focuses on helping primary care and municipal surveillance teams identify priority territories, missed screening opportunities, patient follow-up risks, and operational strategies for tuberculosis control. The current application code implements the first public-data territorial intelligence slice for MVP 1 and a synthetic, pseudonymized municipal operations slice for MVP 2.
 
@@ -15,26 +16,42 @@ The backend is implemented in Python. The active stack includes public-data inge
 - `mvp2_municipal_contracts.md`: synthetic municipal CSV contracts, privacy rules, alert rules, and demo workflow for the MVP 2 starter slice.
 - `documentos/`: source PDFs and supporting reference documents used during project formulation.
 - `notebooks/`: exploratory notebooks and scripts for public-data loading and visualization.
-- `src/tbia/`: MVP 1 Python package for ingestion, indicators, scenarios, storage, CLI, and dashboard.
+- `src/tbia/`: Python package for ingestion, domain logic, storage, CLI, APIs, and fallback dashboards.
 - `AGENTS.md`: project-specific instructions for future Codex sessions.
 - `CONTRIBUTING.md`: setup and quality command reference.
 
 ## Setup
 
+Use Python 3.11 or newer. The current Vite workspace requires Node.js
+`^20.19.0` or `>=22.12.0`.
+
 ```bash
 python -m pip install -r requirements-dev.txt
+make frontend-install
 ```
 
-## MVP 1 Application
+## Complete Demonstration
 
-Prepare the complete CE/2023 demonstration in one cache-aware command:
+Prepare the data for the complete CE/2023 demonstration in one cache-aware
+command:
 
 ```bash
 make demo
-# equivalent to:
+# equivalent to
 python -m tbia prepare-demo
+```
+
+Build the current React product and start the integrated local application:
+
+```bash
+make frontend-build
 python -m tbia serve
 ```
+
+FastAPI then serves the territorial workbench at `/` and `/territorios`, the
+synthetic municipal operations queue at `/acompanhamento`, and the API
+documentation at `/docs`. `make demo` prepares data but does not start the
+server.
 
 `prepare-demo` downloads only missing public DATASUS files, uses all 12 SIH/SUS
 months by default, runs the territorial pipeline, regenerates the seven
@@ -59,7 +76,23 @@ python -m tbia serve
 
 `download-datasus-samples` stores public DATASUS DBC files under `data/raw/public_sources/datasus_samples/`; use `--sih-all-months` for the full SIH/SUS hospitalization year. `--uf-code` is inferred from `--uf` when omitted. Use `--uf BR` to orchestrate all 27 UFs: SINAN-TB Brasil is downloaded/read once, while SIM, SIH/SUS, CNES, IBGE Localidades, population denominators, and IBGE Malhas are handled by UF. MVP 1 CE/2023 uses 2022 IBGE Census resident population as the default denominator, so rates are explicitly caveated as 2023 events over 2022 Census population. `ingest` also caches simplified municipality GeoJSON from IBGE Malhas under `data/raw/public_sources/ibge_malhas/` for the dashboard choropleth map. `validate-sinan-mappings` writes a technical audit under `data/processed/mvp1/validation/`; it does not replace domain review against official SINAN-TB dictionaries and indicator handbooks. `compute-indicators` writes `indicator_validation_<scope>_<year>.json` in the same validation directory and records scope-aware `indicator_validation` source freshness; a failed status means mechanical invariants such as bounded proportions need review, while warning-only zero denominators document expected missingness and suppressed public values remain `null`. Legacy import history without scope metadata is preserved but excluded from scoped readiness until data is re-ingested. Manual CSV fallbacks are read from `data/raw/public_sources/manual/`.
 
-The product frontend at `/` and `/territorios` is a public aggregate territorial workbench with Portuguese default UI text, optional English via `?lang=en`, data readiness tiles, UF/year/comparison controls, municipality search, MapLibre municipality map/ranking selection sync, source freshness, and grouped territory detail reports. `uf=BR` shows a national municipality map using national percentiles; a single UF can switch between the existing intra-UF ranking (`comparison_scope=uf`) and national comparison (`comparison_scope=national`). The ranking is built from the same enriched map payload used by the choropleth, including `top_scenarios`, severity, priority score, and data status. The map does not use external tile providers and does not display patient-level, address-level, or operational alert locations. If the map panel is blank, first verify that `ingest` recorded a successful `ibge_malhas` run and that `/api/territorial/map?uf=CE&year=2023&comparison_scope=uf` has non-null geometries.
+The product frontend at `/` and `/territorios` is a responsive public aggregate
+territorial workbench with Portuguese default UI text and optional English via
+`?lang=en`. It exposes data readiness, UF/year/comparison controls,
+municipality search, synchronized MapLibre map/ranking/dossier selection,
+source freshness, and grouped territory reports. The map legend follows the
+selected layer, reports values and units, and distinguishes available,
+suppressed, and missing data. `uf=BR` shows a national municipality map using
+national percentiles; a single UF can switch between the existing intra-UF
+ranking (`comparison_scope=uf`) and national comparison
+(`comparison_scope=national`). The ranking is built from the same enriched map
+payload used by the choropleth, including `top_scenarios`, severity, priority
+score, and data status. The map does not use external tile providers and does
+not display patient-level, address-level, or operational alert locations. If
+the map panel is blank, first verify that `ingest` recorded a successful
+`ibge_malhas` run and that
+`/api/territorial/map?uf=CE&year=2023&comparison_scope=uf` has non-null
+geometries.
 
 Public submunicipal map context is optional and contextual only. `ingest` scans normalized GeoJSON files under `data/raw/public_sources/ibge_intramunicipal/`; each FeatureCollection feature must provide `territory_id`, `name`, `territory_type`, `parent_id`, `uf_code`, and `uf_sigla`, with Polygon or MultiPolygon geometry. Current bairro records use `territory_type=neighborhood_reference` and `parent_id=<municipality_id>`. These polygons are public geographic references for drill-down only: TB indicators, scenarios, ranking, reports, and prioritization remain municipality-level. Convert public IBGE or municipal GPKG/SHP/KML sources to this normalized GeoJSON contract before ingestion; the MVP does not add GeoPandas/Fiona/Shapely parsing.
 
@@ -83,7 +116,17 @@ python -m tbia build-operational-alerts --year 2023 --reference-date 2026-06-29
 python -m tbia serve
 ```
 
-The MVP 2 demo uses synthetic, pseudonymized local CSVs only. It rejects obvious identifiable columns in patient-level files and exposes operational alert queues at `/mvp2` plus `/api/mvp2/summary`, `/api/mvp2/alerts`, and `/api/mvp2/alerts/{alert_id}`. The MVP 2 dashboard keeps this synthetic/pseudonymized demo scope visible in the shared navigation shell and follows the same `lang=pt` / `lang=en` language switch. See `mvp2_municipal_contracts.md` for schemas and alert rules.
+The MVP 2 demo uses synthetic, pseudonymized local CSVs only and rejects
+obvious identifiable columns in patient-level files. The product queue is
+available at `/acompanhamento` and uses `/api/operations/summary`,
+`/api/operations/alerts`, and `/api/operations/alerts/{alert_id}`. It provides
+URL-backed type, severity, status, facility, and team filters; explicit overdue
+and high-severity markers; a sticky desktop dossier; and expandable mobile
+alert details. The synthetic/pseudonymized boundary remains visible in the
+shared product shell, with Portuguese and English through `lang=pt` or
+`lang=en`. The older `/api/mvp2/*` paths and the Jinja `/mvp2` route remain for
+backend compatibility. See `mvp2_municipal_contracts.md` for schemas and alert
+rules.
 
 ## Frontend Development
 
