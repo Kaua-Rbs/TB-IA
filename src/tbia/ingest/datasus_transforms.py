@@ -17,6 +17,8 @@ NEW_CASE_ENTRY_TYPES = frozenset({"1", "4", "6"})
 RETREATMENT_ENTRY_TYPES = frozenset({"2", "3"})
 OUTCOME_DENOMINATOR_CLOSURES = frozenset({"1", "2", "3", "4", "5", "10"})
 TREATMENT_INTERRUPTION_CLOSURES = frozenset({"2", "10"})
+TRM_TB_PERFORMED_RESULTS = frozenset({"1", "2", "3", "4"})
+TRM_TB_DETECTED_RESULTS = frozenset({"1", "2"})
 
 
 def build_datasus_municipality_map(territories: Iterable[Territory]) -> dict[str, str]:
@@ -126,7 +128,7 @@ def increment_new_pulmonary_metrics(metrics: dict[str, int], record: Record) -> 
     metrics["new_pulmonary_cases"] += 1
     if has_lab_confirmation(record):
         metrics["lab_confirmed_pulmonary_cases"] += 1
-    if record_text(record, "RIFAMPICIN"):
+    if record_text(record, "TEST_MOLEC") in TRM_TB_PERFORMED_RESULTS:
         metrics["trm_tb_cases"] += 1
 
 
@@ -234,7 +236,7 @@ def has_lab_confirmation(record: Record) -> bool:
     return (
         record_text(record, "BACILOSC_E") == "1"
         or record_text(record, "CULTURA_ES") == "1"
-        or record_text(record, "RIFAMPICIN") in {"1", "2"}
+        or record_text(record, "TEST_MOLEC") in TRM_TB_DETECTED_RESULTS
     )
 
 

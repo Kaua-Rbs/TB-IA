@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from tbia.domain.models import Territory
 from tbia.ingest.datasus_transforms import (
     build_datasus_municipality_map,
@@ -31,7 +33,8 @@ def test_transform_sinan_tb_records_builds_case_aggregates() -> None:
             "AGRAVAIDS": "2",
             "BACILOSC_E": "1",
             "CULTURA_ES": "4",
-            "RIFAMPICIN": "1",
+            "TEST_MOLEC": "1",
+            "RIFAMPICIN": "",
         },
         {
             "NU_ANO": "2023",
@@ -43,7 +46,8 @@ def test_transform_sinan_tb_records_builds_case_aggregates() -> None:
             "AGRAVAIDS": "1",
             "BACILOSC_E": "2",
             "CULTURA_ES": "2",
-            "RIFAMPICIN": "",
+            "TEST_MOLEC": "5",
+            "RIFAMPICIN": "2",
         },
         {
             "NU_ANO": "2022",
@@ -68,6 +72,43 @@ def test_transform_sinan_tb_records_builds_case_aggregates() -> None:
     assert aggregate.hiv_tested_cases == 1
     assert aggregate.tb_hiv_cases == 1
     assert aggregate.culture_retreated_cases == 1
+
+
+@pytest.mark.parametrize(
+    ("test_molec", "expected_use", "expected_confirmation"),
+    [
+        ("1", 1, 1),
+        ("2", 1, 1),
+        ("3", 1, 0),
+        ("4", 1, 0),
+        ("5", 0, 0),
+        ("9", 0, 0),
+        ("", 0, 0),
+    ],
+)
+def test_transform_sinan_uses_test_molec_for_trm_and_confirmation(
+    test_molec: str,
+    expected_use: int,
+    expected_confirmation: int,
+) -> None:
+    records = [
+        {
+            "NU_ANO": "2023",
+            "ID_MN_RESI": "230440",
+            "TRATAMENTO": "1",
+            "FORMA": "1",
+            "SITUA_ENCE": "1",
+            "BACILOSC_E": "2",
+            "CULTURA_ES": "4",
+            "TEST_MOLEC": test_molec,
+            "RIFAMPICIN": "1",
+        }
+    ]
+
+    aggregate = transform_sinan_tb_records(records, municipality_map(), year=2023)[0]
+
+    assert aggregate.trm_tb_cases == expected_use
+    assert aggregate.lab_confirmed_pulmonary_cases == expected_confirmation
 
 
 def test_transform_sinan_tb_records_restricts_hiv_and_outcomes_to_new_case_universe() -> None:

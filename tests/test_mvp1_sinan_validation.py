@@ -17,6 +17,7 @@ def test_build_sinan_mapping_report_counts_values_and_unmapped_codes() -> None:
             "AGRAVAIDS": "2",
             "BACILOSC_E": "1",
             "CULTURA_ES": "4",
+            "TEST_MOLEC": "1",
             "RIFAMPICIN": "",
         },
         {
@@ -29,6 +30,7 @@ def test_build_sinan_mapping_report_counts_values_and_unmapped_codes() -> None:
             "AGRAVAIDS": "1",
             "BACILOSC_E": "3",
             "CULTURA_ES": "2",
+            "TEST_MOLEC": "5",
             "RIFAMPICIN": "2",
         },
         {"NU_ANO": "2022", "ID_MN_RESI": "230440", "TRATAMENTO": "1"},
@@ -50,5 +52,10 @@ def test_build_sinan_mapping_report_counts_values_and_unmapped_codes() -> None:
         "1": 1,
         "9": 1,
     }
+    test_molec = next(field for field in report["fields"] if field["field"] == "TEST_MOLEC")
+    assert test_molec["mapped_codes"]["1"] == (
+        "counted as TRM-TB use and laboratory confirmation"
+    )
+    assert test_molec["mapped_codes"]["5"] == "not counted as TRM-TB use"
     rifampicin = next(field for field in report["fields"] if field["field"] == "RIFAMPICIN")
-    assert rifampicin["mapped_codes"]["<blank>"] == "not counted as TRM-TB use"
+    assert rifampicin["mapped_codes"]["<blank>"].startswith("audited only")

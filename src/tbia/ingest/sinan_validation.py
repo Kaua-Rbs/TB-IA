@@ -20,6 +20,7 @@ SINAN_VALIDATION_FIELDS = (
     "AGRAVAIDS",
     "BACILOSC_E",
     "CULTURA_ES",
+    "TEST_MOLEC",
     "RIFAMPICIN",
 )
 
@@ -71,10 +72,19 @@ CURRENT_MAPPING_EFFECTS: dict[str, dict[str, str]] = {
         "3": "not counted as laboratory confirmation",
         "4": "not counted as laboratory confirmation",
     },
-    "RIFAMPICIN": {
+    "TEST_MOLEC": {
         "1": "counted as TRM-TB use and laboratory confirmation",
         "2": "counted as TRM-TB use and laboratory confirmation",
+        "3": "counted as TRM-TB use only",
+        "4": "counted as TRM-TB use only",
+        "5": "not counted as TRM-TB use",
+        "9": "not counted as TRM-TB use",
         "": "not counted as TRM-TB use",
+    },
+    "RIFAMPICIN": {
+        "1": "audited only; does not determine TRM-TB use or laboratory confirmation",
+        "2": "audited only; does not determine TRM-TB use or laboratory confirmation",
+        "": "audited only; does not determine TRM-TB use or laboratory confirmation",
     },
 }
 
@@ -101,7 +111,14 @@ FIELD_CAVEATS: dict[str, str] = {
         "Current effects treat culture performed for retreatment separately from culture "
         "positivity."
     ),
-    "RIFAMPICIN": "Current effects use nonblank rifampicin testing as a TRM-TB use proxy.",
+    "TEST_MOLEC": (
+        "Current effects use the rapid molecular test result: detected, not detected, and "
+        "inconclusive results count as performed; only detected results confirm TB."
+    ),
+    "RIFAMPICIN": (
+        "This sparse field remains in the audit for traceability but no longer acts as a "
+        "proxy for rapid molecular test use or laboratory confirmation."
+    ),
 }
 
 
