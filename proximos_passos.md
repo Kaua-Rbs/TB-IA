@@ -17,6 +17,9 @@ entrega.
 - **Próxima**: primeira entrega de produto a ser planejada e implementada.
 - **Em andamento**: planejamento ou implementação ativa, com uma entrega
   verificável definida.
+- **Em validação**: implementação e gates técnicos concluídos, mas ainda depende
+  de revisão de domínio, governança ou fluxo com usuários para atender ao
+  critério de saída.
 - **Planejada**: possui ordem definida, mas depende das entregas anteriores.
 - **Condicional**: depende de fonte autorizada, qualidade mínima ou decisão de
   governança.
@@ -53,6 +56,11 @@ Uma nova regra somente pode alterar o ranking quando:
 1. Testes cobrirem cálculo, cenário, persistência e resposta da API afetada.
 1. A interface continuar distinguindo dado disponível, ausente e suprimido.
 
+Regras marcadas como `pending_domain_review` podem participar exclusivamente da
+demonstração local para produzir evidência de validação, desde que permaneçam
+visivelmente provisórias. Isso não equivale a aprovação para uso em produção;
+o projeto ainda não possui uma implantação de produção selecionada.
+
 Indicadores correlacionados não devem acumular peso indefinidamente. Cada nova
 regra deve declarar se representa uma dimensão independente, um detalhamento ou
 um componente de cenário composto.
@@ -61,7 +69,7 @@ um componente de cenário composto.
 
 | Ordem | ID | Capacidade | Estado |
 | --- | --- | --- | --- |
-| 1 | CAP-01 | Priorização por testagem de HIV, TRM-TB e cultura | **Em andamento** |
+| 1 | CAP-01 | Priorização por testagem de HIV, TRM-TB e cultura | **Em validação** |
 | 2 | CAP-02 | Tendências históricas e incidência crescente | **Planejada** |
 | 3 | CAP-03 | Investigação de contatos com dados públicos | **Planejada** |
 | 4 | CAP-04 | Vigilância de resistência em camadas | **Planejada** |
@@ -74,10 +82,24 @@ um componente de cenário composto.
 priorização transparentes, sem contar a mesma deficiência diagnóstica várias
 vezes no escore.
 
-**Abordagem:** validar mapeamentos e denominadores; decidir, com revisão de
-domínio, entre cenários separados e dimensões compostas; calibrar limiares e
-limitar a contribuição conjunta de indicadores correlacionados. Valores
-ausentes ou suprimidos nunca devem ser classificados como baixo desempenho.
+**Abordagem implementada:** três cenários comparativos separados usam p25 e
+severidade moderada. HIV compartilha a dimensão de integração TB-HIV, TRM-TB
+compartilha acesso diagnóstico e cultura compartilha vigilância de resistência,
+limitando a contribuição conjunta de sinais correlacionados. A avaliação exige
+pelo menos 10 valores disponíveis e cobertura de 5% dos municípios canônicos do
+escopo. Valores ausentes ou suprimidos nunca são classificados como baixo
+desempenho.
+
+**Estado atual:** implementação, aceitação técnica, persistência, API,
+localização e testes automatizados concluídos. Na reconstrução CE/2023 com 184
+municípios, testagem de HIV ficou pronta com 87 valores disponíveis e TRM-TB com
+19; cultura permaneceu com comparação insuficiente, com 6 valores disponíveis.
+As duas regras prontas geraram cenários marcados como
+`pending_domain_review`; cultura não gerou limiar nem cenário. Os gates
+`make check`, `make coverage`, `make frontend-check` e `make demo`
+passaram. Permanecem pendentes a revisão epidemiológica dos limiares,
+severidades e estratégias e o teste de fluxo com usuários de VAL-02. Até essa
+aprovação, CAP-01 não atende ao critério de saída.
 
 **Critério de saída:** regras aprovadas e versionadas, casos de aceitação
 oficiais, testes de regressão do ranking e explicações/recomendações coerentes na
@@ -160,7 +182,7 @@ conclusão ou a apresentação responsável do produto.
 
 | ID | Entrega | Estado | Relação com o escopo |
 | --- | --- | --- | --- |
-| VAL-01 | Amostra oficial de aceitação CE/2023 | Pendente | Validação dos indicadores e regras |
+| VAL-01 | Amostra oficial de aceitação CE/2023 | Em validação | Validação dos indicadores e regras |
 | VAL-02 | Revisão de domínio e teste de fluxo com usuários | Pendente | Testes funcionais e validação do fluxo |
 | DEMO-01 | Demonstração reproduzível sem download ao vivo | Pendente | Dados de demonstração e ensaio |
 | GOV-01 | Revisão formal de LGPD, limites clínicos e governança | Pendente | Segurança e governança |
@@ -172,15 +194,17 @@ para qualquer integração municipal real de CAP-04 ou CAP-05.
 
 ## Próximo recorte
 
-O próximo trabalho deve começar por CAP-01 e ser dividido em avanços atômicos:
+CAP-01 permanece em validação; não há outro recorte de implementação ativo.
+O trabalho imediato é de validação e deve ser registrado em avanços atômicos:
 
-1. Definir a amostra de aceitação e a política de contribuição dos três
-   indicadores para o ranking.
-1. Implementar e testar as regras aprovadas no domínio e na persistência.
-1. Expor explicações e recomendações pelas APIs existentes e atualizar a
-   documentação.
-1. Marcar CAP-01 como concluída somente após os gates de qualidade e a revisão de
-   domínio aplicável.
+1. Submeter a amostra CE/2023, os denominadores e os gates de cobertura à revisão
+   epidemiológica.
+1. Validar com usuários a leitura das explicações, da prontidão e das respostas
+   recomendadas.
+1. Registrar decisões sobre limiar, severidade e estratégia; se aprovadas,
+   versionar as regras e substituir o estado provisório.
+1. Marcar CAP-01 como concluída somente após VAL-01 e a revisão aplicável de
+   VAL-02. CAP-02 passa a ser a próxima implementação depois dessa decisão.
 
 Autenticação de produção, dados reais em nível de pessoa, automação clínica e
 modelos preditivos permanecem fora do ciclo atual.
