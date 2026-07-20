@@ -733,6 +733,9 @@ Future municipal deployment requirements:
 The following decisions remain open for validation or later deployment;
 implemented choices are recorded explicitly:
 
+The current execution order and completion status for these decisions are
+maintained in `proximos_passos.md`.
+
 1. Which Boletim 2026 indicators are mandatory for the first public-data release, and which should
    remain backlog items?
 1. MVP 1 now supports direct DATASUS file transfer into local DBC samples, DBF/DBC ingestion, and manual CSV fallback. For CE/2023, the default denominator is IBGE Census 2022 resident population from SIDRA table 4714; rates must be labeled as 2023 events over 2022 Census population. Remaining decision: which public-source extracts become the validated acceptance dataset.

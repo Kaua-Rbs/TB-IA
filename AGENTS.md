@@ -10,6 +10,7 @@ The backend is implemented in Python. The current application includes public-da
 
 - `descricao_do_projeto.md`: product vision, public health scope, data assumptions, LGPD boundaries, and MVP constraints.
 - `frentes_de_desenvolvimento.md`: workstreams for scope, users, evidence, data, rules, product, architecture, governance, and validation.
+- `proximos_passos.md`: canonical prioritized roadmap, capability statuses, dependencies, and remaining Biochallenge deliverables.
 - `referencias.md`: related systems, papers, and design references for public health surveillance and TB decision support.
 - `especificacao_tecnica_do_sistema.md`: engineering-oriented specification for MVP scope, data contracts, architecture, workflows, governance, and validation.
 - `mvp2_municipal_contracts.md`: synthetic municipal CSV contracts, privacy rules, and operational alert behavior.
@@ -146,6 +147,7 @@ A task is complete only when:
 - Do not weaken tests, lint rules, type checks, or health-safety language just to make checks pass.
 - Do not refactor unrelated code just because it is imperfect.
 - Do not expand beyond the selected MVP stack, add real patient-level data, or introduce AI models without a task that asks for it.
+- Treat `proximos_passos.md` as the canonical implementation order. Update its status and review date in the same change that starts or completes a listed capability, and document the reason for any reprioritization.
 - For health-domain behavior, keep recommendations transparent, auditable, and subject to human validation.
 - Explain skipped checks clearly.
 - Summarize changed files and commands run in the final response.

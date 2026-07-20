@@ -36,6 +36,13 @@ make check
 
 Use Conventional Commit subjects for all commits, such as `feat(mvp1): add map validation`, `fix(api): return 404 for missing territories`, or `docs: update setup notes`. Keep the subject concise and use a scope when it clarifies the affected area.
 
+## Roadmap Maintenance
+
+`proximos_passos.md` is the canonical prioritized roadmap. Update its status and
+last-review date in the same commit that starts or completes a listed
+capability. Do not reorder capabilities or mark one complete without recording
+the reason and satisfying its documented exit criteria.
+
 ## Additional Quality Commands
 
 ```bash

@@ -40,4 +40,6 @@ Define limites do sistema: não diagnosticar, não prescrever, não expor dados 
 
 Define como testar se a proposta faz sentido com profissionais reais. Pode incluir entrevistas, teste de usabilidade e revisão das regras por alguém da saúde.
 
-Esse documento será utilizado para referência e futuramente indexação dos conteúdos do projeto.
+Este documento organiza as frentes permanentes do projeto. A ordem atual de
+implementação, os estados das capacidades e os critérios de saída são mantidos
+em `proximos_passos.md`.

@@ -11,6 +11,7 @@ The backend is implemented in Python. The active stack includes public-data inge
 
 - `descricao_do_projeto.md`: product vision, scope, MVP assumptions, data sources, and LGPD constraints.
 - `frentes_de_desenvolvimento.md`: workstreams for product, evidence, data, rules, interface, architecture, and validation.
+- `proximos_passos.md`: canonical prioritized roadmap, capability statuses, dependencies, and Biochallenge completion work.
 - `referencias.md`: related systems, papers, and design references for public health surveillance and TB decision support.
 - `especificacao_tecnica_do_sistema.md`: engineering-oriented specification for MVP scope, data contracts, architecture, workflows, governance, and validation.
 - `mvp2_municipal_contracts.md`: synthetic municipal CSV contracts, privacy rules, alert rules, and demo workflow for the MVP 2 starter slice.
