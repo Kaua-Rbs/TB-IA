@@ -283,6 +283,7 @@ class ScenarioRule:
     direction: IndicatorDirection
     explanation_template: str
     strategy_ids: tuple[str, ...]
+    ranking_dimension: str = ""
     minimum_count: int = 5
 
 
@@ -299,6 +300,7 @@ class TerritoryScenario:
     indicator_value: float
     threshold_value: float
     comparison_scope: str = "uf"
+    ranking_dimension: str = ""
 
 
 @dataclass(frozen=True)
@@ -324,3 +326,4 @@ class Recommendation:
     priority: ScenarioSeverity
     explanation: str
     comparison_scope: str = "uf"
+    trigger_rule_ids: tuple[str, ...] = ()

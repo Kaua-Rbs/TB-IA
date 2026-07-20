@@ -2,6 +2,7 @@ import { normalizeLanguage, type Language } from "./i18n";
 
 export interface ScenarioRow {
   rule_id: string;
+  ranking_dimension?: string;
   comparison_scope?: string;
   indicator_id: string;
   severity: string;
@@ -26,6 +27,7 @@ export interface MunicipalityProperties {
   uf?: string;
   priority_score: number;
   scenario_count: number;
+  ranking_dimension_count?: number;
   top_severity: string | null;
   top_explanations: string[];
   top_scenarios: ScenarioRow[];
@@ -79,6 +81,7 @@ export interface RankingRow {
   territory_name: string;
   score: number;
   scenario_count: number;
+  ranking_dimension_count?: number;
   top_severity: string | null;
   top_explanations: string[];
   top_scenarios: ScenarioRow[];
@@ -135,6 +138,9 @@ export interface ReportIndicator extends IndicatorValue {
 }
 
 export interface RecommendationRow {
+  strategy_id?: string;
+  rule_id?: string;
+  trigger_rule_ids?: string[];
   recommendation_id?: string;
   title?: string;
   action?: string;

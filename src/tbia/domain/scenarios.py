@@ -24,6 +24,7 @@ DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
             "TB incidence is at or above the p75 threshold for the selected UF/year."
         ),
         strategy_ids=("active_case_finding", "contact_investigation"),
+        ranking_dimension="high_incidence",
     ),
     ScenarioRule(
         rule_id="high_mortality",
@@ -37,6 +38,7 @@ DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
             "TB mortality is at or above the p75 threshold for the selected UF/year."
         ),
         strategy_ids=("diagnostic_flow_review", "care_pathway_review"),
+        ranking_dimension="high_mortality",
     ),
     ScenarioRule(
         rule_id="high_treatment_interruption",
@@ -48,6 +50,7 @@ DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
         direction=IndicatorDirection.HIGH_BAD,
         explanation_template="Treatment interruption is at or above the p75 threshold.",
         strategy_ids=("adherence_support",),
+        ranking_dimension="high_treatment_interruption",
     ),
     ScenarioRule(
         rule_id="low_cure",
@@ -59,6 +62,7 @@ DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
         direction=IndicatorDirection.LOW_BAD,
         explanation_template="Cure proportion is at or below the p25 threshold.",
         strategy_ids=("adherence_support", "care_pathway_review"),
+        ranking_dimension="low_cure",
     ),
     ScenarioRule(
         rule_id="high_retreatment",
@@ -70,6 +74,7 @@ DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
         direction=IndicatorDirection.HIGH_BAD,
         explanation_template="Retreatment proportion is at or above the p75 threshold.",
         strategy_ids=("resistance_surveillance_review",),
+        ranking_dimension="resistance_surveillance",
     ),
     ScenarioRule(
         rule_id="low_lab_confirmation",
@@ -81,6 +86,7 @@ DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
         direction=IndicatorDirection.LOW_BAD,
         explanation_template="Laboratory confirmation is at or below the p25 threshold.",
         strategy_ids=("diagnostic_flow_review",),
+        ranking_dimension="diagnostic_access",
     ),
     ScenarioRule(
         rule_id="high_tb_hiv_burden",
@@ -92,6 +98,7 @@ DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
         direction=IndicatorDirection.HIGH_BAD,
         explanation_template="TB-HIV burden is at or above the p75 threshold.",
         strategy_ids=("tb_hiv_integration",),
+        ranking_dimension="tb_hiv_integration",
     ),
     ScenarioRule(
         rule_id="high_hospitalization_burden",
@@ -103,6 +110,7 @@ DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
         direction=IndicatorDirection.HIGH_BAD,
         explanation_template="TB hospitalization burden is at or above the p75 threshold.",
         strategy_ids=("care_pathway_review",),
+        ranking_dimension="high_hospitalization_burden",
     ),
 )
 
@@ -145,24 +153,44 @@ def build_territory_scenarios(
                     indicator_value=value.value,
                     threshold_value=threshold,
                     comparison_scope=comparison_scope,
+                    ranking_dimension=rule.ranking_dimension or rule.rule_id,
                 )
             )
 
     return sorted(scenarios, key=lambda item: (-item.score, item.territory_id, item.rule_id))
 
 
+def summarize_dimension_scores(
+    dimension_scores: Iterable[tuple[str, float]],
+) -> tuple[float, int]:
+    maximum_by_dimension: dict[str, float] = {}
+    for dimension, score in dimension_scores:
+        current = maximum_by_dimension.get(dimension)
+        if current is None or score > current:
+            maximum_by_dimension[dimension] = score
+    return round(sum(maximum_by_dimension.values()), 4), len(maximum_by_dimension)
+
+
 def build_priority_ranking(
     scenarios: Iterable[TerritoryScenario],
 ) -> list[tuple[str, int, float, int]]:
-    totals: dict[tuple[str, int], list[float]] = defaultdict(list)
+    totals: dict[tuple[str, int], list[TerritoryScenario]] = defaultdict(list)
     for scenario in scenarios:
-        totals[(scenario.territory_id, scenario.year)].append(scenario.score)
+        totals[(scenario.territory_id, scenario.year)].append(scenario)
 
-    ranking = [
-        (territory_id, year, round(sum(scores), 4), len(scores))
-        for (territory_id, year), scores in totals.items()
+    ranking = []
+    for (territory_id, year), territory_scenarios in totals.items():
+        score, dimension_count = summarize_dimension_scores(
+            (scenario.ranking_dimension or scenario.rule_id, scenario.score)
+            for scenario in territory_scenarios
+        )
+        ranking.append((territory_id, year, score, len(territory_scenarios), dimension_count))
+
+    ranked = sorted(ranking, key=lambda item: (-item[2], -item[4], item[0]))
+    return [
+        (territory_id, year, score, scenario_count)
+        for territory_id, year, score, scenario_count, _dimension_count in ranked
     ]
-    return sorted(ranking, key=lambda item: (-item[2], -item[3], item[0]))
 
 
 def threshold_for_rule(

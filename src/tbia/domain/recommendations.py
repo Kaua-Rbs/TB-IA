@@ -97,35 +97,45 @@ STRATEGIES: tuple[Strategy, ...] = (
 
 def build_recommendations(scenarios: Iterable[TerritoryScenario]) -> list[Recommendation]:
     strategy_ids_by_rule = {rule.rule_id: rule.strategy_ids for rule in DEFAULT_SCENARIO_RULES}
-    recommendations: list[Recommendation] = []
-    seen: set[tuple[str, int, str, str, str]] = set()
+    grouped: dict[tuple[str, int, str, str], list[TerritoryScenario]] = {}
 
     for scenario in scenarios:
         for strategy_id in strategy_ids_by_rule.get(scenario.rule_id, ()):
             key = (
                 scenario.territory_id,
                 scenario.year,
-                strategy_id,
-                scenario.rule_id,
                 scenario.comparison_scope,
+                strategy_id,
             )
-            if key in seen:
-                continue
-            seen.add(key)
-            recommendations.append(
-                Recommendation(
-                    territory_id=scenario.territory_id,
-                    year=scenario.year,
-                    strategy_id=strategy_id,
-                    rule_id=scenario.rule_id,
-                    priority=scenario.severity,
-                    explanation=(
-                        f"Recommended because {scenario.rule_id} was triggered. "
-                        "This is decision support and requires professional review."
-                    ),
-                    comparison_scope=scenario.comparison_scope,
-                )
+            grouped.setdefault(key, []).append(scenario)
+
+    recommendations: list[Recommendation] = []
+    for (territory_id, year, comparison_scope, strategy_id), triggers in grouped.items():
+        ordered_triggers = sorted(
+            triggers,
+            key=lambda item: (
+                -item.score,
+                priority_sort_value(item.severity),
+                item.rule_id,
+            ),
+        )
+        primary = ordered_triggers[0]
+        trigger_rule_ids = tuple(dict.fromkeys(item.rule_id for item in ordered_triggers))
+        recommendations.append(
+            Recommendation(
+                territory_id=territory_id,
+                year=year,
+                strategy_id=strategy_id,
+                rule_id=primary.rule_id,
+                priority=primary.severity,
+                explanation=(
+                    f"Recommended because {', '.join(trigger_rule_ids)} triggered this strategy. "
+                    "This is decision support and requires professional review."
+                ),
+                comparison_scope=comparison_scope,
+                trigger_rule_ids=trigger_rule_ids,
             )
+        )
 
     return sorted(
         recommendations,

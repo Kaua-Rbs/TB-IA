@@ -379,19 +379,27 @@ high_bad score_multiplier = max(1.0, value / threshold)
 low_bad score_multiplier = max(1.0, threshold / max(value, 0.01))
 ```
 
-The municipality priority score is the sum of all triggered scenario scores:
+Each rule declares a ranking dimension. All triggered scenarios remain visible for audit, but
+correlated scenarios cannot accumulate weight indefinitely: only the strongest score in each
+dimension contributes to the municipality score.
 
 ```text
-municipality_score = sum(triggered scenario_score)
+dimension_score = max(triggered scenario_score in dimension)
+municipality_score = sum(dimension_score)
 ```
 
-The dashboard ranking sorts municipalities by:
+The dashboard reports both triggered scenario count and contributing dimension count, and sorts
+municipalities by:
 
 ```text
 municipality_score descending
-triggered scenario count descending
+contributing dimension count descending
 territory name ascending
 ```
+
+Triggered scenario count is display-only and does not break ranking ties. Recommendations that map
+to the same strategy are grouped, while their contributing rule identifiers remain available for
+audit.
 
 This formula was chosen because it satisfies the first MVP engineering criteria: it is deterministic,
 easy to explain, uses only public aggregate indicators, avoids opaque AI, and gives stronger weight

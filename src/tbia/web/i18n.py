@@ -1107,10 +1107,19 @@ def localize_recommendation_row(row: Mapping[str, Any], language: str) -> dict[s
     localized = dict(row)
     if language == "pt":
         rule_id = str(row.get("rule_id", ""))
-        rule_label = RULE_LABELS_PT.get(rule_id, rule_id.replace("_", " "))
+        raw_rule_ids = row.get("trigger_rule_ids")
+        rule_ids = (
+            [str(item) for item in raw_rule_ids]
+            if isinstance(raw_rule_ids, list) and raw_rule_ids
+            else [rule_id]
+        )
+        rule_labels = [RULE_LABELS_PT.get(item, item.replace("_", " ")) for item in rule_ids]
+        if len(rule_labels) == 1:
+            reason = f"a regra de {rule_labels[0]} foi acionada"
+        else:
+            reason = f"as regras de {', '.join(rule_labels)} foram acionadas"
         localized["explanation"] = (
-            f"Recomendado porque a regra de {rule_label} foi acionada. "
-            "Isto é apoio à decisão e requer revisão profissional."
+            f"Recomendado porque {reason}. Isto é apoio à decisão e requer revisão profissional."
         )
     return localized
 

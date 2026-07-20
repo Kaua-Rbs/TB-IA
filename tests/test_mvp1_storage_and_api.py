@@ -14,7 +14,9 @@ from tbia.domain.models import (
     IndicatorValue,
     MortalityAggregate,
     PopulationDenominator,
+    ScenarioSeverity,
     Territory,
+    TerritoryScenario,
 )
 from tbia.geography import UF_SIGLAS
 from tbia.pipeline import (
@@ -40,6 +42,7 @@ from tbia.storage import (
     save_mortalities,
     save_populations,
     save_territories,
+    save_territory_scenarios,
 )
 from tbia.web import app as web_app
 from tbia.web.app import create_app
@@ -106,6 +109,75 @@ def test_storage_pipeline_persists_dashboard_context(tmp_path: Path) -> None:
         territories = load_territories(session, "CE")
     engine.dispose()
     assert all(territory.geometry is not None for territory in territories)
+
+
+def test_dimension_scoring_is_consistent_in_context_map_and_report(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'dimensions.db'}"
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    scenarios = [
+        TerritoryScenario(
+            territory_id="2304400",
+            year=2023,
+            rule_id="diagnostic_signal_a",
+            scenario_id="diagnostic_signal_a",
+            severity=ScenarioSeverity.HIGH,
+            score=5,
+            explanation="Signal A",
+            indicator_id="indicator_a",
+            indicator_value=20,
+            threshold_value=30,
+            ranking_dimension="diagnostic_access",
+        ),
+        TerritoryScenario(
+            territory_id="2304400",
+            year=2023,
+            rule_id="diagnostic_signal_b",
+            scenario_id="diagnostic_signal_b",
+            severity=ScenarioSeverity.MODERATE,
+            score=3,
+            explanation="Signal B",
+            indicator_id="indicator_b",
+            indicator_value=25,
+            threshold_value=35,
+            ranking_dimension="diagnostic_access",
+        ),
+    ]
+    with session_factory() as session:
+        save_territories(
+            session,
+            [Territory("2304400", "Fortaleza", "municipality", "23", "CE")],
+        )
+        save_territory_scenarios(
+            session,
+            scenarios,
+            2023,
+            replace_territory_ids={"2304400"},
+        )
+        session.commit()
+        context = dashboard_context(session, 2023, "CE")
+    engine.dispose()
+
+    ranking = context["ranking"][0]
+    assert ranking["score"] == 5
+    assert ranking["scenario_count"] == 2
+    assert ranking["ranking_dimension_count"] == 1
+    assert {row["ranking_dimension"] for row in ranking["top_scenarios"]} == {"diagnostic_access"}
+
+    with TestClient(create_app(database_url)) as client:
+        map_response = client.get("/api/territorial/map?uf=CE&year=2023")
+        report_response = client.get("/api/territories/2304400/report?year=2023")
+
+    assert map_response.status_code == 200
+    properties = map_response.json()["features"][0]["properties"]
+    assert properties["priority_score"] == 5
+    assert properties["scenario_count"] == 2
+    assert properties["ranking_dimension_count"] == 1
+    assert report_response.status_code == 200
+    assert {row["ranking_dimension"] for row in report_response.json()["scenarios"]} == {
+        "diagnostic_access"
+    }
 
 
 def test_product_readiness_is_localized_from_structured_fields(tmp_path: Path) -> None:
@@ -396,6 +468,106 @@ def test_initialize_database_migrates_legacy_import_run_scope_columns(tmp_path: 
     assert {"year", "geographic_scope", "loaded_months"} <= column_names
     assert "ix_import_runs_source_year_scope" in index_names
     assert tuple(legacy_row) == (None, None, None)
+
+
+def test_initialize_database_migrates_legacy_scenario_metadata(tmp_path: Path) -> None:
+    engine = create_engine_for_url(f"sqlite:///{tmp_path / 'legacy-scenarios.db'}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE TABLE scenario_rules ("
+                "rule_id VARCHAR(120) PRIMARY KEY, "
+                "name VARCHAR(200) NOT NULL, "
+                "indicator_id VARCHAR(120) NOT NULL, "
+                "threshold_method VARCHAR(80) NOT NULL, "
+                "comparison_group VARCHAR(120) NOT NULL, "
+                "severity VARCHAR(40) NOT NULL, "
+                "direction VARCHAR(40) NOT NULL, "
+                "explanation_template TEXT NOT NULL, "
+                "strategy_ids JSON NOT NULL, "
+                "minimum_count INTEGER NOT NULL"
+                ")"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE TABLE territory_scenarios ("
+                "territory_id VARCHAR(20) NOT NULL, "
+                "year INTEGER NOT NULL, "
+                "comparison_scope VARCHAR(20) NOT NULL, "
+                "rule_id VARCHAR(120) NOT NULL, "
+                "scenario_id VARCHAR(120) NOT NULL, "
+                "severity VARCHAR(40) NOT NULL, "
+                "score FLOAT NOT NULL, "
+                "explanation TEXT NOT NULL, "
+                "indicator_id VARCHAR(120) NOT NULL, "
+                "indicator_value FLOAT NOT NULL, "
+                "threshold_value FLOAT NOT NULL, "
+                "PRIMARY KEY (territory_id, year, comparison_scope, rule_id)"
+                ")"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE TABLE recommendations ("
+                "territory_id VARCHAR(20) NOT NULL, "
+                "year INTEGER NOT NULL, "
+                "comparison_scope VARCHAR(20) NOT NULL, "
+                "strategy_id VARCHAR(120) NOT NULL, "
+                "rule_id VARCHAR(120) NOT NULL, "
+                "priority VARCHAR(40) NOT NULL, "
+                "explanation TEXT NOT NULL, "
+                "PRIMARY KEY (territory_id, year, comparison_scope, strategy_id, rule_id)"
+                ")"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO scenario_rules VALUES ("
+                "'high_incidence', 'High incidence', 'tb_incidence_per_100k', "
+                "'p75', 'selected_uf_year', 'high', 'high_bad', "
+                "'fixture', '[]', 5)"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO territory_scenarios VALUES ("
+                "'2304400', 2023, 'uf', 'high_incidence', 'high_incidence', "
+                "'high', 3.0, 'fixture', 'tb_incidence_per_100k', 90.0, 80.0)"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO recommendations VALUES ("
+                "'2304400', 2023, 'uf', 'active_case_finding', "
+                "'high_incidence', 'high', 'fixture')"
+            )
+        )
+
+    initialize_database(engine)
+
+    inspector = inspect(engine)
+    rule_columns = {item["name"] for item in inspector.get_columns("scenario_rules")}
+    scenario_columns = {item["name"] for item in inspector.get_columns("territory_scenarios")}
+    recommendation_columns = {item["name"] for item in inspector.get_columns("recommendations")}
+    with engine.connect() as connection:
+        rule_dimension = connection.execute(
+            text("SELECT ranking_dimension FROM scenario_rules")
+        ).scalar_one()
+        scenario_dimension = connection.execute(
+            text("SELECT ranking_dimension FROM territory_scenarios")
+        ).scalar_one()
+        trigger_rule_ids = connection.execute(
+            text("SELECT trigger_rule_ids FROM recommendations")
+        ).scalar_one()
+    engine.dispose()
+
+    assert "ranking_dimension" in rule_columns
+    assert "ranking_dimension" in scenario_columns
+    assert "trigger_rule_ids" in recommendation_columns
+    assert rule_dimension == "high_incidence"
+    assert scenario_dimension == "high_incidence"
+    assert trigger_rule_ids == '["high_incidence"]'
 
 
 def test_national_and_uf_scenario_scopes_coexist(tmp_path: Path) -> None:

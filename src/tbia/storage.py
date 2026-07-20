@@ -52,6 +52,7 @@ from tbia.domain.models import (
     Territory,
     TerritoryScenario,
 )
+from tbia.domain.scenarios import summarize_dimension_scores
 from tbia.geography import BRAZIL_SCOPE, normalize_geographic_scope, ufs_for_scope
 
 
@@ -333,6 +334,7 @@ class ScenarioRuleRecord(Base):
     explanation_template: Mapped[str] = mapped_column(Text)
     strategy_ids: Mapped[list[str]] = mapped_column(JSON)
     minimum_count: Mapped[int] = mapped_column(Integer)
+    ranking_dimension: Mapped[str] = mapped_column(String(120), server_default="")
 
 
 class TerritoryScenarioRecord(Base):
@@ -351,6 +353,7 @@ class TerritoryScenarioRecord(Base):
     indicator_id: Mapped[str] = mapped_column(String(120))
     indicator_value: Mapped[float] = mapped_column(Float)
     threshold_value: Mapped[float] = mapped_column(Float)
+    ranking_dimension: Mapped[str] = mapped_column(String(120), server_default="")
 
 
 class StrategyRecord(Base):
@@ -380,6 +383,7 @@ class RecommendationRecord(Base):
     rule_id: Mapped[str] = mapped_column(String(120), primary_key=True)
     priority: Mapped[str] = mapped_column(String(40))
     explanation: Mapped[str] = mapped_column(Text)
+    trigger_rule_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
 
 
 def create_engine_for_url(database_url: str) -> Engine:
@@ -394,6 +398,7 @@ def initialize_database(engine: Engine) -> None:
     Base.metadata.create_all(engine)
     migrate_import_run_scope_columns(engine)
     migrate_comparison_scope_tables(engine)
+    migrate_scenario_metadata_columns(engine)
 
 
 def migrate_import_run_scope_columns(engine: Engine) -> None:
@@ -452,6 +457,49 @@ def migrate_comparison_scope_tables(engine: Engine) -> None:
             "explanation",
         ),
     )
+
+
+def migrate_scenario_metadata_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    rule_columns = {
+        column["name"] for column in inspector.get_columns(ScenarioRuleRecord.__tablename__)
+    }
+    scenario_columns = {
+        column["name"] for column in inspector.get_columns(TerritoryScenarioRecord.__tablename__)
+    }
+    recommendation_columns = {
+        column["name"] for column in inspector.get_columns(RecommendationRecord.__tablename__)
+    }
+
+    with engine.begin() as connection:
+        if "ranking_dimension" not in rule_columns:
+            connection.execute(
+                text("ALTER TABLE scenario_rules ADD COLUMN ranking_dimension VARCHAR(120)")
+            )
+        if "ranking_dimension" not in scenario_columns:
+            connection.execute(
+                text("ALTER TABLE territory_scenarios ADD COLUMN ranking_dimension VARCHAR(120)")
+            )
+        if "trigger_rule_ids" not in recommendation_columns:
+            connection.execute(text("ALTER TABLE recommendations ADD COLUMN trigger_rule_ids JSON"))
+        connection.execute(
+            text(
+                "UPDATE scenario_rules SET ranking_dimension = rule_id "
+                "WHERE ranking_dimension IS NULL OR ranking_dimension = ''"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE territory_scenarios SET ranking_dimension = rule_id "
+                "WHERE ranking_dimension IS NULL OR ranking_dimension = ''"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE recommendations SET trigger_rule_ids = json_array(rule_id) "
+                "WHERE trigger_rule_ids IS NULL"
+            )
+        )
 
 
 def migrate_comparison_scope_table(
@@ -891,6 +939,7 @@ def save_scenario_rules(session: Session, rules: Iterable[ScenarioRule]) -> None
                 explanation_template=rule.explanation_template,
                 strategy_ids=list(rule.strategy_ids),
                 minimum_count=rule.minimum_count,
+                ranking_dimension=rule.ranking_dimension or rule.rule_id,
             )
         )
 
@@ -926,6 +975,7 @@ def save_territory_scenarios(
                 indicator_id=scenario.indicator_id,
                 indicator_value=scenario.indicator_value,
                 threshold_value=scenario.threshold_value,
+                ranking_dimension=scenario.ranking_dimension or scenario.rule_id,
             )
         )
 
@@ -975,6 +1025,7 @@ def save_recommendations(
                 rule_id=recommendation.rule_id,
                 priority=recommendation.priority.value,
                 explanation=recommendation.explanation,
+                trigger_rule_ids=list(recommendation.trigger_rule_ids or (recommendation.rule_id,)),
             )
         )
 
@@ -1095,6 +1146,7 @@ def load_territory_scenarios(
             indicator_value=record.indicator_value,
             threshold_value=record.threshold_value,
             comparison_scope=record.comparison_scope,
+            ranking_dimension=record.ranking_dimension or record.rule_id,
         )
         for record in records
     ]
@@ -1731,28 +1783,38 @@ def ranking_rows(
                 "territory_name": territory.name,
                 "score": 0.0,
                 "scenario_count": 0,
+                "ranking_dimension_count": 0,
                 "top_severity": None,
-                "scored_scenarios": [],
+                "scenario_records": [],
                 "top_explanations": [],
                 "top_scenarios": [],
             },
         )
-        row["score"] = round(float(row["score"]) + scenario.score, 4)
         row["scenario_count"] = int(row["scenario_count"]) + 1
         row["top_severity"] = highest_severity(
             cast(str | None, row["top_severity"]), scenario.severity
         )
-        row["scored_scenarios"].append(scenario_api_row(scenario))
+        row["scenario_records"].append(scenario)
 
     for row in totals.values():
-        top_scenarios = top_scenario_rows(cast(list[dict[str, Any]], row["scored_scenarios"]))
+        records = cast(list[TerritoryScenarioRecord], row["scenario_records"])
+        score, dimension_count = summarize_dimension_scores(
+            (record.ranking_dimension or record.rule_id, record.score) for record in records
+        )
+        row["score"] = score
+        row["ranking_dimension_count"] = dimension_count
+        top_scenarios = top_scenario_rows([scenario_api_row(record) for record in records])
         row["top_scenarios"] = top_scenarios
         row["top_explanations"] = [scenario["explanation"] for scenario in top_scenarios]
-        del row["scored_scenarios"]
+        del row["scenario_records"]
 
     return sorted(
         totals.values(),
-        key=lambda row: (-float(row["score"]), -int(row["scenario_count"]), row["territory_name"]),
+        key=lambda row: (
+            -float(row["score"]),
+            -int(row["ranking_dimension_count"]),
+            row["territory_name"],
+        ),
     )
 
 
@@ -1799,6 +1861,7 @@ def territory_report(
         {
             "strategy_id": record.strategy_id,
             "rule_id": record.rule_id,
+            "trigger_rule_ids": record.trigger_rule_ids or [record.rule_id],
             "priority": record.priority,
             "explanation": record.explanation,
             "comparison_scope": record.comparison_scope,
@@ -1936,6 +1999,7 @@ def map_municipality_feature(
             "uf": territory.uf_sigla,
             "priority_score": scenario_summary["priority_score"],
             "scenario_count": scenario_summary["scenario_count"],
+            "ranking_dimension_count": scenario_summary["ranking_dimension_count"],
             "top_severity": scenario_summary["top_severity"],
             "top_explanations": scenario_summary["top_explanations"],
             "top_scenarios": scenario_summary["top_scenarios"],
@@ -2213,18 +2277,27 @@ def map_scenario_summary_by_territory(
         if record.territory_id not in territory_ids:
             continue
         summary = summaries.setdefault(record.territory_id, empty_map_scenario_summary())
-        summary["priority_score"] = round(float(summary["priority_score"]) + record.score, 4)
         summary["scenario_count"] = int(summary["scenario_count"]) + 1
         summary["top_severity"] = highest_severity(
             cast(str | None, summary["top_severity"]), record.severity
         )
-        summary["scored_scenarios"].append(scenario_api_row(record))
+        summary["scenario_records"].append(record)
 
     for summary in summaries.values():
-        top_scenarios = top_scenario_rows(cast(list[dict[str, Any]], summary["scored_scenarios"]))
+        scenario_records = cast(
+            list[TerritoryScenarioRecord],
+            summary["scenario_records"],
+        )
+        score, dimension_count = summarize_dimension_scores(
+            (record.ranking_dimension or record.rule_id, record.score)
+            for record in scenario_records
+        )
+        summary["priority_score"] = score
+        summary["ranking_dimension_count"] = dimension_count
+        top_scenarios = top_scenario_rows([scenario_api_row(record) for record in scenario_records])
         summary["top_scenarios"] = top_scenarios
         summary["top_explanations"] = [scenario["explanation"] for scenario in top_scenarios]
-        del summary["scored_scenarios"]
+        del summary["scenario_records"]
     return summaries
 
 
@@ -2232,10 +2305,11 @@ def empty_map_scenario_summary() -> dict[str, Any]:
     return {
         "priority_score": 0.0,
         "scenario_count": 0,
+        "ranking_dimension_count": 0,
         "top_severity": None,
         "top_scenarios": [],
         "top_explanations": [],
-        "scored_scenarios": [],
+        "scenario_records": [],
     }
 
 
@@ -2250,6 +2324,7 @@ def highest_severity(current: str | None, candidate: str) -> str:
 def scenario_api_row(record: TerritoryScenarioRecord) -> dict[str, Any]:
     return {
         "rule_id": record.rule_id,
+        "ranking_dimension": record.ranking_dimension or record.rule_id,
         "comparison_scope": record.comparison_scope,
         "indicator_id": record.indicator_id,
         "severity": record.severity,
