@@ -53,9 +53,7 @@ def test_build_sinan_mapping_report_counts_values_and_unmapped_codes() -> None:
         "9": 1,
     }
     test_molec = next(field for field in report["fields"] if field["field"] == "TEST_MOLEC")
-    assert test_molec["mapped_codes"]["1"] == (
-        "counted as TRM-TB use and laboratory confirmation"
-    )
+    assert test_molec["mapped_codes"]["1"] == ("counted as TRM-TB use and laboratory confirmation")
     assert test_molec["mapped_codes"]["5"] == "not counted as TRM-TB use"
     rifampicin = next(field for field in report["fields"] if field["field"] == "RIFAMPICIN")
     assert rifampicin["mapped_codes"]["<blank>"].startswith("audited only")
