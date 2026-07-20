@@ -40,6 +40,10 @@ from tbia.ingest.readers import (
     read_sidra_population_payload,
     read_sidra_values_population_payload,
 )
+from tbia.ingest.sinan_acceptance import (
+    build_sinan_diagnostic_acceptance_report,
+    load_sinan_acceptance_fixture,
+)
 from tbia.ingest.sinan_validation import (
     build_sinan_mapping_report,
     write_sinan_mapping_report,
@@ -86,6 +90,7 @@ class Mvp1Config:
     processed_dir: Path = Path("data/processed/mvp1")
     minimum_count: int = 5
     population_source_year: int | None = None
+    sinan_acceptance_enabled: bool = True
 
     def __post_init__(self) -> None:
         normalized_uf = self.uf.upper()
@@ -787,21 +792,33 @@ def datasus_path_message(paths: Sequence[Path]) -> str:
     return ", ".join(str(path) for path in paths)
 
 
-def build_sinan_validation_report_file(config: Mvp1Config) -> tuple[Path, int]:
+def build_sinan_validation_report_file(config: Mvp1Config) -> tuple[Path, int, str]:
     paths = select_existing_datasus_paths(datasus_source_candidates(config, "sinan_tb"))
     if not paths:
         raise FileNotFoundError("SINAN-TB DATASUS public sample file not found")
 
     records = [record for path in paths for record in read_datasus_records(path)]
     report = build_sinan_mapping_report(records, year=config.year, uf_code=config.uf_code)
+    acceptance: dict[str, Any] = {"status": "disabled"}
+    if config.sinan_acceptance_enabled:
+        fixture = load_sinan_acceptance_fixture(config.uf, config.year)
+        if fixture is None:
+            acceptance = {"status": "not_configured"}
+        else:
+            acceptance = build_sinan_diagnostic_acceptance_report(
+                records,
+                fixture,
+                source_paths=paths,
+            )
+    report["diagnostic_acceptance"] = acceptance
     output_path = write_sinan_mapping_report(report, config.validation_dir)
-    return output_path, int(report["record_count"])
+    return output_path, int(report["record_count"]), str(acceptance["status"])
 
 
 def record_sinan_validation_report(session: Session, config: Mvp1Config) -> None:
     started_at = datetime.now(UTC)
     try:
-        output_path, row_count = build_sinan_validation_report_file(config)
+        output_path, row_count, acceptance_status = build_sinan_validation_report_file(config)
     except FileNotFoundError as exc:
         save_import_run(
             session,
@@ -832,11 +849,14 @@ def record_sinan_validation_report(session: Session, config: Mvp1Config) -> None
             public_import_run(
                 config,
                 source_id="sinan_validation",
-                status="success",
+                status="failed" if acceptance_status == "failed" else "success",
                 started_at=started_at,
                 finished_at=datetime.now(UTC),
                 row_count=row_count,
-                message=f"technical audit pending domain review: {output_path}",
+                message=(
+                    f"technical audit pending domain review; diagnostic acceptance "
+                    f"{acceptance_status}: {output_path}"
+                ),
             ),
         )
 

@@ -1,0 +1,176 @@
+{
+  "fixture_id": "sinan_diagnostic_coverage_ce_2023_v1",
+  "review_status": "technical_acceptance_pending_domain_review",
+  "scope": {
+    "uf": "CE",
+    "uf_code": "23",
+    "year": 2023
+  },
+  "minimum_count": 5,
+  "source": {
+    "name": "SINAN-TB Brasil 2023",
+    "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR23.dbc",
+    "indicator_handbook": "Caderno de Indicadores da Tuberculose, Ministerio da Saude, 2024"
+  },
+  "source_artifacts": [
+    {
+      "filename": "sinan_tb_br_2023.dbc",
+      "sha256": "fb324cb3007d67ba98df167a8274776172187ea3dac5b021d3f23b624a0442e5"
+    },
+    {
+      "filename": "sinan_tb_br_2023.dbf",
+      "sha256": "d0a8115f8d1738606a8ffa257290f28b970cd55771b09769402ca73c22e77ba6"
+    }
+  ],
+  "formulas": {
+    "hiv_testing_proportion": {
+      "numerator": "new TB cases with completed positive or negative HIV result",
+      "denominator": "new TB cases"
+    },
+    "trm_tb_use_proportion": {
+      "numerator": "new pulmonary TB cases with TEST_MOLEC codes 1-4",
+      "denominator": "new pulmonary TB cases"
+    },
+    "culture_use_among_retreatment": {
+      "numerator": "pulmonary retreatment cases with CULTURA_ES codes 1-2",
+      "denominator": "pulmonary retreatment cases"
+    }
+  },
+  "cases": [
+    {
+      "territory_id": "2304400",
+      "territory_name": "Fortaleza",
+      "indicators": {
+        "hiv_testing_proportion": {
+          "numerator": 1163,
+          "denominator": 1467,
+          "raw_value": 79.277437,
+          "value": 79.277437,
+          "is_suppressed": false
+        },
+        "trm_tb_use_proportion": {
+          "numerator": 480,
+          "denominator": 1285,
+          "raw_value": 37.354086,
+          "value": 37.354086,
+          "is_suppressed": false
+        },
+        "culture_use_among_retreatment": {
+          "numerator": 85,
+          "denominator": 462,
+          "raw_value": 18.398268,
+          "value": 18.398268,
+          "is_suppressed": false
+        }
+      }
+    },
+    {
+      "territory_id": "2303709",
+      "territory_name": "Caucaia",
+      "indicators": {
+        "hiv_testing_proportion": {
+          "numerator": 174,
+          "denominator": 215,
+          "raw_value": 80.930233,
+          "value": 80.930233,
+          "is_suppressed": false
+        },
+        "trm_tb_use_proportion": {
+          "numerator": 42,
+          "denominator": 184,
+          "raw_value": 22.826087,
+          "value": 22.826087,
+          "is_suppressed": false
+        },
+        "culture_use_among_retreatment": {
+          "numerator": 10,
+          "denominator": 61,
+          "raw_value": 16.393443,
+          "value": 16.393443,
+          "is_suppressed": false
+        }
+      }
+    },
+    {
+      "territory_id": "2312908",
+      "territory_name": "Sobral",
+      "indicators": {
+        "hiv_testing_proportion": {
+          "numerator": 129,
+          "denominator": 129,
+          "raw_value": 100.0,
+          "value": 100.0,
+          "is_suppressed": false
+        },
+        "trm_tb_use_proportion": {
+          "numerator": 113,
+          "denominator": 117,
+          "raw_value": 96.581197,
+          "value": 96.581197,
+          "is_suppressed": false
+        },
+        "culture_use_among_retreatment": {
+          "numerator": 7,
+          "denominator": 30,
+          "raw_value": 23.333333,
+          "value": 23.333333,
+          "is_suppressed": false
+        }
+      }
+    },
+    {
+      "territory_id": "2307650",
+      "territory_name": "Maracanau",
+      "indicators": {
+        "hiv_testing_proportion": {
+          "numerator": 86,
+          "denominator": 96,
+          "raw_value": 89.583333,
+          "value": 89.583333,
+          "is_suppressed": false
+        },
+        "trm_tb_use_proportion": {
+          "numerator": 30,
+          "denominator": 93,
+          "raw_value": 32.258065,
+          "value": 32.258065,
+          "is_suppressed": false
+        },
+        "culture_use_among_retreatment": {
+          "numerator": 1,
+          "denominator": 18,
+          "raw_value": 5.555556,
+          "value": null,
+          "is_suppressed": true
+        }
+      }
+    },
+    {
+      "territory_id": "2311306",
+      "territory_name": "Quixada",
+      "indicators": {
+        "hiv_testing_proportion": {
+          "numerator": 10,
+          "denominator": 11,
+          "raw_value": 90.909091,
+          "value": 90.909091,
+          "is_suppressed": false
+        },
+        "trm_tb_use_proportion": {
+          "numerator": 0,
+          "denominator": 10,
+          "raw_value": 0.0,
+          "value": null,
+          "is_suppressed": true
+        },
+        "culture_use_among_retreatment": {
+          "numerator": 0,
+          "denominator": 4,
+          "raw_value": 0.0,
+          "value": null,
+          "is_suppressed": true
+        }
+      }
+    }
+  ]
+}

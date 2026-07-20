@@ -229,6 +229,7 @@ def test_ce_territorial_pipeline_runs_end_to_end_without_network(
         raw_dir=raw_dir,
         processed_dir=processed_dir,
         minimum_count=5,
+        sinan_acceptance_enabled=False,
     )
     with session_factory() as session:
         save_territories(

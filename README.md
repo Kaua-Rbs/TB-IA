@@ -77,6 +77,11 @@ python -m tbia serve
 
 `download-datasus-samples` stores public DATASUS DBC files under `data/raw/public_sources/datasus_samples/`; use `--sih-all-months` for the full SIH/SUS hospitalization year. `--uf-code` is inferred from `--uf` when omitted. Use `--uf BR` to orchestrate all 27 UFs: SINAN-TB Brasil is downloaded/read once, while SIM, SIH/SUS, CNES, IBGE Localidades, population denominators, and IBGE Malhas are handled by UF. MVP 1 CE/2023 uses 2022 IBGE Census resident population as the default denominator, so rates are explicitly caveated as 2023 events over 2022 Census population. `ingest` also caches simplified municipality GeoJSON from IBGE Malhas under `data/raw/public_sources/ibge_malhas/` for the dashboard choropleth map. `validate-sinan-mappings` writes a technical audit under `data/processed/mvp1/validation/`; it does not replace domain review against official SINAN-TB dictionaries and indicator handbooks. `compute-indicators` writes `indicator_validation_<scope>_<year>.json` in the same validation directory and records scope-aware `indicator_validation` source freshness; a failed status means mechanical invariants such as bounded proportions need review, while warning-only zero denominators document expected missingness and suppressed public values remain `null`. Legacy import history without scope metadata is preserved but excluded from scoped readiness until data is re-ingested. Manual CSV fallbacks are read from `data/raw/public_sources/manual/`.
 
+For CE/2023, `validate-sinan-mappings` also verifies a packaged aggregate acceptance
+sample for HIV testing, TRM-TB, and culture against the expected source hash. A
+mismatch is written to the report and makes the command fail; passing this
+technical check does not replace epidemiological or domain review.
+
 The product frontend at `/` and `/territorios` is a responsive public aggregate
 territorial workbench with Portuguese default UI text and optional English via
 `?lang=en`. It exposes data readiness, UF/year/comparison controls,

@@ -116,10 +116,13 @@ def validate_sinan_mappings(
     year: YearOption = 2023,
     raw_dir: RawDirOption = DEFAULT_RAW_DIR,
 ) -> None:
-    output_path, row_count = build_sinan_validation_report_file(
+    output_path, row_count, acceptance_status = build_sinan_validation_report_file(
         build_config(uf, uf_code, year, raw_dir, population_source_year=None)
     )
     typer.echo(f"Generated SINAN mapping audit for {row_count} records: {output_path}")
+    typer.echo(f"Diagnostic acceptance status: {acceptance_status}")
+    if acceptance_status == "failed":
+        raise typer.Exit(code=1)
 
 
 @app.command()
