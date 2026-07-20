@@ -219,6 +219,7 @@ Starter entities:
 | `IndicatorDefinition` | Numerator, denominator, filters, caveats | one record per indicator |
 | `IndicatorValue` | Computed indicator value with metadata | territory-period-indicator |
 | `ScenarioRule` | Scenario and subscenario rule definition | one record per rule |
+| `ScenarioRuleEvaluation` | Rule readiness, coverage, and threshold audit by comparison scope | geographic scope-period-comparison-rule |
 | `TerritoryScenario` | Rule output for a territory and period | territory-period-scenario |
 | `Strategy` | Evidence-linked intervention option | one record per strategy |
 | `Recommendation` | Strategy suggested for a scenario | territory-period-strategy |
@@ -349,6 +350,43 @@ suppression removes unavailable public values:
 
 - for indicators where higher values are worse, the rule threshold is the 75th percentile (`p75`);
 - for indicators where lower values are worse, the rule threshold is the 25th percentile (`p25`).
+
+Three diagnostic-coverage rules are implemented as provisional comparative
+signals:
+
+| Rule | Indicator | Threshold | Severity | Ranking dimension | Strategy |
+| --- | --- | --- | --- | --- | --- |
+| `low_hiv_testing` | `hiv_testing_proportion` | `p25` | moderate | `tb_hiv_integration` | `tb_hiv_integration` |
+| `low_trm_tb_use` | `trm_tb_use_proportion` | `p25` | moderate | `diagnostic_access` | `diagnostic_flow_review` |
+| `low_culture_use_among_retreatment` | `culture_use_among_retreatment` | `p25` | moderate | `resistance_surveillance` | `resistance_surveillance_review` |
+
+These rules are evaluated separately for each geographic scope, year, and
+comparison scope. A diagnostic rule is ready only when both conditions are met:
+
+- at least 10 available municipality values;
+- available municipality values cover at least 5% of the canonical
+  municipalities in scope.
+
+Available values exclude missing and suppressed observations. The engine stores
+one evaluation per rule with the canonical territory count, available,
+suppressed, and unavailable counts, coverage ratio, threshold, and one of these
+states:
+
+- `ready`: both gates pass and a threshold may generate scenarios;
+- `missing_indicator`: the scoped indicator has no stored observations;
+- `insufficient_comparison`: observations exist, but available coverage does
+  not pass both gates.
+
+No threshold or scenario is generated unless the evaluation is `ready`.
+Suppressed observations never become low-performance signals. The API exposes
+the detailed evaluations and an aggregate diagnostic-readiness item so sparse
+coverage remains visible instead of silently removing a rule.
+
+All three rules and their generated scenarios carry
+`review_status=pending_domain_review`. Their explanations call them
+provisional comparative rules. The acceptance fixture validates transformation
+behavior, but epidemiology/domain review of thresholds, severity, and suggested
+strategies remains required before CAP-01 can be considered complete.
 
 A scenario is triggered when the municipality value crosses the rule threshold:
 

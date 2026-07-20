@@ -31,6 +31,12 @@ class ScenarioSeverity(StrEnum):
     HIGH = "high"
 
 
+class ScenarioEvaluationStatus(StrEnum):
+    READY = "ready"
+    MISSING_INDICATOR = "missing_indicator"
+    INSUFFICIENT_COMPARISON = "insufficient_comparison"
+
+
 class OperationalAlertSeverity(StrEnum):
     MODERATE = "moderate"
     HIGH = "high"
@@ -285,6 +291,8 @@ class ScenarioRule:
     strategy_ids: tuple[str, ...]
     ranking_dimension: str = ""
     minimum_count: int = 5
+    minimum_coverage_ratio: float = 0.0
+    review_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -301,6 +309,30 @@ class TerritoryScenario:
     threshold_value: float
     comparison_scope: str = "uf"
     ranking_dimension: str = ""
+    review_status: str | None = None
+
+
+@dataclass(frozen=True)
+class ScenarioRuleEvaluation:
+    geographic_scope: str
+    year: int
+    comparison_scope: str
+    rule_id: str
+    status: ScenarioEvaluationStatus
+    available_count: int
+    suppressed_count: int
+    unavailable_count: int
+    territory_count: int
+    coverage_ratio: float
+    threshold_value: float | None
+    minimum_count: int
+    minimum_coverage_ratio: float
+
+
+@dataclass(frozen=True)
+class ScenarioBuildResult:
+    scenarios: tuple[TerritoryScenario, ...]
+    evaluations: tuple[ScenarioRuleEvaluation, ...]
 
 
 @dataclass(frozen=True)

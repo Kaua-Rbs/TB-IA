@@ -65,6 +65,7 @@ export const copy = {
       whyFlagged: "Por que foi sinalizado",
       recommendedResponse: "Resposta recomendada",
       indicators: "Indicadores",
+      provisionalRule: "regra comparativa provisória",
       caveats: "Ressalvas",
       referenceCaveat:
         "Bairros são referência geográfica pública; indicadores e priorização de TB permanecem no nível municipal.",
@@ -236,6 +237,7 @@ export const copy = {
       selectedEmpty: "Select a municipality on the map or ranking.",
       whyFlagged: "Why flagged",
       recommendedResponse: "Recommended response",
+      provisionalRule: "provisional comparative rule",
       indicators: "Indicators",
       caveats: "Caveats",
       referenceCaveat:

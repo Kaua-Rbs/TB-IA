@@ -846,6 +846,19 @@
   color: var(--situation-map);
 }
 
+.product-shell .scenario-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.product-shell .scenario-review-label {
+  color: var(--situation-alert);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
 .product-shell .indicator-list {
   display: grid;
   gap: 0;

@@ -4,6 +4,7 @@ export interface ScenarioRow {
   rule_id: string;
   ranking_dimension?: string;
   comparison_scope?: string;
+  review_status?: string | null;
   indicator_id: string;
   severity: string;
   score: number;
@@ -94,6 +95,28 @@ export interface ReadinessItem {
   [key: string]: string | number | boolean | null | undefined;
 }
 
+export interface ScenarioRuleEvaluation {
+  geographic_scope: string;
+  year: number;
+  comparison_scope: string;
+  rule_id: string;
+  rule_name: string;
+  indicator_id: string | null;
+  ranking_dimension: string;
+  review_status: string | null;
+  review_status_label?: string;
+  status: string;
+  status_label?: string;
+  available_count: number;
+  suppressed_count: number;
+  unavailable_count: number;
+  territory_count: number;
+  coverage_ratio: number;
+  threshold_value: number | null;
+  minimum_count: number;
+  minimum_coverage_ratio: number;
+}
+
 export interface MonthCoverage {
   expected_months: number[];
   loaded_months: number[] | null;
@@ -126,6 +149,7 @@ export interface TerritorialContext {
   indicator_count: number;
   scenario_count: number;
   readiness: Record<string, ReadinessItem>;
+  scenario_rule_evaluations: ScenarioRuleEvaluation[];
   health_territory_readiness: Record<string, ReadinessItem>;
   ranking: RankingRow[];
   sources: SourceRow[];

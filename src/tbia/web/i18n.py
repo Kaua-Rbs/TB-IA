@@ -132,6 +132,7 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "geometry": "Geometry",
             "indicator_validation": "Indicator validation",
             "generated_scenarios": "Generated signals",
+            "diagnostic_scenario_rules": "Diagnostic coverage prioritization",
             "core_sources_successful": "core public source runs successful",
             "municipalities_with_geometry": "municipalities with geometry",
             "with": "with",
@@ -145,6 +146,9 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "partial": "partial",
             "warning": "warning",
             "missing": "missing",
+            "missing_indicator": "indicator missing",
+            "insufficient_comparison": "insufficient comparison coverage",
+            "pending_domain_review": "pending domain review",
             "success": "success",
             "failed": "failed",
             "skipped": "skipped",
@@ -372,6 +376,7 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "public_sources": "Fontes públicas",
             "hospitalization_coverage": "Cobertura anual do SIH/SUS",
             "geometry": "Geometria",
+            "diagnostic_scenario_rules": "Priorização da cobertura diagnóstica",
             "indicator_validation": "Validação dos indicadores",
             "generated_scenarios": "Sinais gerados",
             "core_sources_successful": "fontes públicas centrais com sucesso",
@@ -385,6 +390,9 @@ UI_TEXT: dict[str, dict[str, Any]] = {
         "status_labels": {
             "ready": "pronto",
             "partial": "parcial",
+            "missing_indicator": "indicador ausente",
+            "insufficient_comparison": "cobertura comparativa insuficiente",
+            "pending_domain_review": "revisão de domínio pendente",
             "warning": "atenção",
             "missing": "ausente",
             "success": "sucesso",
@@ -629,6 +637,16 @@ RULE_BASE_EXPLANATIONS_PT = {
     "high_hospitalization_burden": (
         "A carga de internações por TB está igual ou acima do limiar p75."
     ),
+    "low_hiv_testing": (
+        "Regra comparativa provisória: a testagem para HIV está igual ou abaixo do limiar p25."
+    ),
+    "low_trm_tb_use": (
+        "Regra comparativa provisória: o uso de TRM-TB está igual ou abaixo do limiar p25."
+    ),
+    "low_culture_use_among_retreatment": (
+        "Regra comparativa provisória: o uso de cultura entre casos pulmonares de "
+        "retratamento está igual ou abaixo do limiar p25."
+    ),
 }
 
 RULE_LABELS_PT = {
@@ -640,6 +658,9 @@ RULE_LABELS_PT = {
     "low_lab_confirmation": "baixa confirmação laboratorial",
     "high_tb_hiv_burden": "alta carga TB-HIV",
     "high_hospitalization_burden": "alta carga de internações",
+    "low_hiv_testing": "baixa testagem para HIV",
+    "low_trm_tb_use": "baixo uso de TRM-TB",
+    "low_culture_use_among_retreatment": "baixo uso de cultura no retratamento",
 }
 
 ALERT_MESSAGE_TEMPLATES = {
@@ -667,6 +688,7 @@ DASHBOARD_READINESS_KEYS = frozenset(
         "hospitalization_coverage",
         "geometry",
         "indicator_validation",
+        "diagnostic_scenario_rules",
         "generated_scenarios",
     }
 )
@@ -701,6 +723,10 @@ def localize_dashboard_context(context: Mapping[str, Any], language: str) -> dic
     localized = dict(context)
     localized["caveat"] = UI_TEXT[language]["mvp1"]["caveat"]
     localized["sources"] = [localize_source_row(row, language) for row in context["sources"]]
+    localized["scenario_rule_evaluations"] = [
+        localize_scenario_rule_evaluation_row(row, language)
+        for row in context.get("scenario_rule_evaluations", [])
+    ]
     hospitalization_source = next(
         (
             row
@@ -813,6 +839,29 @@ def localized_indicator_validation_detail(
         language,
         pt=f"{status} com {warning_count} {'aviso' if warning_count == 1 else 'avisos'}",
         en=f"{status} with {warning_count} {'warning' if warning_count == 1 else 'warnings'}",
+    )
+
+
+def localized_diagnostic_scenario_rules_detail(
+    item: Mapping[str, Any],
+    language: str,
+) -> str:
+    ready_count = readiness_count(item.get("ready_count"))
+    evaluation_count = readiness_count(item.get("evaluation_count"))
+    insufficient_count = readiness_count(item.get("insufficient_count"))
+    missing_count = readiness_count(item.get("missing_count"))
+    return language_text(
+        language,
+        pt=(
+            f"{ready_count}/{evaluation_count} avaliações de regras diagnósticas prontas; "
+            f"{insufficient_count} com cobertura comparativa insuficiente; "
+            f"{missing_count} com indicadores ausentes"
+        ),
+        en=(
+            f"{ready_count}/{evaluation_count} diagnostic rule evaluations ready; "
+            f"{insufficient_count} with insufficient comparison coverage; "
+            f"{missing_count} missing indicators"
+        ),
     )
 
 
@@ -983,6 +1032,7 @@ READINESS_DETAIL_FORMATTERS: dict[str, ReadinessDetailFormatter] = {
     "geometry": localized_geometry_detail,
     "indicator_validation": localized_indicator_validation_detail,
     "generated_scenarios": localized_generated_scenarios_detail,
+    "diagnostic_scenario_rules": localized_diagnostic_scenario_rules_detail,
     "public_subterritory_geometry": localized_public_subterritory_geometry_detail,
     "cnes_facility_context": localized_cnes_facility_context_detail,
     "official_health_territory_boundaries": localized_health_boundaries_detail,
@@ -1100,6 +1150,21 @@ def localize_scenario_row(row: Mapping[str, Any], language: str) -> dict[str, An
     if language == "pt":
         rule_id = str(row.get("rule_id", ""))
         localized["explanation"] = scenario_explanation_pt(rule_id, row)
+    return localized
+
+
+def localize_scenario_rule_evaluation_row(
+    row: Mapping[str, Any],
+    language: str,
+) -> dict[str, Any]:
+    localized = dict(row)
+    rule_id = str(row.get("rule_id", ""))
+    if language == "pt":
+        localized["rule_name"] = RULE_LABELS_PT.get(rule_id, rule_id.replace("_", " "))
+    localized["status_label"] = localized_status(str(row.get("status", "")), language)
+    review_status = row.get("review_status")
+    if isinstance(review_status, str):
+        localized["review_status_label"] = localized_status(review_status, language)
     return localized
 
 

@@ -228,6 +228,7 @@ def test_product_readiness_is_localized_from_structured_fields(tmp_path: Path) -
         "geometry": "Geometria",
         "indicator_validation": "Validação dos indicadores",
         "generated_scenarios": "Sinais gerados",
+        "diagnostic_scenario_rules": "Priorização da cobertura diagnóstica",
     }
     assert {key: item["label"] for key, item in en_readiness.items()} == {
         "public_sources": "Public sources",
@@ -235,6 +236,7 @@ def test_product_readiness_is_localized_from_structured_fields(tmp_path: Path) -
         "geometry": "Geometry",
         "indicator_validation": "Indicator validation",
         "generated_scenarios": "Generated signals",
+        "diagnostic_scenario_rules": "Diagnostic coverage prioritization",
     }
     assert pt_readiness["hospitalization_coverage"]["detail"] == (
         "3/12 meses do SIH/SUS carregados; faltam 04, 05, 06, 07, 08, 09, 10, 11, 12"
@@ -560,14 +562,27 @@ def test_initialize_database_migrates_legacy_scenario_metadata(tmp_path: Path) -
         trigger_rule_ids = connection.execute(
             text("SELECT trigger_rule_ids FROM recommendations")
         ).scalar_one()
+        rule_metadata = connection.execute(
+            text("SELECT minimum_coverage_ratio, review_status FROM scenario_rules")
+        ).one()
+        scenario_review_status = connection.execute(
+            text("SELECT review_status FROM territory_scenarios")
+        ).scalar_one()
     engine.dispose()
 
     assert "ranking_dimension" in rule_columns
     assert "ranking_dimension" in scenario_columns
     assert "trigger_rule_ids" in recommendation_columns
+    assert "minimum_coverage_ratio" in rule_columns
+    assert "review_status" in rule_columns
+    assert "review_status" in scenario_columns
+    assert "scenario_rule_evaluations" in inspector.get_table_names()
     assert rule_dimension == "high_incidence"
     assert scenario_dimension == "high_incidence"
     assert trigger_rule_ids == '["high_incidence"]'
+
+    assert tuple(rule_metadata) == (0.0, None)
+    assert scenario_review_status is None
 
 
 def test_national_and_uf_scenario_scopes_coexist(tmp_path: Path) -> None:
@@ -1267,3 +1282,104 @@ def populate_database(database_url: str) -> None:
         build_and_store_scenarios(session, Mvp1Config(year=2023, minimum_count=5))
         session.commit()
     engine.dispose()
+
+
+def test_diagnostic_scenario_readiness_is_persisted_and_localized(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'diagnostic-readiness.db'}"
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    territory_values = list(range(20))
+    diagnostic_values = [
+        IndicatorValue(
+            indicator_id=indicator_id,
+            territory_id=f"23{index:05d}",
+            year=2023,
+            value=float(100 - index),
+            numerator_value=float(100 - index),
+            denominator_value=100.0,
+            is_suppressed=False,
+            source_ids=("fixture",),
+            caveats="fixture",
+        )
+        for indicator_id, count in (
+            ("hiv_testing_proportion", 20),
+            ("trm_tb_use_proportion", 10),
+            ("culture_use_among_retreatment", 9),
+        )
+        for index in range(1, count + 1)
+    ]
+
+    with session_factory() as session:
+        seed_reference_data(session)
+        save_territories(
+            session,
+            fixture_scope_territories("23", "CE", "23", territory_values),
+        )
+        save_indicator_values(session, diagnostic_values, 2023)
+        build_and_store_scenarios(session, Mvp1Config(uf="CE", year=2023))
+        session.commit()
+        context = dashboard_context(session, 2023, "CE")
+        scenarios = load_territory_scenarios(session, 2023, "uf")
+    engine.dispose()
+
+    diagnostic_evaluations = {
+        row["rule_id"]: row
+        for row in context["scenario_rule_evaluations"]
+        if row["rule_id"]
+        in {
+            "low_hiv_testing",
+            "low_trm_tb_use",
+            "low_culture_use_among_retreatment",
+        }
+    }
+    assert {rule_id: row["status"] for rule_id, row in diagnostic_evaluations.items()} == {
+        "low_hiv_testing": "ready",
+        "low_trm_tb_use": "ready",
+        "low_culture_use_among_retreatment": "insufficient_comparison",
+    }
+    assert diagnostic_evaluations["low_hiv_testing"]["available_count"] == 20
+    assert diagnostic_evaluations["low_trm_tb_use"]["available_count"] == 10
+    assert diagnostic_evaluations["low_culture_use_among_retreatment"]["available_count"] == 9
+    assert context["readiness"]["diagnostic_scenario_rules"] == {
+        "label": "Diagnostic coverage prioritization",
+        "status": "partial",
+        "ready_count": 2,
+        "evaluation_count": 3,
+        "insufficient_count": 1,
+        "missing_count": 0,
+        "detail": (
+            "2/3 diagnostic rule evaluations ready; "
+            "1 with insufficient comparison coverage; 0 missing indicators"
+        ),
+    }
+    diagnostic_scenarios = [
+        scenario
+        for scenario in scenarios
+        if scenario.rule_id
+        in {
+            "low_hiv_testing",
+            "low_trm_tb_use",
+            "low_culture_use_among_retreatment",
+        }
+    ]
+    assert {scenario.rule_id for scenario in diagnostic_scenarios} == {
+        "low_hiv_testing",
+        "low_trm_tb_use",
+    }
+    assert all(
+        scenario.review_status == "pending_domain_review" for scenario in diagnostic_scenarios
+    )
+
+    with TestClient(create_app(database_url)) as client:
+        response = client.get("/api/territorial/context?uf=CE&year=2023&lang=pt")
+
+    assert response.status_code == 200
+    localized_evaluations = {
+        row["rule_id"]: row for row in response.json()["scenario_rule_evaluations"]
+    }
+    assert localized_evaluations["low_hiv_testing"]["rule_name"] == ("baixa testagem para HIV")
+    assert localized_evaluations["low_hiv_testing"]["status_label"] == "pronto"
+    assert localized_evaluations["low_hiv_testing"]["review_status_label"] == (
+        "revisão de domínio pendente"
+    )

@@ -1,11 +1,29 @@
 from __future__ import annotations
 
-from tbia.domain.models import IndicatorValue, ScenarioSeverity, TerritoryScenario
+from tbia.domain.models import (
+    IndicatorDirection,
+    IndicatorValue,
+    ScenarioEvaluationStatus,
+    ScenarioRule,
+    ScenarioSeverity,
+    TerritoryScenario,
+)
 from tbia.domain.recommendations import build_recommendations
-from tbia.domain.scenarios import build_priority_ranking, build_territory_scenarios
+from tbia.domain.scenarios import (
+    DEFAULT_SCENARIO_RULES,
+    build_priority_ranking,
+    build_territory_scenarios,
+    evaluate_territory_scenarios,
+)
 
 
-def indicator(territory_id: str, indicator_id: str, value: float) -> IndicatorValue:
+def indicator(
+    territory_id: str,
+    indicator_id: str,
+    value: float | None,
+    *,
+    is_suppressed: bool = False,
+) -> IndicatorValue:
     return IndicatorValue(
         indicator_id=indicator_id,
         territory_id=territory_id,
@@ -13,7 +31,7 @@ def indicator(territory_id: str, indicator_id: str, value: float) -> IndicatorVa
         value=value,
         numerator_value=10,
         denominator_value=100,
-        is_suppressed=False,
+        is_suppressed=is_suppressed,
         source_ids=("fixture",),
         caveats="fixture",
     )
@@ -145,3 +163,111 @@ def test_build_territory_scenarios_skips_thresholds_with_small_comparison_group(
     )
 
     assert scenarios == []
+
+
+def test_diagnostic_coverage_rules_are_provisional_and_use_existing_dimensions() -> None:
+    diagnostic_rules = {
+        rule.rule_id: rule
+        for rule in DEFAULT_SCENARIO_RULES
+        if rule.rule_id
+        in {
+            "low_hiv_testing",
+            "low_trm_tb_use",
+            "low_culture_use_among_retreatment",
+        }
+    }
+
+    assert set(diagnostic_rules) == {
+        "low_hiv_testing",
+        "low_trm_tb_use",
+        "low_culture_use_among_retreatment",
+    }
+    assert {rule.rule_id: rule.ranking_dimension for rule in diagnostic_rules.values()} == {
+        "low_hiv_testing": "tb_hiv_integration",
+        "low_trm_tb_use": "diagnostic_access",
+        "low_culture_use_among_retreatment": "resistance_surveillance",
+    }
+    assert all(rule.minimum_count == 10 for rule in diagnostic_rules.values())
+    assert all(rule.minimum_coverage_ratio == 0.05 for rule in diagnostic_rules.values())
+    assert all(rule.review_status == "pending_domain_review" for rule in diagnostic_rules.values())
+
+
+def test_scenario_evaluation_requires_exact_count_and_coverage_gates() -> None:
+    rule = ScenarioRule(
+        rule_id="coverage_gate",
+        name="Coverage gate",
+        indicator_id="coverage_indicator",
+        threshold_method="p25",
+        comparison_group="selected_uf_year",
+        severity=ScenarioSeverity.MODERATE,
+        direction=IndicatorDirection.LOW_BAD,
+        explanation_template="Provisional comparative rule.",
+        strategy_ids=("diagnostic_flow_review",),
+        ranking_dimension="diagnostic_access",
+        minimum_count=10,
+        minimum_coverage_ratio=0.05,
+        review_status="pending_domain_review",
+    )
+    values = [
+        indicator(f"23{index:05d}", rule.indicator_id, float(index)) for index in range(1, 11)
+    ]
+    territory_ids = {f"23{index:05d}" for index in range(1, 201)}
+
+    exact_gate = evaluate_territory_scenarios(
+        values,
+        (rule,),
+        geographic_scope="CE",
+        year=2023,
+        territory_ids=territory_ids,
+    )
+    below_count = evaluate_territory_scenarios(
+        values[:-1],
+        (rule,),
+        geographic_scope="CE",
+        year=2023,
+        territory_ids=territory_ids,
+    )
+    below_coverage = evaluate_territory_scenarios(
+        values,
+        (rule,),
+        geographic_scope="CE",
+        year=2023,
+        territory_ids={*territory_ids, "23200001"},
+    )
+
+    assert exact_gate.evaluations[0].status == ScenarioEvaluationStatus.READY
+    assert exact_gate.evaluations[0].coverage_ratio == 0.05
+    assert exact_gate.evaluations[0].threshold_value is not None
+    assert exact_gate.scenarios
+    assert all(
+        scenario.review_status == "pending_domain_review" for scenario in exact_gate.scenarios
+    )
+    assert below_count.evaluations[0].status == ScenarioEvaluationStatus.INSUFFICIENT_COMPARISON
+    assert below_count.scenarios == ()
+    assert below_coverage.evaluations[0].status == ScenarioEvaluationStatus.INSUFFICIENT_COMPARISON
+    assert below_coverage.scenarios == ()
+
+
+def test_scenario_evaluation_distinguishes_missing_and_suppressed_data() -> None:
+    rule = next(rule for rule in DEFAULT_SCENARIO_RULES if rule.rule_id == "low_hiv_testing")
+    territory_ids = {f"23{index:05d}" for index in range(1, 11)}
+    missing = evaluate_territory_scenarios(
+        [],
+        (rule,),
+        geographic_scope="CE",
+        year=2023,
+        territory_ids=territory_ids,
+    )
+    suppressed = evaluate_territory_scenarios(
+        [indicator("2300001", rule.indicator_id, None, is_suppressed=True)],
+        (rule,),
+        geographic_scope="CE",
+        year=2023,
+        territory_ids=territory_ids,
+    )
+
+    assert missing.evaluations[0].status == ScenarioEvaluationStatus.MISSING_INDICATOR
+    assert missing.evaluations[0].suppressed_count == 0
+    assert suppressed.evaluations[0].status == ScenarioEvaluationStatus.INSUFFICIENT_COMPARISON
+    assert suppressed.evaluations[0].suppressed_count == 1
+    assert suppressed.scenarios == ()

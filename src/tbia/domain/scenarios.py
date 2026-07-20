@@ -6,7 +6,10 @@ from collections.abc import Iterable
 from tbia.domain.models import (
     IndicatorDirection,
     IndicatorValue,
+    ScenarioBuildResult,
+    ScenarioEvaluationStatus,
     ScenarioRule,
+    ScenarioRuleEvaluation,
     ScenarioSeverity,
     TerritoryScenario,
 )
@@ -112,6 +115,58 @@ DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
         strategy_ids=("care_pathway_review",),
         ranking_dimension="high_hospitalization_burden",
     ),
+    ScenarioRule(
+        rule_id="low_hiv_testing",
+        name="Low HIV testing",
+        indicator_id="hiv_testing_proportion",
+        threshold_method="p25",
+        comparison_group="selected_uf_year",
+        severity=ScenarioSeverity.MODERATE,
+        direction=IndicatorDirection.LOW_BAD,
+        explanation_template=(
+            "Provisional comparative rule: HIV testing is at or below the p25 threshold."
+        ),
+        strategy_ids=("tb_hiv_integration",),
+        ranking_dimension="tb_hiv_integration",
+        minimum_count=10,
+        minimum_coverage_ratio=0.05,
+        review_status="pending_domain_review",
+    ),
+    ScenarioRule(
+        rule_id="low_trm_tb_use",
+        name="Low TRM-TB use",
+        indicator_id="trm_tb_use_proportion",
+        threshold_method="p25",
+        comparison_group="selected_uf_year",
+        severity=ScenarioSeverity.MODERATE,
+        direction=IndicatorDirection.LOW_BAD,
+        explanation_template=(
+            "Provisional comparative rule: TRM-TB use is at or below the p25 threshold."
+        ),
+        strategy_ids=("diagnostic_flow_review",),
+        ranking_dimension="diagnostic_access",
+        minimum_count=10,
+        minimum_coverage_ratio=0.05,
+        review_status="pending_domain_review",
+    ),
+    ScenarioRule(
+        rule_id="low_culture_use_among_retreatment",
+        name="Low culture use among retreatment",
+        indicator_id="culture_use_among_retreatment",
+        threshold_method="p25",
+        comparison_group="selected_uf_year",
+        severity=ScenarioSeverity.MODERATE,
+        direction=IndicatorDirection.LOW_BAD,
+        explanation_template=(
+            "Provisional comparative rule: culture use among pulmonary retreatment cases "
+            "is at or below the p25 threshold."
+        ),
+        strategy_ids=("resistance_surveillance_review",),
+        ranking_dimension="resistance_surveillance",
+        minimum_count=10,
+        minimum_coverage_ratio=0.05,
+        review_status="pending_domain_review",
+    ),
 )
 
 
@@ -121,43 +176,176 @@ def build_territory_scenarios(
     *,
     comparison_scope: str = "uf",
 ) -> list[TerritoryScenario]:
+    return list(
+        evaluate_territory_scenarios(
+            values,
+            rules,
+            comparison_scope=comparison_scope,
+        ).scenarios
+    )
+
+
+def evaluate_territory_scenarios(
+    values: Iterable[IndicatorValue],
+    rules: Iterable[ScenarioRule] = DEFAULT_SCENARIO_RULES,
+    *,
+    comparison_scope: str = "uf",
+    geographic_scope: str = "",
+    year: int | None = None,
+    territory_ids: Iterable[str] | None = None,
+) -> ScenarioBuildResult:
+    materialized_values = list(values)
+    scope_territory_ids = (
+        set(territory_ids)
+        if territory_ids is not None
+        else {value.territory_id for value in materialized_values}
+    )
+    effective_year = (
+        year
+        if year is not None
+        else next(
+            (value.year for value in materialized_values),
+            0,
+        )
+    )
     values_by_indicator: dict[str, list[IndicatorValue]] = defaultdict(list)
-    for value in values:
-        if value.value is not None and not value.is_suppressed:
+    for value in materialized_values:
+        if value.territory_id in scope_territory_ids:
             values_by_indicator[value.indicator_id].append(value)
 
     scenarios: list[TerritoryScenario] = []
+    evaluations: list[ScenarioRuleEvaluation] = []
     for rule in rules:
-        indicator_values = values_by_indicator.get(rule.indicator_id, [])
-        threshold = threshold_for_rule(indicator_values, rule)
-        if threshold is None:
+        evaluation, available_values = evaluate_rule_readiness(
+            rule,
+            values_by_indicator.get(rule.indicator_id, []),
+            geographic_scope=geographic_scope,
+            comparison_scope=comparison_scope,
+            year=effective_year,
+            territory_ids=scope_territory_ids,
+        )
+        evaluations.append(evaluation)
+        if evaluation.threshold_value is None:
             continue
-
-        for value in indicator_values:
-            if value.value is None or not rule_matches(value.value, threshold, rule.direction):
-                continue
-            score = severity_weight(rule.severity) * score_multiplier(value.value, threshold, rule)
-            scenarios.append(
-                TerritoryScenario(
-                    territory_id=value.territory_id,
-                    year=value.year,
-                    rule_id=rule.rule_id,
-                    scenario_id=rule.rule_id,
-                    severity=rule.severity,
-                    score=round(score, 4),
-                    explanation=(
-                        f"{rule.explanation_template} "
-                        f"Value={value.value:.2f}; threshold={threshold:.2f}."
-                    ),
-                    indicator_id=rule.indicator_id,
-                    indicator_value=value.value,
-                    threshold_value=threshold,
-                    comparison_scope=comparison_scope,
-                    ranking_dimension=rule.ranking_dimension or rule.rule_id,
-                )
+        scenarios.extend(
+            build_rule_scenarios(
+                available_values,
+                rule,
+                threshold=evaluation.threshold_value,
+                comparison_scope=comparison_scope,
             )
+        )
 
-    return sorted(scenarios, key=lambda item: (-item.score, item.territory_id, item.rule_id))
+    return ScenarioBuildResult(
+        scenarios=tuple(
+            sorted(scenarios, key=lambda item: (-item.score, item.territory_id, item.rule_id))
+        ),
+        evaluations=tuple(evaluations),
+    )
+
+
+def evaluate_rule_readiness(
+    rule: ScenarioRule,
+    indicator_values: Iterable[IndicatorValue],
+    *,
+    geographic_scope: str,
+    comparison_scope: str,
+    year: int,
+    territory_ids: set[str],
+) -> tuple[ScenarioRuleEvaluation, list[IndicatorValue]]:
+    by_territory = {
+        value.territory_id: value
+        for value in indicator_values
+        if value.territory_id in territory_ids
+    }
+    available_values = [
+        value
+        for value in by_territory.values()
+        if value.value is not None and not value.is_suppressed
+    ]
+    suppressed_count = sum(1 for value in by_territory.values() if value.is_suppressed)
+    territory_count = len(territory_ids)
+    available_count = len(available_values)
+    unavailable_count = max(territory_count - available_count - suppressed_count, 0)
+    coverage_ratio = available_count / territory_count if territory_count else 0.0
+    status = scenario_evaluation_status(
+        has_indicator_values=bool(by_territory),
+        available_count=available_count,
+        coverage_ratio=coverage_ratio,
+        rule=rule,
+    )
+    threshold = (
+        threshold_for_rule(available_values, rule)
+        if status == ScenarioEvaluationStatus.READY
+        else None
+    )
+    return (
+        ScenarioRuleEvaluation(
+            geographic_scope=geographic_scope,
+            year=year,
+            comparison_scope=comparison_scope,
+            rule_id=rule.rule_id,
+            status=status,
+            available_count=available_count,
+            suppressed_count=suppressed_count,
+            unavailable_count=unavailable_count,
+            territory_count=territory_count,
+            coverage_ratio=round(coverage_ratio, 6),
+            threshold_value=threshold,
+            minimum_count=rule.minimum_count,
+            minimum_coverage_ratio=rule.minimum_coverage_ratio,
+        ),
+        available_values,
+    )
+
+
+def scenario_evaluation_status(
+    *,
+    has_indicator_values: bool,
+    available_count: int,
+    coverage_ratio: float,
+    rule: ScenarioRule,
+) -> ScenarioEvaluationStatus:
+    if not has_indicator_values:
+        return ScenarioEvaluationStatus.MISSING_INDICATOR
+    if available_count < rule.minimum_count or coverage_ratio < rule.minimum_coverage_ratio:
+        return ScenarioEvaluationStatus.INSUFFICIENT_COMPARISON
+    return ScenarioEvaluationStatus.READY
+
+
+def build_rule_scenarios(
+    indicator_values: Iterable[IndicatorValue],
+    rule: ScenarioRule,
+    *,
+    threshold: float,
+    comparison_scope: str,
+) -> list[TerritoryScenario]:
+    scenarios: list[TerritoryScenario] = []
+    for value in indicator_values:
+        if value.value is None or not rule_matches(value.value, threshold, rule.direction):
+            continue
+        score = severity_weight(rule.severity) * score_multiplier(value.value, threshold, rule)
+        scenarios.append(
+            TerritoryScenario(
+                territory_id=value.territory_id,
+                year=value.year,
+                rule_id=rule.rule_id,
+                scenario_id=rule.rule_id,
+                severity=rule.severity,
+                score=round(score, 4),
+                explanation=(
+                    f"{rule.explanation_template} "
+                    f"Value={value.value:.2f}; threshold={threshold:.2f}."
+                ),
+                indicator_id=rule.indicator_id,
+                indicator_value=value.value,
+                threshold_value=threshold,
+                comparison_scope=comparison_scope,
+                ranking_dimension=rule.ranking_dimension or rule.rule_id,
+                review_status=rule.review_status,
+            )
+        )
+    return scenarios
 
 
 def summarize_dimension_scores(

@@ -46,7 +46,9 @@ from tbia.domain.models import (
     PublicDataStatus,
     Recommendation,
     ResourceInventory,
+    ScenarioEvaluationStatus,
     ScenarioRule,
+    ScenarioRuleEvaluation,
     ScenarioSeverity,
     Strategy,
     Territory,
@@ -335,6 +337,8 @@ class ScenarioRuleRecord(Base):
     strategy_ids: Mapped[list[str]] = mapped_column(JSON)
     minimum_count: Mapped[int] = mapped_column(Integer)
     ranking_dimension: Mapped[str] = mapped_column(String(120), server_default="")
+    minimum_coverage_ratio: Mapped[float] = mapped_column(Float, server_default="0")
+    review_status: Mapped[str | None] = mapped_column(String(80), nullable=True)
 
 
 class TerritoryScenarioRecord(Base):
@@ -354,6 +358,25 @@ class TerritoryScenarioRecord(Base):
     indicator_value: Mapped[float] = mapped_column(Float)
     threshold_value: Mapped[float] = mapped_column(Float)
     ranking_dimension: Mapped[str] = mapped_column(String(120), server_default="")
+    review_status: Mapped[str | None] = mapped_column(String(80), nullable=True)
+
+
+class ScenarioRuleEvaluationRecord(Base):
+    __tablename__ = "scenario_rule_evaluations"
+
+    geographic_scope: Mapped[str] = mapped_column(String(2), primary_key=True)
+    year: Mapped[int] = mapped_column(Integer, primary_key=True)
+    comparison_scope: Mapped[str] = mapped_column(String(20), primary_key=True)
+    rule_id: Mapped[str] = mapped_column(String(120), primary_key=True)
+    status: Mapped[str] = mapped_column(String(40))
+    available_count: Mapped[int] = mapped_column(Integer)
+    suppressed_count: Mapped[int] = mapped_column(Integer)
+    unavailable_count: Mapped[int] = mapped_column(Integer)
+    territory_count: Mapped[int] = mapped_column(Integer)
+    coverage_ratio: Mapped[float] = mapped_column(Float)
+    threshold_value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    minimum_count: Mapped[int] = mapped_column(Integer)
+    minimum_coverage_ratio: Mapped[float] = mapped_column(Float)
 
 
 class StrategyRecord(Base):
@@ -476,9 +499,21 @@ def migrate_scenario_metadata_columns(engine: Engine) -> None:
             connection.execute(
                 text("ALTER TABLE scenario_rules ADD COLUMN ranking_dimension VARCHAR(120)")
             )
+        if "minimum_coverage_ratio" not in rule_columns:
+            connection.execute(
+                text("ALTER TABLE scenario_rules ADD COLUMN minimum_coverage_ratio FLOAT DEFAULT 0")
+            )
+        if "review_status" not in rule_columns:
+            connection.execute(
+                text("ALTER TABLE scenario_rules ADD COLUMN review_status VARCHAR(80)")
+            )
         if "ranking_dimension" not in scenario_columns:
             connection.execute(
                 text("ALTER TABLE territory_scenarios ADD COLUMN ranking_dimension VARCHAR(120)")
+            )
+        if "review_status" not in scenario_columns:
+            connection.execute(
+                text("ALTER TABLE territory_scenarios ADD COLUMN review_status VARCHAR(80)")
             )
         if "trigger_rule_ids" not in recommendation_columns:
             connection.execute(text("ALTER TABLE recommendations ADD COLUMN trigger_rule_ids JSON"))
@@ -486,6 +521,12 @@ def migrate_scenario_metadata_columns(engine: Engine) -> None:
             text(
                 "UPDATE scenario_rules SET ranking_dimension = rule_id "
                 "WHERE ranking_dimension IS NULL OR ranking_dimension = ''"
+            )
+        )
+        connection.execute(
+            text(
+                "UPDATE scenario_rules SET minimum_coverage_ratio = 0 "
+                "WHERE minimum_coverage_ratio IS NULL"
             )
         )
         connection.execute(
@@ -940,6 +981,8 @@ def save_scenario_rules(session: Session, rules: Iterable[ScenarioRule]) -> None
                 strategy_ids=list(rule.strategy_ids),
                 minimum_count=rule.minimum_count,
                 ranking_dimension=rule.ranking_dimension or rule.rule_id,
+                minimum_coverage_ratio=rule.minimum_coverage_ratio,
+                review_status=rule.review_status,
             )
         )
 
@@ -976,6 +1019,45 @@ def save_territory_scenarios(
                 indicator_value=scenario.indicator_value,
                 threshold_value=scenario.threshold_value,
                 ranking_dimension=scenario.ranking_dimension or scenario.rule_id,
+                review_status=scenario.review_status,
+            )
+        )
+
+
+def save_scenario_rule_evaluations(
+    session: Session,
+    evaluations: Iterable[ScenarioRuleEvaluation],
+    year: int,
+    comparison_scope: str,
+    *,
+    replace_geographic_scopes: Iterable[str],
+) -> None:
+    rows = list(evaluations)
+    geographic_scopes = set(replace_geographic_scopes)
+    if geographic_scopes:
+        session.execute(
+            delete(ScenarioRuleEvaluationRecord).where(
+                ScenarioRuleEvaluationRecord.year == year,
+                ScenarioRuleEvaluationRecord.comparison_scope == comparison_scope,
+                ScenarioRuleEvaluationRecord.geographic_scope.in_(geographic_scopes),
+            )
+        )
+    for evaluation in rows:
+        session.merge(
+            ScenarioRuleEvaluationRecord(
+                geographic_scope=evaluation.geographic_scope,
+                year=evaluation.year,
+                comparison_scope=evaluation.comparison_scope,
+                rule_id=evaluation.rule_id,
+                status=evaluation.status.value,
+                available_count=evaluation.available_count,
+                suppressed_count=evaluation.suppressed_count,
+                unavailable_count=evaluation.unavailable_count,
+                territory_count=evaluation.territory_count,
+                coverage_ratio=evaluation.coverage_ratio,
+                threshold_value=evaluation.threshold_value,
+                minimum_count=evaluation.minimum_count,
+                minimum_coverage_ratio=evaluation.minimum_coverage_ratio,
             )
         )
 
@@ -1147,6 +1229,7 @@ def load_territory_scenarios(
             threshold_value=record.threshold_value,
             comparison_scope=record.comparison_scope,
             ranking_dimension=record.ranking_dimension or record.rule_id,
+            review_status=record.review_status,
         )
         for record in records
     ]
@@ -1390,6 +1473,105 @@ REGIONAL_PUBLIC_SOURCE_IDS = frozenset(
     {"ibge_localidades", "ibge_malhas", "ibge_population", "sim", "sih_sus", "cnes"}
 )
 INHERITABLE_NATIONAL_SOURCE_IDS = frozenset({"sinan_tb"})
+DIAGNOSTIC_SCENARIO_RULE_IDS = frozenset(
+    {
+        "low_hiv_testing",
+        "low_trm_tb_use",
+        "low_culture_use_among_retreatment",
+    }
+)
+
+
+def scenario_rule_evaluation_rows(
+    session: Session,
+    *,
+    year: int,
+    geographic_scope: str,
+    comparison_scope: str,
+) -> list[dict[str, Any]]:
+    target_scopes = (
+        {BRAZIL_SCOPE}
+        if comparison_scope == COMPARISON_SCOPE_NATIONAL
+        else set(ufs_for_scope(geographic_scope))
+    )
+    records = (
+        session.query(ScenarioRuleEvaluationRecord)
+        .filter_by(year=year, comparison_scope=comparison_scope)
+        .filter(ScenarioRuleEvaluationRecord.geographic_scope.in_(target_scopes))
+        .all()
+    )
+    rules = {record.rule_id: record for record in session.query(ScenarioRuleRecord).all()}
+    return [
+        scenario_rule_evaluation_api_row(record, rules.get(record.rule_id))
+        for record in sorted(
+            records,
+            key=lambda item: (item.geographic_scope, item.rule_id),
+        )
+    ]
+
+
+def scenario_rule_evaluation_api_row(
+    record: ScenarioRuleEvaluationRecord,
+    rule: ScenarioRuleRecord | None,
+) -> dict[str, Any]:
+    return {
+        "geographic_scope": record.geographic_scope,
+        "year": record.year,
+        "comparison_scope": record.comparison_scope,
+        "rule_id": record.rule_id,
+        "rule_name": rule.name if rule is not None else record.rule_id,
+        "indicator_id": rule.indicator_id if rule is not None else None,
+        "ranking_dimension": (
+            (rule.ranking_dimension or rule.rule_id) if rule is not None else record.rule_id
+        ),
+        "review_status": rule.review_status if rule is not None else None,
+        "status": record.status,
+        "available_count": record.available_count,
+        "suppressed_count": record.suppressed_count,
+        "unavailable_count": record.unavailable_count,
+        "territory_count": record.territory_count,
+        "coverage_ratio": record.coverage_ratio,
+        "threshold_value": record.threshold_value,
+        "minimum_count": record.minimum_count,
+        "minimum_coverage_ratio": record.minimum_coverage_ratio,
+    }
+
+
+def diagnostic_scenario_rule_readiness(
+    evaluations: Sequence[dict[str, Any]],
+) -> dict[str, Any]:
+    diagnostic_evaluations = [
+        row for row in evaluations if row.get("rule_id") in DIAGNOSTIC_SCENARIO_RULE_IDS
+    ]
+    ready_status = ScenarioEvaluationStatus.READY.value
+    insufficient_status = ScenarioEvaluationStatus.INSUFFICIENT_COMPARISON.value
+    missing_status = ScenarioEvaluationStatus.MISSING_INDICATOR.value
+    ready_count = sum(1 for row in diagnostic_evaluations if row.get("status") == ready_status)
+    insufficient_count = sum(
+        1 for row in diagnostic_evaluations if row.get("status") == insufficient_status
+    )
+    missing_count = sum(1 for row in diagnostic_evaluations if row.get("status") == missing_status)
+    evaluation_count = len(diagnostic_evaluations)
+    if evaluation_count == 0 or missing_count == evaluation_count:
+        status = "missing"
+    elif ready_count == evaluation_count:
+        status = "ready"
+    else:
+        status = "partial"
+
+    return {
+        "label": "Diagnostic coverage prioritization",
+        "status": status,
+        "ready_count": ready_count,
+        "evaluation_count": evaluation_count,
+        "insufficient_count": insufficient_count,
+        "missing_count": missing_count,
+        "detail": (
+            f"{ready_count}/{evaluation_count} diagnostic rule evaluations ready; "
+            f"{insufficient_count} with insufficient comparison coverage; "
+            f"{missing_count} missing indicators"
+        ),
+    }
 
 
 def dashboard_context(
@@ -1416,6 +1598,12 @@ def dashboard_context(
         .all()
         if record.territory_id in territories
     ]
+    scenario_rule_evaluations = scenario_rule_evaluation_rows(
+        session,
+        year=year,
+        geographic_scope=geographic_scope,
+        comparison_scope=scenario_scope,
+    )
     source_runs = latest_import_runs_for_scope(
         session, year=year, geographic_scope=geographic_scope
     )
@@ -1429,12 +1617,14 @@ def dashboard_context(
         "territory_count": len(territories),
         "indicator_count": len(indicators),
         "scenario_count": len(scenarios),
+        "scenario_rule_evaluations": scenario_rule_evaluations,
         "readiness": dashboard_readiness(
             territory_count=len(territories),
             geometry_count=geometry_count,
             indicator_count=len(indicators),
             scenarios=scenarios,
             source_runs=source_runs,
+            scenario_rule_evaluations=scenario_rule_evaluations,
         ),
         "health_territory_readiness": health_territory_readiness(
             session, geographic_scope, set(territories)
@@ -2017,6 +2207,7 @@ def dashboard_readiness(
     indicator_count: int,
     scenarios: Sequence[TerritoryScenarioRecord],
     source_runs: Sequence[dict[str, Any]],
+    scenario_rule_evaluations: Sequence[dict[str, Any]],
 ) -> dict[str, Any]:
     source_by_id = {str(row["source_id"]): row for row in source_runs}
     public_source_runs = [source_by_id.get(source_id) for source_id in CORE_PUBLIC_SOURCE_IDS]
@@ -2030,6 +2221,7 @@ def dashboard_readiness(
     hospitalization_run = source_by_id.get(SIH_SOURCE_ID)
     scenario_territory_count = len({scenario.territory_id for scenario in scenarios})
     warning_count = validation_warning_count(validation_run)
+    diagnostic_readiness = diagnostic_scenario_rule_readiness(scenario_rule_evaluations)
 
     return {
         "public_sources": {
@@ -2061,6 +2253,7 @@ def dashboard_readiness(
             "indicator_count": indicator_count,
             "detail": indicator_validation_detail(validation_run, warning_count),
         },
+        "diagnostic_scenario_rules": diagnostic_readiness,
         "generated_scenarios": {
             "label": "Generated scenarios",
             "status": "ready" if scenarios else "missing",
@@ -2325,6 +2518,7 @@ def scenario_api_row(record: TerritoryScenarioRecord) -> dict[str, Any]:
     return {
         "rule_id": record.rule_id,
         "ranking_dimension": record.ranking_dimension or record.rule_id,
+        "review_status": record.review_status,
         "comparison_scope": record.comparison_scope,
         "indicator_id": record.indicator_id,
         "severity": record.severity,

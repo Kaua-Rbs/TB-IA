@@ -603,7 +603,14 @@ function DetailReport({
             {scenarios.slice(0, 3).map((scenario) => (
               <li key={`${scenario.rule_id}-${scenario.indicator_id}`}>
                 <CheckCircle2 size={15} aria-hidden="true" />
-                <span>{scenario.explanation}</span>
+                <span className="scenario-copy">
+                  <span>{scenario.explanation}</span>
+                  {scenario.review_status === "pending_domain_review" ? (
+                    <small className="scenario-review-label">
+                      {labels.territorial.provisionalRule}
+                    </small>
+                  ) : null}
+                </span>
               </li>
             ))}
           </ul>

@@ -14,9 +14,15 @@ from tbia.domain.indicator_validation import (
     write_indicator_validation_report,
 )
 from tbia.domain.indicators import INDICATOR_DEFINITIONS, compute_indicator_values
-from tbia.domain.models import ImportRun, IndicatorValue, PopulationDenominator, Territory
+from tbia.domain.models import (
+    ImportRun,
+    IndicatorValue,
+    PopulationDenominator,
+    ScenarioRuleEvaluation,
+    Territory,
+)
 from tbia.domain.recommendations import STRATEGIES, build_recommendations
-from tbia.domain.scenarios import DEFAULT_SCENARIO_RULES, build_territory_scenarios
+from tbia.domain.scenarios import DEFAULT_SCENARIO_RULES, evaluate_territory_scenarios
 from tbia.geography import BRAZIL_SCOPE, is_brazil_scope, uf_code_for, ufs_for_scope
 from tbia.ingest.contracts import SOURCE_CONTRACTS
 from tbia.ingest.datasus import read_datasus_records
@@ -69,6 +75,7 @@ from tbia.storage import (
     save_mortalities,
     save_populations,
     save_recommendations,
+    save_scenario_rule_evaluations,
     save_scenario_rules,
     save_strategies,
     save_territories,
@@ -1069,7 +1076,7 @@ def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int
 
     scenarios: list[Any] = []
     recommendations: list[Any] = []
-    uf_scenarios = build_uf_scope_scenarios(session, config, territory_ids)
+    uf_scenarios, uf_evaluations = build_uf_scope_scenarios(session, config, territory_ids)
     uf_recommendations = build_recommendations(uf_scenarios)
     save_territory_scenarios(
         session,
@@ -1085,6 +1092,13 @@ def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int
         comparison_scope=COMPARISON_SCOPE_UF,
         replace_territory_ids=territory_ids,
     )
+    save_scenario_rule_evaluations(
+        session,
+        uf_evaluations,
+        config.year,
+        COMPARISON_SCOPE_UF,
+        replace_geographic_scopes=ufs_for_scope(config.uf),
+    )
     scenarios.extend(uf_scenarios)
     recommendations.extend(uf_recommendations)
 
@@ -1098,9 +1112,14 @@ def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int
         )
         if nationally_complete_sih != expected_scopes:
             national_values = exclude_hospitalization_values(national_values)
-        national_scenarios = build_territory_scenarios(
-            national_values, comparison_scope=COMPARISON_SCOPE_NATIONAL
+        national_result = evaluate_territory_scenarios(
+            national_values,
+            comparison_scope=COMPARISON_SCOPE_NATIONAL,
+            geographic_scope=BRAZIL_SCOPE,
+            year=config.year,
+            territory_ids=territory_ids,
         )
+        national_scenarios = list(national_result.scenarios)
         national_recommendations = build_recommendations(national_scenarios)
         save_territory_scenarios(
             session,
@@ -1116,6 +1135,13 @@ def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int
             comparison_scope=COMPARISON_SCOPE_NATIONAL,
             replace_territory_ids=territory_ids,
         )
+        save_scenario_rule_evaluations(
+            session,
+            national_result.evaluations,
+            config.year,
+            COMPARISON_SCOPE_NATIONAL,
+            replace_geographic_scopes={BRAZIL_SCOPE},
+        )
         scenarios.extend(national_scenarios)
         recommendations.extend(national_recommendations)
 
@@ -1124,18 +1150,26 @@ def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int
 
 def build_uf_scope_scenarios(
     session: Session, config: Mvp1Config, territory_ids: set[str]
-) -> list[Any]:
+) -> tuple[list[Any], list[ScenarioRuleEvaluation]]:
     complete_scopes = complete_sih_scopes(
         session,
         year=config.year,
         geographic_scopes=ufs_for_scope(config.uf),
     )
     scenarios: list[Any] = []
+    evaluations: list[ScenarioRuleEvaluation] = []
     if not config.is_national:
         values = load_indicator_values(session, config.year, territory_ids)
         if config.uf not in complete_scopes:
             values = exclude_hospitalization_values(values)
-        return build_territory_scenarios(values, comparison_scope=COMPARISON_SCOPE_UF)
+        result = evaluate_territory_scenarios(
+            values,
+            comparison_scope=COMPARISON_SCOPE_UF,
+            geographic_scope=config.uf,
+            year=config.year,
+            territory_ids=territory_ids,
+        )
+        return list(result.scenarios), list(result.evaluations)
 
     territories_by_uf: dict[str, set[str]] = {}
     for territory in load_territories(session, BRAZIL_SCOPE):
@@ -1145,5 +1179,13 @@ def build_uf_scope_scenarios(
         values = load_indicator_values(session, config.year, uf_territory_ids)
         if uf not in complete_scopes:
             values = exclude_hospitalization_values(values)
-        scenarios.extend(build_territory_scenarios(values, comparison_scope=COMPARISON_SCOPE_UF))
-    return scenarios
+        result = evaluate_territory_scenarios(
+            values,
+            comparison_scope=COMPARISON_SCOPE_UF,
+            geographic_scope=uf,
+            year=config.year,
+            territory_ids=uf_territory_ids,
+        )
+        scenarios.extend(result.scenarios)
+        evaluations.extend(result.evaluations)
+    return scenarios, evaluations

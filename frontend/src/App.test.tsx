@@ -96,7 +96,7 @@ const mapPayload = {
   features: rankingFixtures.map((municipality, index) => {
     const isFortaleza = municipality.territoryId === "2304400";
     const explanation = isFortaleza
-      ? "Incidência elevada"
+      ? "Testagem para HIV abaixo do comparativo"
       : municipality.name + " requer revisão territorial";
     return {
       type: "Feature",
@@ -110,8 +110,9 @@ const mapPayload = {
         top_explanations: [explanation],
         top_scenarios: [
           {
-            rule_id: isFortaleza ? "high_incidence" : "priority_signal",
-            indicator_id: "tb_incidence_per_100k",
+            rule_id: isFortaleza ? "low_hiv_testing" : "priority_signal",
+            review_status: isFortaleza ? "pending_domain_review" : null,
+            indicator_id: isFortaleza ? "hiv_testing_proportion" : "tb_incidence_per_100k",
             severity: municipality.severity,
             score: municipality.score,
             explanation,
@@ -163,6 +164,7 @@ const territorialContext = {
     top_explanations: mapPayload.features[index].properties.top_explanations,
     top_scenarios: mapPayload.features[index].properties.top_scenarios,
   })),
+  scenario_rule_evaluations: [],
   readiness: {
     geometry: {
       label: "Geometria",
@@ -398,7 +400,10 @@ describe("App", () => {
     ).toBeInTheDocument();
     expect(detail.getByText("Índice de prioridade")).toBeInTheDocument();
     expect(detail.getByText("8,0")).toBeInTheDocument();
-    expect(detail.getByText("Incidência elevada")).toBeInTheDocument();
+    expect(detail.getByText("Testagem para HIV abaixo do comparativo")).toBeInTheDocument();
+    expect(
+      detail.getByText("regra comparativa provisória"),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /Fortaleza/ }),
     ).toHaveAttribute("aria-pressed", "true");
