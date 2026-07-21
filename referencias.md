@@ -26,6 +26,22 @@ planning. These files should be treated as evidence and context, not as applicat
     network indicators;
   - expose data freshness and source limitations on dashboards.
 
+### Caderno de Indicadores da Tuberculose
+
+- Official page:
+  <https://www.gov.br/saude/pt-br/centrais-de-conteudo/publicacoes/svsa/tuberculose/caderno-de-indicadores-da-tuberculose/view>
+- Domain: official formulas, universes, selections, tabulation procedures, and
+  limitations for tuberculosis indicators.
+- Why it matters: the contact-investigation method requires combining the
+  identified and examined contact increments with the eligible new pulmonary
+  case universe and laboratory-confirmation fields. It also documents why a
+  raw proportion must be reconciled with the official tabulation before use.
+- Useful design ideas:
+  - version the exact fields, categories, cohort, and source release;
+  - distinguish missing contact counts from recorded zeros;
+  - keep technical reproduction separate from epidemiological approval;
+  - do not activate a municipal indicator while official totals diverge.
+
 ### Original Biochallenge project scope
 
 - Local file: `documentos/Escopo - Biochallenge Brasil 2026.docx.pdf`

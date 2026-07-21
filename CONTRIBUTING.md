@@ -58,6 +58,11 @@ reviewer and requested changes have passed the normal quality gates.
 Regenerate the CAP-01 ranking comparison with
 `python -m tbia validate-diagnostic-ranking --uf CE --year 2023`.
 
+Generate the CAP-03 contact-field audit with
+`python -m tbia validate-sinan-contacts --uf CE --year-from 2018 --year-to 2024`. It is intentionally independent of ingestion and `make demo`. While
+official totals remain unreconciled, it writes the evidence and returns code
+`1`; do not weaken that behavior to make a demonstration pass.
+
 ## Additional Quality Commands
 
 ```bash

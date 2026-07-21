@@ -12,7 +12,7 @@ The backend is implemented in Python. The active stack includes public-data inge
 - `descricao_do_projeto.md`: product vision, scope, MVP assumptions, data sources, and LGPD constraints.
 - `frentes_de_desenvolvimento.md`: workstreams for product, evidence, data, rules, interface, architecture, and validation.
 - `guia_validacao_de_dominio.md`: plain-language clinical and epidemiological
-  review packet, decision checklist, and CAP-01 evidence summary.
+  review packet, decision checklists, and CAP-01 through CAP-03 evidence.
 - `proximos_passos.md`: canonical prioritized roadmap, capability statuses, dependencies, and Biochallenge completion work.
 - `referencias.md`: related systems, papers, and design references for public health surveillance and TB decision support.
 - `especificacao_tecnica_do_sistema.md`: engineering-oriented specification for MVP scope, data contracts, architecture, workflows, governance, and validation.
@@ -85,6 +85,20 @@ python -m tbia validate-incidence-history
 The report is written under `data/processed/mvp1/validation/`. It separates
 availability and suppression from release and population-denominator changes;
 its technical candidate status is not approval of a trend rule.
+
+Audit the public SINAN-TB contact-investigation fields independently of the
+product pipeline with:
+
+```bash
+python -m tbia validate-sinan-contacts --uf CE --year-from 2018 --year-to 2024
+```
+
+The command verifies source hashes, reports missing and impossible contact
+counts, reproduces five municipalities, and compares CE/2022 and CE/2024 with
+official bulletins. The current public files do not reproduce those benchmarks,
+so the command writes its JSON under `data/processed/mvp1/validation/` and then
+returns code `1`. No result enters indicators, scenarios, storage, APIs,
+rankings, or frontend.
 
 The individual commands remain available for source-specific debugging:
 

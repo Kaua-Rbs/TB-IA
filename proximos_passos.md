@@ -223,12 +223,19 @@ impacto aceito por revisão de domínio e linguagem de incerteza aprovada.
 **Objetivo:** decidir com evidência se os campos públicos do SINAN-TB sustentam
 um indicador territorial defensável de contatos examinados.
 
-**Estado atual:** a investigação técnica foi iniciada sem incorporar o indicador
-ao produto. O arquivo público contém campos candidatos para contatos
-identificados e examinados, mas a primeira reprodução CE/2022 divergiu dos
-totais publicados e a exploração CE/2023 encontrou campos ausentes e agregados
-municipais com examinados acima de identificados. Esses resultados impedem que
-uma proporção aparentemente válida seja tratada como indicador pronto.
+**Estado atual:** todo o recorte que não depende de decisão de domínio está
+implementado sem incorporar o indicador ao produto. O comando isolado audita
+CE/2018-2024, verifica hashes, preserva duas leituras para campos incompletos,
+lista anomalias municipais, compara referências oficiais e reproduz cinco casos
+de aceitação. O guia de validação apresenta a evidência e um formulário próprio
+para a CAP-03.
+
+Os sete arquivos conferiram com o manifesto, mas todos os anos têm valores
+ausentes e municípios acima de 100%. A base pública atual calculou 80,83% para
+CE/2022, contra 72,6% na publicação, e 80,05% para CE/2024, contra 79,4%.
+Consequentemente, o relatório permanece
+`technical_reconciliation_required` e o comando retorna erro depois de gravar
+a evidência.
 
 **Recorte técnico:** auditar os arquivos SINAN-TB de 2018 a 2024 em um comando
 independente da ingestão e da demonstração. O relatório deve registrar os
@@ -266,6 +273,11 @@ epidemiológica.
 **Fora deste recorte:** não adicionar campos ao agregado canônico de casos,
 indicador, cenário, recomendação, persistência, API, ranking ou interface. O
 alerta sintético de contato pendente permanece um fluxo operacional separado.
+
+**Próximo bloqueador técnico:** obter a mesma versão congelada usada nas
+publicações, ou uma exportação TabWin equivalente, para explicar as diferenças.
+Essa tarefa é da equipe técnica. A revisão profissional deve decidir a semântica
+e a utilidade do indicador, não reconciliar arquivos ou código.
 
 **Critério de saída:** indicador implementado com sinalização de qualidade ou
 decisão documentada de mantê-lo fora do produto público. O alerta sintético de

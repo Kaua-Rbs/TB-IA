@@ -8,11 +8,13 @@ Este documento orienta a revisão humana das regras de saúde usadas pelo TB-IA.
 Ele foi escrito para profissionais que não trabalham com programação. Não é
 necessário abrir o código-fonte para preencher a revisão.
 
-A versão atual detalha duas revisões. A **CAP-01** prioriza municípios com
+A versão atual detalha três revisões. A **CAP-01** prioriza municípios com
 sinais comparativos de baixa testagem para HIV, baixo uso de TRM-TB e baixo uso
 de cultura entre casos de retratamento. A **CAP-02** apresenta a série histórica
 de incidência, suas quebras de comparabilidade e as decisões necessárias antes
-de criar qualquer regra de crescimento.
+de criar qualquer regra de crescimento. A **CAP-03** avalia se os campos
+públicos de investigação de contatos permitem construir um indicador municipal
+confiável; esse indicador ainda não faz parte do produto.
 
 ## Quem deve revisar
 
@@ -45,9 +47,10 @@ As respostas possíveis para cada item são:
 
 ## Limite de segurança
 
-O TB-IA usa dados públicos agregados por município. A CAP-01 não identifica
-pessoas, não diagnostica tuberculose ou resistência, não prescreve exames e não
-avalia a qualidade de um profissional ou serviço isolado.
+O TB-IA usa dados públicos agregados por município. As capacidades descritas
+neste guia não identificam pessoas, não diagnosticam tuberculose ou resistência,
+não prescrevem exames e não avaliam a qualidade de um profissional ou serviço
+isolado.
 
 Um sinal no ranking significa apenas: "este valor municipal está entre os mais
 baixos do grupo comparado e merece revisão do programa". Ele não prova falha
@@ -436,6 +439,226 @@ método, exceções e volume mínimo estiverem preenchidos. A CAP-02 só pode al
 o ranking depois que o impacto da regra implementada também for apresentado e
 aceito em nova revisão.
 
+## CAP-03 em linguagem simples
+
+### Qual pergunta está sendo investigada
+
+A investigação de contatos procura saber quantas pessoas que tiveram contato
+com um caso de tuberculose foram identificadas e quantas foram efetivamente
+examinadas. A fórmula candidata é:
+
+```text
+contatos examinados / contatos identificados x 100
+```
+
+Ela seria calculada somente para casos novos de tuberculose pulmonar confirmados
+por exame laboratorial. Uma proporção municipal baixa poderia apontar uma
+oportunidade para revisar o processo de investigação, mas não provaria falha de
+uma equipe ou serviço.
+
+O alerta de contato pendente já presente na demonstração municipal é diferente.
+Ele usa dados sintéticos de acompanhamento individual e uma regra de prazo. A
+CAP-03 avalia contagens públicas agregadas do SINAN-TB e não pode substituir
+esse fluxo operacional.
+
+### Universo candidato usado na auditoria
+
+| Parte da seleção | Interpretação técnica usada |
+| --- | --- |
+| Período | Ano registrado em `NU_ANO` |
+| Município | Município de residência em `ID_MN_RESI` |
+| Tipo de entrada | Caso novo, não sabe e pós-óbito, códigos `1`, `4` e `6` |
+| Forma clínica | Pulmonar ou pulmonar e extrapulmonar, códigos `1` e `3` |
+| Encerramento | Todas as situações, exceto mudança de diagnóstico, código `6` |
+| Confirmação laboratorial | Baciloscopia inicial positiva, segunda baciloscopia positiva, cultura positiva ou TRM-TB detectável |
+| Contatos identificados | Soma de `NU_CONTATO` |
+| Contatos examinados | Soma de `NU_COMU_EX` |
+
+Essa tabela transcreve o método candidato para permitir auditoria. Ela não
+significa que a equipe clínica e epidemiológica já aprovou a interpretação dos
+campos ou o uso municipal do resultado.
+
+### Duas somas que não devem ser confundidas
+
+Existem registros em que somente uma das duas contagens está preenchida. Por
+isso, a auditoria apresenta duas leituras:
+
+- **Valores registrados:** soma cada campo quando ele está preenchido. Um campo
+  vazio não é somado, mas também não é chamado de zero.
+- **Pares completos:** usa somente registros em que as duas contagens estão
+  preenchidas.
+
+As duas leituras produzem resultados diferentes. O software não escolheu uma
+delas como correta e não preencheu valores ausentes.
+
+### Resultado técnico de 2018 a 2024
+
+Todos os arquivos e seus identificadores criptográficos conferiram com o
+manifesto técnico. Mesmo assim, todos os anos apresentaram contagens ausentes e
+registros ou municípios com examinados acima de identificados.
+
+| Ano | Casos elegíveis | Valores registrados | Identificados ausentes | Examinados ausentes | Municípios acima de 100% |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 2018 | 2.331 | 7.698/9.627 = 79,96% | 9 | 200 | 5 |
+| 2019 | 2.306 | 7.156/10.383 = 68,92% | 28 | 315 | 4 |
+| 2020 | 1.885 | 6.000/7.483 = 80,18% | 34 | 228 | 2 |
+| 2021 | 1.970 | 5.691/6.878 = 82,74% | 26 | 261 | 1 |
+| 2022 | 2.208 | 5.948/7.359 = 80,83% | 17 | 318 | 1 |
+| 2023 | 2.223 | 5.648/7.023 = 80,42% | 29 | 376 | 4 |
+| 2024 | 2.146 | 5.821/7.272 = 80,05% | 30 | 363 | 2 |
+
+“Acima de 100%” significa que a soma de examinados ficou maior que a de
+identificados. A auditoria apenas sinaliza essa inconsistência. Ela não limita o
+resultado a 100%, não troca valores e não descarta silenciosamente o município.
+
+### Comparação com publicações oficiais
+
+| Coorte | Publicação oficial | Base pública atual | Diferença identificados/examinados |
+| --- | ---: | ---: | ---: |
+| CE/2022 | 4.684/6.449 = 72,6% | 5.948/7.359 = 80,83% | +910 / +1.264 |
+| CE/2024 | 5.921/7.454 = 79,4% | 5.821/7.272 = 80,05% | -182 / -100 |
+
+As publicações usaram bancos extraídos e qualificados em momentos específicos.
+Os arquivos públicos atuais podem ter sido revisados depois dessas extrações.
+Enquanto a equipe técnica não reproduzir os totais com a mesma versão da fonte
+ou explicar formalmente a diferença, a CAP-03 permanece em reconciliação
+técnica e nenhum resultado deve ser apresentado como indicador validado.
+
+### Cinco municípios para conferência
+
+Os valores abaixo usam a coorte CE/2024. “Registrados” e “pares completos” são
+as duas leituras descritas anteriormente.
+
+| Município | Registrados | Pares completos | Ausentes identificados/examinados | Registros acima |
+| --- | ---: | ---: | ---: | ---: |
+| Fortaleza | 991/2.026 = 48,91% | 988/1.545 = 63,95% | 17 / 251 | 5 |
+| Caucaia | 305/399 = 76,44% | 305/357 = 85,43% | 0 / 16 | 0 |
+| Sobral | 334/311 = 107,40% | 332/311 = 106,75% | 1 / 0 | 4 |
+| Maracanaú | 82/108 = 75,93% | 82/89 = 92,13% | 1 / 7 | 0 |
+| Quixadá | 6/7 = 85,71% | 6/7 = 85,71% | 1 / 3 | 0 |
+
+Esses casos foram reproduzidos automaticamente contra o arquivo cujo hash está
+no manifesto. A conferência profissional deve se concentrar no significado e
+na utilidade dos resultados, especialmente na grande diferença causada pelos
+campos ausentes e no resultado impossível de Sobral.
+
+### Responsabilidade técnica antes da aprovação
+
+A equipe de desenvolvimento, e não o profissional de saúde, ainda deve:
+
+1. Obter, quando possível, a mesma versão congelada usada pelas publicações ou
+   uma exportação oficial equivalente.
+1. Confirmar que a operação do TabWin foi reproduzida sem diferenças técnicas.
+1. Explicar e versionar qualquer diferença causada por atualização posterior do
+   SINAN-TB.
+1. Repetir a auditoria se a ficha migrar para uma nova estrutura do e-SUS SINAN.
+
+Se essas tarefas não forem concluídas, o revisor pode marcar a decisão geral
+como **inconclusiva** sem precisar resolver problemas de banco ou programação.
+
+## Decisões de domínio necessárias para a CAP-03
+
+1. Confirmar se os tipos de entrada, formas clínicas e situações de
+   encerramento representam corretamente o universo pretendido.
+1. Confirmar se as quatro formas de confirmação laboratorial devem entrar e se
+   a segunda baciloscopia tem a interpretação usada.
+1. Confirmar se `NU_CONTATO` representa contatos identificados e `NU_COMU_EX`
+   representa contatos examinados para todo o período analisado.
+1. Decidir se um campo vazio significa zero, informação desconhecida ou outra
+   situação operacional.
+1. Avaliar se duplicidades, atualizações ou transferência de registros podem
+   alterar as contagens e como isso deve ser tratado.
+1. Definir quando uma coorte está madura o suficiente para comparação e qual
+   atraso deve aparecer no produto.
+1. Definir o tratamento de examinados acima de identificados: resultado
+   inconclusivo, exclusão, correção na fonte ou outra conduta.
+1. Definir denominador mínimo, supressão, agregação de anos ou outra proteção
+   para municípios com poucas contagens.
+1. Decidir se a proporção é interpretável no nível municipal ou apenas em
+   agregados maiores.
+1. Confirmar se alguma referência ou meta oficial pode ser usada como limiar.
+   O sistema não deve transformar uma meta em regra comparativa por conta
+   própria.
+1. Somente se o indicador for aceito, definir gravidade, dimensão do ranking,
+   peso e resposta municipal sugerida.
+1. Revisar a linguagem para que o sinal não pareça diagnóstico, punição,
+   avaliação individual de serviço ou prova de baixa qualidade.
+1. Avaliar se a diferença em relação às publicações impede o uso mesmo após uma
+   explicação técnica.
+1. Pedir que usuários da vigilância expliquem o resultado com suas próprias
+   palavras antes de aprovar sua apresentação.
+
+## Roteiro sugerido para a revisão da CAP-03
+
+1. Ler “Qual pergunta está sendo investigada” e confirmar a separação do alerta
+   municipal sintético.
+1. Conferir o universo candidato e as quatro formas de confirmação
+   laboratorial.
+1. Comparar “valores registrados” com “pares completos” e decidir como tratar
+   campos vazios.
+1. Analisar as duas divergências com publicações oficiais e registrar se a
+   evidência técnica é suficiente.
+1. Conferir Fortaleza, Caucaia, Sobral, Maracanaú e Quixadá diretamente em uma
+   fonte aceita pelo revisor.
+1. Definir maturidade da coorte, denominador mínimo e comportamento de
+   resultados impossíveis.
+1. Discutir eventual utilidade municipal antes de considerar limiar ou ranking.
+1. Preencher e assinar o registro abaixo.
+
+## Registro de decisão da CAP-03
+
+| ID | Decisão | Aprovar | Alterar | Reprovar | Inconclusivo | Observações |
+| --- | --- | :---: | :---: | :---: | :---: | --- |
+| D03-01 | Universo, município e período | [ ] | [ ] | [ ] | [ ] | |
+| D03-02 | Formas pulmonar e mista | [ ] | [ ] | [ ] | [ ] | |
+| D03-03 | Confirmação laboratorial e segunda baciloscopia | [ ] | [ ] | [ ] | [ ] | |
+| D03-04 | Significado dos dois campos de contatos | [ ] | [ ] | [ ] | [ ] | |
+| D03-05 | Tratamento de campo vazio | [ ] | [ ] | [ ] | [ ] | |
+| D03-06 | Duplicidades, atualizações e transferências | [ ] | [ ] | [ ] | [ ] | |
+| D03-07 | Maturidade e atraso da coorte | [ ] | [ ] | [ ] | [ ] | |
+| D03-08 | Examinados acima de identificados | [ ] | [ ] | [ ] | [ ] | |
+| D03-09 | Denominador mínimo, supressão e agregação | [ ] | [ ] | [ ] | [ ] | |
+| D03-10 | Interpretação no nível municipal | [ ] | [ ] | [ ] | [ ] | |
+| D03-11 | Referência ou limiar oficial | [ ] | [ ] | [ ] | [ ] | |
+| D03-12 | Gravidade, ranking e resposta sugerida | [ ] | [ ] | [ ] | [ ] | |
+| D03-13 | Linguagem de segurança | [ ] | [ ] | [ ] | [ ] | |
+| D03-14 | Divergências com as publicações | [ ] | [ ] | [ ] | [ ] | |
+| D03-15 | Compreensão do fluxo por usuários | [ ] | [ ] | [ ] | [ ] | |
+
+**Leitura escolhida para campos incompletos:**
+
+**Situações que tornam o resultado inconclusivo:**
+
+**Coorte mínima considerada madura:**
+
+**Denominador mínimo e justificativa:**
+
+**Nível geográfico aprovado:**
+
+**Decisão geral:** [ ] aprovar [ ] aprovar com alterações [ ] reprovar [ ]
+inconclusivo
+
+**Alterações obrigatórias antes da aprovação:**
+
+______________________________________________________________________
+
+**Nome do revisor responsável:**
+
+**Formação e função:**
+
+**Instituição:**
+
+**Data:**
+
+**Versão ou identificação das fontes consultadas:**
+
+**Assinatura ou registro equivalente:**
+
+A CAP-03 não pode gerar indicador, cenário ou pontos no ranking enquanto a
+reconciliação técnica estiver aberta. Mesmo depois dela, qualquer implementação
+depende das decisões essenciais D03-01 a D03-10 e D03-14. Limiar, gravidade,
+ranking e recomendação dependem também de D03-11 a D03-13.
+
 ## Onde encontrar a evidência
 
 A equipe técnica pode apresentar os seguintes artefatos sem exigir que o revisor
@@ -463,6 +686,19 @@ os edite.
   gerada por `python -m tbia validate-incidence-history`.
 - Série de um município, disponível na API
   `/api/territorial/history` com município, indicador e intervalo informados.
+
+### Evidência da CAP-03
+
+- Manifesto, hashes, benchmarks e cinco municípios:
+  `src/tbia/resources/validation/sinan_contact_audit_ce_2018_2024.json`.
+- Auditoria técnica gerada localmente:
+  `data/processed/mvp1/validation/sinan_contact_investigation_ce_2018_2024.json`.
+- Comando reproduzível:
+  `python -m tbia validate-sinan-contacts --uf CE --year-from 2018 --year-to 2024`.
+
+Enquanto houver divergência, o comando grava o relatório e retorna código `1`.
+Esse código documenta um bloqueio esperado e não significa que o relatório foi
+perdido.
 
 A interface de demonstração fica em `/territorios`, após executar `make demo`
 e iniciar o servidor. Os arquivos gerados em `data/processed/` são evidência
