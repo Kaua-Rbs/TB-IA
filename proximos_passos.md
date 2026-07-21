@@ -1,6 +1,6 @@
 # Próximos passos
 
-Última revisão: 20 de julho de 2026.
+Última revisão: 21 de julho de 2026.
 
 Este documento é o backlog canônico e priorizado do TB-IA. Ele transforma as
 entregas ainda abertas do escopo do Biochallenge e da especificação técnica em
@@ -70,7 +70,7 @@ um componente de cenário composto.
 | Ordem | ID | Capacidade | Estado |
 | --- | --- | --- | --- |
 | 1 | CAP-01 | Priorização por testagem de HIV, TRM-TB e cultura | **Em validação** |
-| 2 | CAP-02 | Tendências históricas e incidência crescente | **Planejada** |
+| 2 | CAP-02 | Tendências históricas e incidência crescente | **Em andamento (planejamento)** |
 | 3 | CAP-03 | Investigação de contatos com dados públicos | **Planejada** |
 | 4 | CAP-04 | Vigilância de resistência em camadas | **Planejada** |
 | 5 | CAP-05 | Monitoramento de tratamento preventivo | **Condicional** |
@@ -90,16 +90,25 @@ pelo menos 10 valores disponíveis e cobertura de 5% dos municípios canônicos 
 escopo. Valores ausentes ou suprimidos nunca são classificados como baixo
 desempenho.
 
-**Estado atual:** implementação, aceitação técnica, persistência, API,
-localização e testes automatizados concluídos. Na reconstrução CE/2023 com 184
-municípios, testagem de HIV ficou pronta com 87 valores disponíveis e TRM-TB com
-19; cultura permaneceu com comparação insuficiente, com 6 valores disponíveis.
-As duas regras prontas geraram cenários marcados como
-`pending_domain_review`; cultura não gerou limiar nem cenário. Os gates
-`make check`, `make coverage`, `make frontend-check` e `make demo`
-passaram. Permanecem pendentes a revisão epidemiológica dos limiares,
-severidades e estratégias e o teste de fluxo com usuários de VAL-02. Até essa
-aprovação, CAP-01 não atende ao critério de saída.
+**Estado atual:** todo o trabalho conhecido que não exige validação de domínio
+está concluído: transformação, amostra de aceitação, persistência, localização,
+regras provisórias, agrupamento de dimensões, testes por UF e no recorte
+nacional e reconstrução da demonstração. Na CE/2023, HIV ficou pronto com 87
+valores disponíveis, TRM-TB com 19 e cultura permaneceu com comparação
+insuficiente, com 6.
+
+O relatório reproduzível de impacto comparou o ranking sem e com a CAP-01. Os
+sinais elevaram o escore de 26 municípios, incluíram 5 municípios no conjunto
+ranqueado e mantiveram 8 dos 10 primeiros. O limite por dimensão retirou 2,0775
+pontos de peso correlacionado. O relatório continua marcado como
+`technical_validation_pending_domain_review`.
+
+O `guia_validacao_de_dominio.md` apresenta fórmulas, amostra, cobertura,
+impacto e formulário de decisão sem exigir conhecimento de programação. Restam
+exclusivamente a revisão clínica e epidemiológica registrada nesse guia e o
+teste de compreensão do fluxo com usuários de VAL-02. Até essas aprovações, as
+regras e os cenários permanecem `pending_domain_review` e CAP-01 não atende ao
+critério de saída.
 
 **Critério de saída:** regras aprovadas e versionadas, casos de aceitação
 oficiais, testes de regressão do ranking e explicações/recomendações coerentes na
@@ -110,13 +119,81 @@ API e no produto.
 **Objetivo:** distinguir um valor anual elevado de uma piora persistente no
 tempo.
 
-**Abordagem:** preparar séries anuais comparáveis por município e UF, exigir
-anos e denominadores completos e definir uma regra transparente de crescimento
-sustentado. A análise deve reduzir instabilidade de percentuais em municípios
-com contagens pequenas e manter o ano isolado disponível para auditoria.
+**Estado atual:** planejamento iniciado em 21 de julho de 2026. Nenhum cálculo
+de tendência, cenário ou alteração de ranking foi implementado nesta etapa.
 
-**Critério de saída:** janela temporal validada, prontidão por ano explícita,
-série histórica acessível por API e cenário de tendência reproduzível por testes.
+**Recorte inicial:** começar apenas pela série anual municipal de incidência de
+TB já definida como `tb_incidence_per_100k`. O primeiro recorte não inclui
+previsão, hotspot, causalidade, dados pessoais ou combinação opaca de
+indicadores.
+
+**Princípios técnicos:**
+
+1. Preservar, para cada ano, numerador, denominador, fonte, ano do denominador,
+   supressão, indisponibilidade e ressalvas.
+1. Nunca preencher ano ausente com zero nem interpolar silenciosamente.
+1. Separar prontidão da série, cálculo candidato e ativação no ranking.
+1. Usar a mesma série no domínio, armazenamento, API, relatório e interface.
+1. Manter qualquer regra de tendência como provisória até revisão clínica e
+   epidemiológica.
+
+**Sequência prevista de commits atômicos:**
+
+1. `feat(storage): expose territorial indicator history`
+
+   Criar consulta por indicador, território, recorte geográfico e intervalo de
+   anos. Cobrir mistura de UFs, anos ausentes, valores suprimidos e fontes
+   diferentes sem alterar cenários existentes.
+
+1. `feat(api): publish auditable incidence series`
+
+   Expor contrato territorial de série histórica com os valores anuais e seus
+   estados de qualidade. O endpoint deve validar indicador e intervalo, manter
+   a proveniência e não calcular tendência na camada web.
+
+1. `feat(validation): audit incidence-series comparability`
+
+   Gerar relatório por UF e período com cobertura anual, lacunas, mudanças de
+   fonte ou ano do denominador, contagens suprimidas e municípios comparáveis.
+   Preparar uma amostra CE reproduzível antes de propor um limiar.
+
+1. `feat(mvp1): evaluate provisional incidence trends`
+
+   Somente depois da decisão de domínio sobre janela e método, implementar uma
+   função transparente e testável. O resultado candidato deve ser auditável e
+   permanecer fora do escore oficial enquanto estiver
+   `pending_domain_review`.
+
+1. `feat(frontend): show municipal incidence history`
+
+   Mostrar série, unidade, anos ausentes, supressão, fonte e ressalvas no dossiê
+   territorial. A interface deve chamar crescimento de sinal histórico, nunca
+   de previsão.
+
+1. `test(validation): measure CAP-02 ranking impact`
+
+   Comparar o ranking sem e com a regra candidata, testar UF e Brasil, verificar
+   estabilidade em pequenas contagens e registrar a decisão de ativação. A
+   regra só passa a contribuir para o ranking após aprovação registrada.
+
+**Decisões de domínio necessárias:** janela de anos, tratamento do período da
+pandemia, definição de crescimento persistente, volume mínimo de casos,
+comparabilidade de denominadores, tolerância a lacunas, gravidade e resposta
+sugerida. O formulário inicial está em `guia_validacao_de_dominio.md`.
+
+**Critérios técnicos de aceitação:**
+
+1. A mesma série anual é retornada pelo armazenamento e pela API.
+1. Anos ausentes, suprimidos ou incompatíveis ficam explícitos.
+1. Testes cobrem anos e UFs misturados e impedem vazamento entre escopos.
+1. Um relatório reproduz a cobertura e a comparabilidade da série CE.
+1. O cálculo candidato é determinístico, explica cada componente e não se
+   apresenta como previsão.
+1. A demonstração continua reproduzível e o impacto no ranking é mensurado.
+
+**Critério de saída:** janela e método validados, prontidão por ano explícita,
+série histórica acessível por API e produto, cenário reproduzível por testes,
+impacto aceito por revisão de domínio e linguagem de incerteza aprovada.
 
 ### CAP-03: investigação de contatos com dados públicos
 
@@ -194,17 +271,22 @@ para qualquer integração municipal real de CAP-04 ou CAP-05.
 
 ## Próximo recorte
 
-CAP-01 permanece em validação; não há outro recorte de implementação ativo.
-O trabalho imediato é de validação e deve ser registrado em avanços atômicos:
+CAP-01 permanece em validação, com a implementação técnica concluída. O
+trabalho para encerrá-la é:
 
-1. Submeter a amostra CE/2023, os denominadores e os gates de cobertura à revisão
-   epidemiológica.
+1. Submeter o `guia_validacao_de_dominio.md`, a amostra CE/2023 e os relatórios
+   de cobertura e ranking à revisão clínica e epidemiológica.
 1. Validar com usuários a leitura das explicações, da prontidão e das respostas
    recomendadas.
-1. Registrar decisões sobre limiar, severidade e estratégia; se aprovadas,
-   versionar as regras e substituir o estado provisório.
-1. Marcar CAP-01 como concluída somente após VAL-01 e a revisão aplicável de
-   VAL-02. CAP-02 passa a ser a próxima implementação depois dessa decisão.
+1. Implementar e testar eventuais alterações, registrar a decisão e só então
+   remover o estado provisório.
+
+CAP-02 está em andamento apenas como planejamento. O próximo commit de código
+previsto é `feat(storage): expose territorial indicator history`. Ele deve
+introduzir a consulta histórica e seus testes sem calcular tendência, criar
+cenário ou alterar o ranking. Assim, a infraestrutura auditável pode avançar
+enquanto a validação de CAP-01 é organizada, sem antecipar decisões médicas da
+CAP-02.
 
 Autenticação de produção, dados reais em nível de pessoa, automação clínica e
 modelos preditivos permanecem fora do ciclo atual.
