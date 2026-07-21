@@ -142,6 +142,9 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "territories": "territories",
         },
         "status_labels": {
+            "available": "available",
+            "empty": "empty",
+            "suppressed": "suppressed",
             "ready": "ready",
             "partial": "partial",
             "warning": "warning",
@@ -242,9 +245,12 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "context": "context",
             "per_100k": "per 100k",
             "status_labels": {
+                "available": "available",
                 "complete": "complete",
+                "empty": "empty",
                 "partial": "partial",
                 "missing": "missing",
+                "suppressed": "suppressed",
             },
             "severity_labels": {
                 "high": "high",
@@ -388,6 +394,9 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "territories": "territórios",
         },
         "status_labels": {
+            "available": "disponível",
+            "empty": "sem dados",
+            "suppressed": "suprimido",
             "ready": "pronto",
             "partial": "parcial",
             "missing_indicator": "indicador ausente",
@@ -491,9 +500,12 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "context": "contexto",
             "per_100k": "por 100 mil",
             "status_labels": {
+                "available": "disponível",
                 "complete": "completo",
+                "empty": "sem dados",
                 "partial": "parcial",
                 "missing": "ausente",
+                "suppressed": "suprimido",
             },
             "severity_labels": {
                 "high": "alta",
@@ -595,6 +607,72 @@ SOURCE_LABELS_PT = {
     "sinan_tb": "SINAN-TB / DATASUS",
     "sinan_validation": "Auditoria de mapeamento SINAN-TB",
 }
+
+HISTORY_FLAG_DETAILS = {
+    "en": {
+        "missing_year": "At least one requested year has no stored observation.",
+        "suppressed_year": "At least one annual value is hidden by the minimum-count rule.",
+        "provenance_incomplete": "At least one year has incomplete source metadata.",
+        "denominator_year_mismatch": (
+            "At least one rate uses a population reference year different from the event year."
+        ),
+        "source_release_changed": (
+            "The series crosses source releases with different finality status."
+        ),
+        "denominator_method_changed": (
+            "The population denominator changes between estimate and Census methods."
+        ),
+        "source_set_changed": "The set of contributing sources changes within the interval.",
+    },
+    "pt": {
+        "missing_year": "Ao menos um ano solicitado não possui observação armazenada.",
+        "suppressed_year": ("Ao menos um valor anual está oculto pela regra de contagem mínima."),
+        "provenance_incomplete": "Ao menos um ano possui metadados de fonte incompletos.",
+        "denominator_year_mismatch": (
+            "Ao menos uma taxa usa população de referência de ano diferente do evento."
+        ),
+        "source_release_changed": (
+            "A série atravessa versões da fonte com situações de fechamento diferentes."
+        ),
+        "denominator_method_changed": (
+            "O denominador populacional alterna entre estimativa e Censo."
+        ),
+        "source_set_changed": "O conjunto de fontes participantes muda dentro do período.",
+    },
+}
+
+HISTORY_RELEASE_LABELS = {
+    "en": {
+        "final": "final",
+        "preliminary": "preliminary",
+        "unknown": "unknown",
+    },
+    "pt": {
+        "final": "final",
+        "preliminary": "preliminar",
+        "unknown": "não informado",
+    },
+}
+
+HISTORY_DATASET_KIND_LABELS = {
+    "en": {
+        "census": "Census",
+        "estimate": "population estimate",
+        "notification": "notification records",
+        "mortality": "mortality records",
+        "hospitalization": "hospitalization records",
+        "unknown": "unspecified dataset",
+    },
+    "pt": {
+        "census": "Censo",
+        "estimate": "estimativa populacional",
+        "notification": "registros de notificação",
+        "mortality": "registros de mortalidade",
+        "hospitalization": "registros de internação",
+        "unknown": "conjunto não informado",
+    },
+}
+
 
 SOURCE_CAVEATS_PT = {
     "ibge_localidades": "Limites territoriais e cadastro municipal podem mudar ao longo do tempo.",
@@ -1081,9 +1159,12 @@ def localize_subterritory_payload(payload: dict[str, Any], language: str) -> dic
 
 
 def localize_territory_report(report: dict[str, Any], language: str) -> dict[str, Any]:
-    if language == FALLBACK_LANGUAGE:
-        return report
     localized = deepcopy(report)
+    history = report.get("incidence_history")
+    if isinstance(history, Mapping):
+        localized["incidence_history"] = localize_indicator_history(dict(history), language)
+    if language == FALLBACK_LANGUAGE:
+        return localized
     localized["indicators"] = [
         localize_indicator_row(row, language) for row in report.get("indicators", [])
     ]
@@ -1093,6 +1174,52 @@ def localize_territory_report(report: dict[str, Any], language: str) -> dict[str
     localized["recommendations"] = [
         localize_recommendation_row(row, language) for row in report.get("recommendations", [])
     ]
+    return localized
+
+
+def localize_history_source(source: dict[str, Any], language: str) -> None:
+    source_id = str(source.get("source_id", ""))
+    release_status = str(source.get("release_status", "unknown"))
+    dataset_kind = str(source.get("dataset_kind", "unknown"))
+    source_labels = SOURCE_LABELS_PT if language == "pt" else SOURCE_LABELS_EN
+    source["source_label"] = source_labels.get(source_id, source_id)
+    source["release_status_label"] = HISTORY_RELEASE_LABELS[language].get(
+        release_status, release_status
+    )
+    source["dataset_kind_label"] = HISTORY_DATASET_KIND_LABELS[language].get(
+        dataset_kind, dataset_kind
+    )
+
+
+def localize_history_point(point: dict[str, Any], indicator_id: str, language: str) -> None:
+    point["status_label"] = localized_status(str(point.get("status", "")), language)
+    if language == "pt":
+        point["caveats"] = indicator_caveat_pt(indicator_id, str(point.get("caveats", "")))
+    for source in point.get("source_provenance", []):
+        if isinstance(source, dict):
+            localize_history_source(source, language)
+
+
+def localize_indicator_history(history: dict[str, Any], language: str) -> dict[str, Any]:
+    localized = deepcopy(history)
+    indicator_id = str(localized.get("indicator_id", ""))
+    localized["indicator_name"] = indicator_label(
+        indicator_id,
+        language,
+        localized.get("indicator_name"),
+    )
+    coverage = localized.get("coverage")
+    if isinstance(coverage, dict):
+        coverage["status_label"] = localized_status(str(coverage.get("status", "")), language)
+    for flag in localized.get("comparability_flags", []):
+        if isinstance(flag, dict):
+            flag["detail"] = HISTORY_FLAG_DETAILS[language].get(
+                str(flag.get("code", "")),
+                str(flag.get("code", "")),
+            )
+    for point in localized.get("points", []):
+        if isinstance(point, dict):
+            localize_history_point(point, indicator_id, language)
     return localized
 
 

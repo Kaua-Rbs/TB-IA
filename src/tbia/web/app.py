@@ -36,6 +36,7 @@ from tbia.storage import (
     mvp2_alert_rows,
     mvp2_dashboard_context,
     mvp2_summary,
+    territory_indicator_history,
     territory_report,
 )
 from tbia.web.i18n import (
@@ -43,6 +44,7 @@ from tbia.web.i18n import (
     FALLBACK_LANGUAGE,
     language_context,
     localize_dashboard_context,
+    localize_indicator_history,
     localize_map_payload,
     localize_mvp2_context,
     localize_product_alert,
@@ -59,6 +61,7 @@ templates = Jinja2Templates(directory=str(TEMPLATE_DIR))
 SessionProvider = Callable[[], Session]
 TERRITORIAL_LOAD_STEP_COUNT = TERRITORIAL_PREPARATION_STEP_COUNT
 TERRITORIAL_LOAD_TERMINAL_STATUSES = {"complete", "failed"}
+MAX_HISTORY_YEAR_COUNT = 20
 TERRITORIAL_LOAD_JOBS: dict[str, TerritorialLoadJob] = {}
 TERRITORIAL_LOAD_LOCK = Lock()
 
@@ -213,6 +216,7 @@ def register_dashboard_routes(app: FastAPI, session_factory: SessionProvider) ->
 
 def register_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:
     register_mvp1_api_routes(app, session_factory)
+    register_product_history_api_routes(app, session_factory)
     register_product_territorial_api_routes(app, session_factory)
     register_product_operations_api_routes(app, session_factory)
     register_mvp2_api_routes(app, session_factory)
@@ -375,6 +379,19 @@ def territory_report_or_404(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+def indicator_history_or_404(
+    session: Session,
+    territory_id: str,
+    indicator_id: str,
+    year_from: int,
+    year_to: int,
+) -> dict[str, Any]:
+    try:
+        return territory_indicator_history(session, territory_id, indicator_id, year_from, year_to)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
 def register_mvp1_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:
     @app.get("/api/sources")
     def sources() -> list[dict[str, Any]]:
@@ -449,6 +466,33 @@ def register_mvp1_map_api_routes(app: FastAPI, session_factory: SessionProvider)
         with session_factory() as session:
             payload = geojson_for_subterritories(session, parent_id, territory_type)
         return localize_subterritory_payload(payload, language)
+
+
+def register_product_history_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:
+    @app.get("/api/territorial/history")
+    def territorial_history(
+        territory_id: str = Query(..., min_length=1),
+        indicator_id: str = Query(..., min_length=1),
+        year_from: int = Query(..., ge=2000, le=2100),
+        year_to: int = Query(..., ge=2000, le=2100),
+        lang: str = Query(DEFAULT_LANGUAGE),
+    ) -> dict[str, Any]:
+        if year_from > year_to:
+            raise HTTPException(
+                status_code=422,
+                detail="history start year must not exceed end year",
+            )
+        if year_to - year_from + 1 > MAX_HISTORY_YEAR_COUNT:
+            raise HTTPException(
+                status_code=422,
+                detail=f"history interval cannot exceed {MAX_HISTORY_YEAR_COUNT} years",
+            )
+        language = normalize_language(lang)
+        with session_factory() as session:
+            payload = indicator_history_or_404(
+                session, territory_id, indicator_id, year_from, year_to
+            )
+        return localize_indicator_history(payload, language)
 
 
 def register_product_territorial_api_routes(app: FastAPI, session_factory: SessionProvider) -> None:

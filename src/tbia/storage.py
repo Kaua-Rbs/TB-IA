@@ -22,6 +22,10 @@ from sqlalchemy import (
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, Query, Session, mapped_column, sessionmaker
 
+from tbia.domain.history import (
+    HistoryPointStatus,
+    build_indicator_history,
+)
 from tbia.domain.models import (
     CaseAggregate,
     ContactInvestigation,
@@ -2151,6 +2155,106 @@ def api_territory_rows(session: Session, uf: str) -> list[dict[str, Any]]:
     ]
 
 
+def territory_indicator_history(
+    session: Session,
+    territory_id: str,
+    indicator_id: str,
+    start_year: int,
+    end_year: int,
+) -> dict[str, Any]:
+    territory = session.get(TerritoryRecord, territory_id)
+    if territory is None or territory.territory_type != MUNICIPALITY_TERRITORY_TYPE:
+        raise KeyError(f"unknown municipality territory: {territory_id}")
+    definition = (
+        session.query(IndicatorDefinitionRecord)
+        .filter_by(indicator_id=indicator_id)
+        .order_by(IndicatorDefinitionRecord.version.desc())
+        .first()
+    )
+    if definition is None:
+        raise KeyError(f"unknown indicator: {indicator_id}")
+
+    values = load_indicator_history_values(
+        session,
+        indicator_id=indicator_id,
+        start_year=start_year,
+        end_year=end_year,
+        territory_ids={territory_id},
+    )
+    history = build_indicator_history(
+        values,
+        indicator_id=indicator_id,
+        territory_id=territory_id,
+        start_year=start_year,
+        end_year=end_year,
+    )
+    return {
+        "territory_id": territory.territory_id,
+        "territory_name": territory.name,
+        "uf": territory.uf_sigla,
+        "indicator_id": definition.indicator_id,
+        "indicator_name": definition.name,
+        "unit": definition.unit,
+        "direction": definition.direction,
+        "start_year": history.start_year,
+        "end_year": history.end_year,
+        "coverage": {
+            "requested_year_count": history.coverage.requested_year_count,
+            "available_year_count": history.coverage.available_year_count,
+            "suppressed_year_count": history.coverage.suppressed_year_count,
+            "missing_year_count": history.coverage.missing_year_count,
+            "provenance_incomplete_year_count": (history.coverage.provenance_incomplete_year_count),
+            "status": history.coverage.status.value,
+        },
+        "comparability_flags": [
+            {"code": flag.code, "years": list(flag.years)} for flag in history.flags
+        ],
+        "points": [
+            {
+                "year": point.year,
+                "status": point.status.value,
+                "value": (point.value if point.status == HistoryPointStatus.AVAILABLE else None),
+                "numerator_value": (
+                    point.numerator_value if point.status == HistoryPointStatus.AVAILABLE else None
+                ),
+                "denominator_value": point.denominator_value,
+                "denominator_year": point.denominator_year,
+                "source_provenance": [
+                    source_provenance_api_row(source) for source in point.source_provenance
+                ],
+                "caveats": point.caveats,
+            }
+            for point in history.points
+        ],
+    }
+
+
+def source_provenance_api_row(source: SourceProvenance) -> dict[str, Any]:
+    return {
+        "source_id": source.source_id,
+        "reference_year": source.reference_year,
+        "release_status": source.release_status,
+        "dataset_kind": source.dataset_kind,
+        "artifact_sha256": source.artifact_sha256,
+    }
+
+
+def optional_incidence_history(
+    session: Session, territory_id: str, year: int
+) -> dict[str, Any] | None:
+    definition_exists = (
+        session.query(IndicatorDefinitionRecord.indicator_id)
+        .filter_by(indicator_id="tb_incidence_per_100k")
+        .first()
+        is not None
+    )
+    if not definition_exists:
+        return None
+    return territory_indicator_history(
+        session, territory_id, "tb_incidence_per_100k", max(2000, year - 5), year
+    )
+
+
 def territory_report(
     session: Session,
     territory_id: str,
@@ -2196,6 +2300,7 @@ def territory_report(
         "uf": territory.uf_sigla,
         "comparison_scope": scenario_scope,
         "year": year,
+        "incidence_history": optional_incidence_history(session, territory_id, year),
         "indicators": indicators,
         "scenarios": scenarios,
         "recommendations": recommendations,

@@ -119,10 +119,12 @@ API e no produto.
 **Objetivo:** distinguir um valor anual elevado de uma piora persistente no
 tempo.
 
-**Estado atual:** implementação da infraestrutura iniciada em 21 de julho de
-2026\. O armazenamento preserva separadamente ano de análise, ano e tipo do
-denominador e proveniência estruturada das fontes. Nenhum cálculo de tendência,
-cenário ou alteração de ranking foi implementado.
+**Estado atual:** infraestrutura histórica em implementação desde 21 de julho
+de 2026. O armazenamento preserva ano de análise, ano e tipo do denominador e
+proveniência estruturada. A mesma série auditável já pode ser consultada no
+armazenamento, na API e no relatório municipal, com lacunas, supressão e
+mudanças de fonte explícitas. Nenhum cálculo de tendência, cenário ou alteração
+de ranking foi implementado.
 
 **Recorte inicial:** começar apenas pela série anual municipal de incidência de
 TB já definida como `tb_incidence_per_100k`. O primeiro recorte não inclui
@@ -157,7 +159,13 @@ indicadores.
 
    Expor contrato territorial de série histórica com os valores anuais e seus
    estados de qualidade. O endpoint deve validar indicador e intervalo, manter
-   a proveniência e não calcular tendência na camada web.
+   a proveniência e não calcular tendência na camada web. **Implementado.**
+
+1. `chore(demo): bundle CE incidence history`
+
+   Empacotar somente agregados municipais anuais de incidência do Ceará,
+   acompanhados de manifesto, hashes e referências oficiais. A preparação deve
+   funcionar sem baixar novamente os arquivos de origem.
 
 1. `feat(validation): audit incidence-series comparability`
 

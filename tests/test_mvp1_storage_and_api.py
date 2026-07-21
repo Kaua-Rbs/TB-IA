@@ -42,6 +42,7 @@ from tbia.storage import (
     save_case_aggregates,
     save_facilities,
     save_import_run,
+    save_indicator_history_values,
     save_indicator_values,
     save_mortalities,
     save_populations,
@@ -782,6 +783,151 @@ def test_public_api_returns_aggregate_indicators_and_ranking(tmp_path: Path) -> 
     )
     assert incidence_pt["indicator_name"] == "Incidência de TB"
     assert "Recomendado porque" in report_pt.json()["recommendations"][0]["explanation"]
+
+
+def test_public_api_exposes_auditable_localized_indicator_history(tmp_path: Path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'mvp1.db'}"
+    populate_database(database_url)
+    engine = create_engine_for_url(database_url)
+    session_factory = create_session_factory(engine)
+    history_values = [
+        IndicatorValue(
+            indicator_id="tb_incidence_per_100k",
+            territory_id="2304400",
+            year=2021,
+            value=10.0,
+            numerator_value=10,
+            denominator_value=100_000,
+            is_suppressed=False,
+            source_ids=("sinan_tb", "ibge_population"),
+            caveats="Annual public aggregate.",
+            denominator_year=2021,
+            source_provenance=(
+                SourceProvenance(
+                    "sinan_tb",
+                    reference_year=2021,
+                    release_status="preliminary",
+                    dataset_kind="notification",
+                    artifact_sha256="a" * 64,
+                ),
+                SourceProvenance(
+                    "ibge_population",
+                    reference_year=2021,
+                    release_status="final",
+                    dataset_kind="estimate",
+                ),
+            ),
+        ),
+        IndicatorValue(
+            indicator_id="tb_incidence_per_100k",
+            territory_id="2304400",
+            year=2022,
+            value=None,
+            numerator_value=3,
+            denominator_value=100_000,
+            is_suppressed=True,
+            source_ids=("sinan_tb", "ibge_population"),
+            caveats="Annual public aggregate.",
+            denominator_year=2022,
+            source_provenance=(
+                SourceProvenance(
+                    "sinan_tb",
+                    reference_year=2022,
+                    release_status="preliminary",
+                    dataset_kind="notification",
+                ),
+                SourceProvenance(
+                    "ibge_population",
+                    reference_year=2022,
+                    release_status="final",
+                    dataset_kind="estimate",
+                ),
+            ),
+        ),
+        IndicatorValue(
+            indicator_id="tb_incidence_per_100k",
+            territory_id="2304400",
+            year=2023,
+            value=12.0,
+            numerator_value=12,
+            denominator_value=100_000,
+            is_suppressed=False,
+            source_ids=("sinan_tb", "ibge_population"),
+            caveats="Annual public aggregate.",
+            denominator_year=2022,
+            source_provenance=(
+                SourceProvenance(
+                    "sinan_tb",
+                    reference_year=2023,
+                    release_status="final",
+                    dataset_kind="notification",
+                ),
+                SourceProvenance(
+                    "ibge_population",
+                    reference_year=2022,
+                    release_status="final",
+                    dataset_kind="census",
+                ),
+            ),
+        ),
+    ]
+    with session_factory() as session:
+        save_indicator_history_values(
+            session,
+            history_values,
+            indicator_id="tb_incidence_per_100k",
+            start_year=2018,
+            end_year=2023,
+            replace_territory_ids={"2304400"},
+        )
+        session.commit()
+    engine.dispose()
+
+    history_url = (
+        "/api/territorial/history?territory_id=2304400&"
+        "indicator_id=tb_incidence_per_100k&year_from=2018&year_to=2023&lang=pt"
+    )
+    with TestClient(create_app(database_url)) as client:
+        history_response = client.get(history_url)
+        report_response = client.get("/api/territories/2304400/report?year=2023&lang=pt")
+        reversed_range = client.get(history_url.replace("year_from=2018", "year_from=2024"))
+        oversized_range = client.get(history_url.replace("year_from=2018", "year_from=2000"))
+        unknown_indicator = client.get(history_url.replace("tb_incidence_per_100k", "unknown"))
+        unknown_territory = client.get(history_url.replace("2304400", "9999999"))
+
+    assert history_response.status_code == 200
+    assert report_response.status_code == 200
+    history = history_response.json()
+    assert report_response.json()["incidence_history"] == history
+    assert history["indicator_name"] == "Incidência de TB"
+    assert history["coverage"]["status"] == "partial"
+    assert history["coverage"]["status_label"] == "parcial"
+    assert [point["status"] for point in history["points"]] == [
+        "missing",
+        "missing",
+        "missing",
+        "available",
+        "suppressed",
+        "available",
+    ]
+    suppressed = history["points"][4]
+    assert suppressed["value"] is None
+    assert suppressed["numerator_value"] is None
+    assert suppressed["denominator_value"] == 100_000
+    assert suppressed["status_label"] == "suprimido"
+    assert history["points"][3]["source_provenance"][0]["source_label"] == ("SINAN-TB / DATASUS")
+    assert history["points"][3]["source_provenance"][0]["release_status_label"] == ("preliminar")
+    flags = {flag["code"]: flag for flag in history["comparability_flags"]}
+    assert flags["missing_year"]["years"] == [2018, 2019, 2020]
+    assert "observação armazenada" in flags["missing_year"]["detail"]
+    assert flags["suppressed_year"]["years"] == [2022]
+    assert flags["denominator_year_mismatch"]["years"] == [2023]
+    assert flags["source_release_changed"]["years"] == [2023]
+    assert flags["denominator_method_changed"]["years"] == [2023]
+    assert reversed_range.status_code == 422
+    assert oversized_range.status_code == 422
+    assert unknown_indicator.status_code == 404
+    assert unknown_territory.status_code == 404
 
 
 def test_public_api_returns_geometry_and_enriched_map_properties(tmp_path: Path) -> None:
