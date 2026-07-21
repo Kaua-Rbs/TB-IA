@@ -217,5 +217,5 @@ def test_validate_incidence_history_cli_rejects_reversed_range(tmp_path: Path) -
         ],
     )
 
-    assert result.exit_code != 0
+    assert result.exit_code == 2
     assert "--year-from must not exceed --year-to" in result.output

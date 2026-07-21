@@ -355,7 +355,8 @@ def validate_incidence_history(
     database_url: DatabaseUrlOption = DEFAULT_DATABASE_URL,
 ) -> None:
     if year_from > year_to:
-        raise BadParameter("--year-from must not exceed --year-to")
+        typer.echo("Error: --year-from must not exceed --year-to.", err=True)
+        raise typer.Exit(code=2)
     scope = uf.upper()
     engine = create_engine_for_url(database_url)
     try:
