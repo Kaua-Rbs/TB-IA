@@ -1,0 +1,140 @@
+{
+  "schema_version": "1",
+  "fixture_id": "tb_incidence_history_ce_2018_2023_v1",
+  "generated_at": "2026-07-21T19:18:15+00:00",
+  "review_status": "technical_fixture_pending_domain_review",
+  "aggregate_file": "incidence_history_ce_2018_2023.json",
+  "aggregate_sha256": "74065a13eafee2ec01b683d4d83e2938ad1b34329333c2811255a6083ad4b9f5",
+  "row_count": 1104,
+  "territory_count": 184,
+  "transformation": {
+    "version": "cap02-incidence-v1",
+    "numerator": "SINAN-TB new cases using TRATAMENTO codes 1, 4 and 6",
+    "denominator_policy": "Same-year IBGE estimates through 2021; 2022 Census population for analysis years 2022 and 2023 to match the reproducible MVP demo.",
+    "suppression": "Public values hidden when the numerator is below 5."
+  },
+  "supporting_artifacts": [
+    {
+      "source_id": "ibge_localidades",
+      "origin": "https://servicodados.ibge.gov.br/api/v1/localidades/estados/23/municipios",
+      "sha256": "4ced47c2b9d87d0b831cf8ba526189479603b43287f6c95bb3a64fbeb157a1a6",
+      "checksum_basis": "canonical JSON payload"
+    }
+  ],
+  "source_artifacts": [
+    {
+      "source_id": "sinan_tb",
+      "analysis_year": 2018,
+      "reference_year": 2018,
+      "release_status": "final",
+      "dataset_kind": "notification",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/FINAIS/TUBEBR18.dbc",
+      "sha256": "6e130706f522e51dbe9a954acc34ad96281fc5a483a66f206ae19622e9233eca"
+    },
+    {
+      "source_id": "ibge_population",
+      "analysis_year": 2018,
+      "reference_year": 2018,
+      "release_status": "final",
+      "dataset_kind": "estimate",
+      "origin": "https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/2018/variaveis/9324?localidades=N6[N3[23]]",
+      "sha256": "3e4fee5499889704358a0baaa1f5b142a28231ff41fc5ee18bdc13a18b0bae32",
+      "checksum_basis": "canonical JSON payload"
+    },
+    {
+      "source_id": "sinan_tb",
+      "analysis_year": 2019,
+      "reference_year": 2019,
+      "release_status": "final",
+      "dataset_kind": "notification",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/FINAIS/TUBEBR19.dbc",
+      "sha256": "7a00e29a5a309b794e21f1a650d3b04b9d3cb05fcc6ef8c9feefab3a961c9144"
+    },
+    {
+      "source_id": "ibge_population",
+      "analysis_year": 2019,
+      "reference_year": 2019,
+      "release_status": "final",
+      "dataset_kind": "estimate",
+      "origin": "https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/2019/variaveis/9324?localidades=N6[N3[23]]",
+      "sha256": "f36d9be8f8efa6eb20d6cbd360f207990d60ee054072aa75dbe4d9077230a997",
+      "checksum_basis": "canonical JSON payload"
+    },
+    {
+      "source_id": "sinan_tb",
+      "analysis_year": 2020,
+      "reference_year": 2020,
+      "release_status": "preliminary",
+      "dataset_kind": "notification",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR20.dbc",
+      "sha256": "9ecf487348b6196c7af143376e10ad70bdb9ef5ecc6ed9026cfa52f39b0b0edc"
+    },
+    {
+      "source_id": "ibge_population",
+      "analysis_year": 2020,
+      "reference_year": 2020,
+      "release_status": "final",
+      "dataset_kind": "estimate",
+      "origin": "https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/2020/variaveis/9324?localidades=N6[N3[23]]",
+      "sha256": "a77fdcbab93d46479cc7b9e5063ece31a39a20fce525cdd6efb2f2336c6422a9",
+      "checksum_basis": "canonical JSON payload"
+    },
+    {
+      "source_id": "sinan_tb",
+      "analysis_year": 2021,
+      "reference_year": 2021,
+      "release_status": "preliminary",
+      "dataset_kind": "notification",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR21.dbc",
+      "sha256": "82992aa0c638d3d17dc11bbda58488888c8709fb84fb6bda0cab42d00d57b5ef"
+    },
+    {
+      "source_id": "ibge_population",
+      "analysis_year": 2021,
+      "reference_year": 2021,
+      "release_status": "final",
+      "dataset_kind": "estimate",
+      "origin": "https://servicodados.ibge.gov.br/api/v3/agregados/6579/periodos/2021/variaveis/9324?localidades=N6[N3[23]]",
+      "sha256": "c4ec7801192e1c344c8f59715865225b6a8457efa29c230eb4f180eb73d80c6a",
+      "checksum_basis": "canonical JSON payload"
+    },
+    {
+      "source_id": "sinan_tb",
+      "analysis_year": 2022,
+      "reference_year": 2022,
+      "release_status": "preliminary",
+      "dataset_kind": "notification",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR22.dbc",
+      "sha256": "f1690ddb28aa28687d00ce9a3ce0c6956364c92098acf447ee123d44492a071d"
+    },
+    {
+      "source_id": "ibge_population",
+      "analysis_year": 2022,
+      "reference_year": 2022,
+      "release_status": "final",
+      "dataset_kind": "census",
+      "origin": "https://apisidra.ibge.gov.br/values/t/4714/n6/in%20n3%2023/v/93/p/2022",
+      "sha256": "1b7f2fb655edbdd80a992243b7289d985261c98c0bd46841d98d3583452fd0ce",
+      "checksum_basis": "canonical JSON payload"
+    },
+    {
+      "source_id": "sinan_tb",
+      "analysis_year": 2023,
+      "reference_year": 2023,
+      "release_status": "preliminary",
+      "dataset_kind": "notification",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR23.dbc",
+      "sha256": "fb324cb3007d67ba98df167a8274776172187ea3dac5b021d3f23b624a0442e5"
+    },
+    {
+      "source_id": "ibge_population",
+      "analysis_year": 2023,
+      "reference_year": 2022,
+      "release_status": "final",
+      "dataset_kind": "census",
+      "origin": "https://apisidra.ibge.gov.br/values/t/4714/n6/in%20n3%2023/v/93/p/2022",
+      "sha256": "1b7f2fb655edbdd80a992243b7289d985261c98c0bd46841d98d3583452fd0ce",
+      "checksum_basis": "canonical JSON payload"
+    }
+  ]
+}

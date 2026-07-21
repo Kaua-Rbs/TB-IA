@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any, cast
 
 from sqlalchemy.orm import Session
 
 from tbia.geography import ufs_for_scope
+from tbia.incidence_history_fixture import (
+    FIXTURE_END_YEAR,
+    FIXTURE_UF,
+    prepare_bundled_incidence_history,
+)
 from tbia.ingest.datasus import datasus_demo_files, download_datasus_file
 from tbia.mvp2 import (
     Mvp2Config,
@@ -50,6 +55,7 @@ class DemoPreparationResult:
     territory_count: int
     local_case_count: int
     operational_alert_count: int
+    incidence_history_value_count: int = 0
 
     @property
     def result_status(self) -> str:
@@ -333,10 +339,31 @@ def prepare_demo_environment(
         timeout=timeout,
         progress=progress,
     )
+    incidence_history_value_count = 0
+    if supports_bundled_incidence_history(territorial_config):
+        emit_progress(
+            progress,
+            stage="incidence_history",
+            step_index=6,
+            message="Carregando série histórica municipal de incidência com manifesto verificado.",
+        )
+        with session_factory() as session:
+            history_result = prepare_bundled_incidence_history(session)
+            scenario_count, recommendation_count = build_and_store_scenarios(
+                session, territorial_config
+            )
+            session.commit()
+        incidence_history_value_count = history_result.value_count
+        territorial = replace(
+            territorial,
+            scenario_count=scenario_count,
+            recommendation_count=recommendation_count,
+        )
+
     emit_progress(
         progress,
         stage="local_samples",
-        step_index=6,
+        step_index=7,
         message="Regenerando arquivos municipais sintéticos da demonstração.",
     )
     sample_paths = generate_mvp2_sample_data(municipal_config.raw_dir)
@@ -344,7 +371,7 @@ def prepare_demo_environment(
     emit_progress(
         progress,
         stage="local_ingest",
-        step_index=7,
+        step_index=8,
         message="Ingerindo fontes municipais sintéticas e pseudonimizadas.",
     )
     with session_factory() as session:
@@ -354,7 +381,7 @@ def prepare_demo_environment(
         emit_progress(
             progress,
             stage="operational_alerts",
-            step_index=8,
+            step_index=9,
             message="Gerando alertas operacionais transparentes para revisão humana.",
         )
         operational_alert_count = build_and_store_operational_alerts(
@@ -374,4 +401,13 @@ def prepare_demo_environment(
         territory_count=int(territorial_context["territory_count"]),
         local_case_count=int(local_summary["case_count"]),
         operational_alert_count=operational_alert_count,
+        incidence_history_value_count=incidence_history_value_count,
+    )
+
+
+def supports_bundled_incidence_history(config: Mvp1Config) -> bool:
+    return (
+        config.uf == FIXTURE_UF
+        and config.year == FIXTURE_END_YEAR
+        and config.population_source_year in {None, 2022}
     )

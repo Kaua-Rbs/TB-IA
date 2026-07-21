@@ -263,6 +263,7 @@ def test_prepare_demo_environment_regenerates_synthetic_data_idempotently(
 
     assert first.usable is True
     assert second.usable is True
+    assert second.incidence_history_value_count == 1104
     assert second.sample_file_count == 7
     assert summary["case_count"] == 3
     assert summary["alert_count"] == second.operational_alert_count
@@ -303,6 +304,7 @@ def test_prepare_demo_cli_uses_full_year_defaults_and_reports_summary(
             territory_count=184,
             local_case_count=3,
             operational_alert_count=4,
+            incidence_history_value_count=1104,
         )
 
     monkeypatch.setattr(cli, "prepare_demo_environment", fake_prepare)
@@ -327,6 +329,7 @@ def test_prepare_demo_cli_uses_full_year_defaults_and_reports_summary(
     assert captured["reference_date"] == date(2026, 6, 29)
     assert captured["sih_all_months"] is True
     assert "Demo preparation status: ready" in result.output
+    assert "Historical incidence: 1104 bundled municipality-year values." in result.output
     assert f"python -m tbia serve --database-url {database_url}" in result.output
 
 

@@ -109,7 +109,9 @@ selected scope/year. Existing files under `data/raw/municipal_demo` are
 regenerated as deterministic synthetic samples. Use the individual commands
 below when debugging a specific stage. Partial or coverage-unknown SIH/SUS
 aggregates are retained for audit but do not contribute hospitalization
-indicators or scenarios to annual rankings.
+indicators or scenarios to annual rankings. For CE/2023 it also loads the
+checksum-verified, packaged 2018-2023 incidence aggregate without downloading
+historical raw files.
 
 ```bash
 python -m tbia download-datasus-samples --uf CE --year 2023 --sih-all-months
@@ -119,6 +121,19 @@ python -m tbia compute-indicators --uf CE --year 2023
 python -m tbia build-scenarios --uf CE --year 2023
 python -m tbia validate-diagnostic-ranking --uf CE --year 2023
 python -m tbia serve
+```
+
+The packaged historical aggregate can be loaded independently and offline:
+
+```bash
+python -m tbia prepare-incidence-history
+```
+
+Regenerating that committed aggregate is a maintainer operation that downloads
+official SINAN-TB and IBGE artifacts and rewrites its manifest:
+
+```bash
+python -m tbia build-incidence-history-fixture
 ```
 
 The implementation must keep ingestion, domain indicator logic, scenario rules, storage, and presentation separated. Patient-level data and clinical decision automation remain out of scope for MVP 1.

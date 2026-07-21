@@ -66,6 +66,16 @@ for audit but are excluded from annual hospitalization indicators and rankings.
 Pass the same `--database-url` to `prepare-demo` and `serve` when using a
 non-default database.
 
+For the default CE/2023 scope, the same command also verifies and loads the
+packaged 2018-2023 municipal incidence aggregate. The bundle contains no
+person-level records: it has 1,104 municipality-year rows, a manifest, official
+source URLs, source hashes, and an aggregate checksum. Loading it does not
+download historical source files. The standalone offline command is:
+
+```bash
+python -m tbia prepare-incidence-history
+```
+
 The individual commands remain available for source-specific debugging:
 
 ```bash
@@ -91,6 +101,14 @@ directory. It compares the production ranking with the provisional CAP-01
 diagnostic rules disabled and enabled. `validate-diagnostic-ranking`
 regenerates that artifact from the stored scenarios without rebuilding source
 data; its technical status never substitutes for domain approval.
+
+Maintainers can regenerate the packaged aggregate from official SINAN-TB and
+IBGE artifacts. This command is network-dependent and is not part of ordinary
+demo preparation:
+
+```bash
+python -m tbia build-incidence-history-fixture
+```
 
 The product frontend at `/` and `/territorios` is a responsive public aggregate
 territorial workbench with Portuguese default UI text and optional English via

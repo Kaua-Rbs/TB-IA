@@ -7,6 +7,11 @@ from typing import Annotated
 import typer
 from click import BadParameter
 
+from tbia.incidence_history_builder import generate_incidence_history_fixture
+from tbia.incidence_history_fixture import (
+    IncidenceHistoryPreparationResult,
+    prepare_bundled_incidence_history,
+)
 from tbia.ingest.datasus import datasus_demo_files, download_datasus_file
 from tbia.mvp2 import (
     Mvp2Config,
@@ -278,11 +283,61 @@ def echo_demo_summary(
         f"{result.sample_file_count} files, {result.local_case_count} cases, "
         f"{result.operational_alert_count} alerts."
     )
+    typer.echo(
+        "Historical incidence: "
+        f"{result.incidence_history_value_count} bundled municipality-year values."
+    )
     typer.echo(f"Database: {database_url}")
     if result.usable:
         typer.echo(f"Next: python -m tbia serve --database-url {database_url}")
     else:
         typer.echo("Demo is not usable; review the failed or incomplete stages above.", err=True)
+
+
+def echo_incidence_history_summary(
+    result: IncidenceHistoryPreparationResult,
+) -> None:
+    typer.echo(
+        f"Prepared {result.value_count} incidence values for "
+        f"{result.territory_count} municipalities, {result.start_year}-{result.end_year}."
+    )
+    typer.echo(f"Verified aggregate SHA-256: {result.aggregate_sha256}")
+
+
+@app.command("prepare-incidence-history")
+def prepare_incidence_history(
+    database_url: DatabaseUrlOption = DEFAULT_DATABASE_URL,
+) -> None:
+    engine = create_engine_for_url(database_url)
+    try:
+        initialize_database(engine)
+        session_factory = create_session_factory(engine)
+        with session_factory() as session:
+            result = prepare_bundled_incidence_history(session)
+            session.commit()
+    finally:
+        engine.dispose()
+    echo_incidence_history_summary(result)
+
+
+@app.command("build-incidence-history-fixture")
+def build_incidence_history_fixture(
+    raw_dir: RawDirOption = DEFAULT_RAW_DIR,
+    output_dir: OutputDirOption = Path("src/tbia/resources/demo"),
+    timeout: TimeoutOption = 60,
+) -> None:
+    result = generate_incidence_history_fixture(
+        raw_dir,
+        output_dir,
+        timeout=timeout,
+    )
+    typer.echo(
+        f"Generated {result.row_count} municipality-year aggregates for "
+        f"{result.territory_count} municipalities."
+    )
+    typer.echo(f"Aggregate: {result.aggregate_path}")
+    typer.echo(f"Manifest: {result.manifest_path}")
+    typer.echo(f"Aggregate SHA-256: {result.aggregate_sha256}")
 
 
 @app.command("prepare-demo")

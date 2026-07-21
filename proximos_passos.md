@@ -165,7 +165,7 @@ indicadores.
 
    Empacotar somente agregados municipais anuais de incidência do Ceará,
    acompanhados de manifesto, hashes e referências oficiais. A preparação deve
-   funcionar sem baixar novamente os arquivos de origem.
+   funcionar sem baixar novamente os arquivos de origem. **Implementado.**
 
 1. `feat(validation): audit incidence-series comparability`
 
