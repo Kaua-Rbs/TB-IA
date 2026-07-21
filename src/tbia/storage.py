@@ -986,7 +986,48 @@ def save_indicator_values(
     rows = list(values)
     territory_ids = replacement_territory_ids(replace_territory_ids, rows)
     delete_public_rows(session, IndicatorValueRecord, {year}, territory_ids)
+    merge_indicator_values(session, rows)
+
+
+def save_indicator_history_values(
+    session: Session,
+    values: Iterable[IndicatorValue],
+    *,
+    indicator_id: str,
+    start_year: int,
+    end_year: int,
+    replace_territory_ids: Iterable[str] | None = None,
+) -> None:
+    if start_year > end_year:
+        raise ValueError("history start year must not exceed end year")
+    rows = list(values)
+    territory_ids = replacement_territory_ids(replace_territory_ids, rows)
     for value in rows:
+        if value.indicator_id != indicator_id:
+            raise ValueError(f"unexpected indicator history value: {value.indicator_id}")
+        if value.year < start_year or value.year > end_year:
+            raise ValueError(f"indicator history year outside replacement range: {value.year}")
+        if territory_ids and value.territory_id not in territory_ids:
+            raise ValueError(
+                f"indicator history territory outside replacement scope: {value.territory_id}"
+            )
+
+    if territory_ids:
+        session.execute(
+            delete(IndicatorValueRecord).where(
+                IndicatorValueRecord.indicator_id == indicator_id,
+                IndicatorValueRecord.year.between(start_year, end_year),
+                IndicatorValueRecord.territory_id.in_(territory_ids),
+            )
+        )
+    merge_indicator_values(session, rows)
+
+
+def merge_indicator_values(
+    session: Session,
+    values: Iterable[IndicatorValue],
+) -> None:
+    for value in values:
         session.merge(
             IndicatorValueRecord(
                 indicator_id=value.indicator_id,
@@ -1239,40 +1280,65 @@ def load_indicator_values(
             return []
         query = query.filter(IndicatorValueRecord.territory_id.in_(ids))
     records = query.all()
-    return [
-        IndicatorValue(
-            indicator_id=record.indicator_id,
-            territory_id=record.territory_id,
-            year=record.year,
-            value=record.value,
-            numerator_value=record.numerator_value,
-            denominator_value=record.denominator_value,
-            is_suppressed=record.is_suppressed,
-            source_ids=tuple(record.source_ids),
-            caveats=record.caveats,
-            denominator_year=record.denominator_year,
-            source_provenance=tuple(
-                SourceProvenance(
-                    source_id=str(item["source_id"]),
-                    reference_year=(
-                        int(item["reference_year"])
-                        if item.get("reference_year") is not None
-                        else None
-                    ),
-                    release_status=str(item.get("release_status", "unknown")),
-                    dataset_kind=str(item.get("dataset_kind", "unknown")),
-                    artifact_sha256=(
-                        str(item["artifact_sha256"])
-                        if item.get("artifact_sha256") is not None
-                        else None
-                    ),
-                )
-                for item in (record.source_provenance or [])
-            ),
-            computed_at=record.computed_at,
-        )
-        for record in records
-    ]
+    return [hydrate_indicator_value(record) for record in records]
+
+
+def load_indicator_history_values(
+    session: Session,
+    *,
+    indicator_id: str,
+    start_year: int,
+    end_year: int,
+    territory_ids: Iterable[str] | None = None,
+) -> list[IndicatorValue]:
+    if start_year > end_year:
+        raise ValueError("history start year must not exceed end year")
+    query = session.query(IndicatorValueRecord).filter(
+        IndicatorValueRecord.indicator_id == indicator_id,
+        IndicatorValueRecord.year.between(start_year, end_year),
+    )
+    if territory_ids is not None:
+        ids = set(territory_ids)
+        if not ids:
+            return []
+        query = query.filter(IndicatorValueRecord.territory_id.in_(ids))
+    records = query.order_by(
+        IndicatorValueRecord.territory_id,
+        IndicatorValueRecord.year,
+    ).all()
+    return [hydrate_indicator_value(record) for record in records]
+
+
+def hydrate_indicator_value(record: IndicatorValueRecord) -> IndicatorValue:
+    return IndicatorValue(
+        indicator_id=record.indicator_id,
+        territory_id=record.territory_id,
+        year=record.year,
+        value=record.value,
+        numerator_value=record.numerator_value,
+        denominator_value=record.denominator_value,
+        is_suppressed=record.is_suppressed,
+        source_ids=tuple(record.source_ids),
+        caveats=record.caveats,
+        denominator_year=record.denominator_year,
+        source_provenance=tuple(
+            SourceProvenance(
+                source_id=str(item["source_id"]),
+                reference_year=(
+                    int(item["reference_year"]) if item.get("reference_year") is not None else None
+                ),
+                release_status=str(item.get("release_status", "unknown")),
+                dataset_kind=str(item.get("dataset_kind", "unknown")),
+                artifact_sha256=(
+                    str(item["artifact_sha256"])
+                    if item.get("artifact_sha256") is not None
+                    else None
+                ),
+            )
+            for item in (record.source_provenance or [])
+        ),
+        computed_at=record.computed_at,
+    )
 
 
 def load_territory_scenarios(

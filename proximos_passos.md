@@ -151,7 +151,7 @@ indicadores.
 
    Criar consulta por indicador, território, recorte geográfico e intervalo de
    anos. Cobrir mistura de UFs, anos ausentes, valores suprimidos e fontes
-   diferentes sem alterar cenários existentes.
+   diferentes sem alterar cenários existentes. **Implementado.**
 
 1. `feat(api): publish auditable incidence series`
 
@@ -290,9 +290,9 @@ trabalho para encerrá-la é:
    remover o estado provisório.
 
 CAP-02 está em implementação de infraestrutura. O próximo commit previsto é
-`feat(storage): expose territorial indicator history`. Ele introduz a consulta
-histórica e seus testes sem calcular tendência, criar cenário ou alterar o
-ranking, sem antecipar decisões médicas da CAP-02.
+`feat(api): publish auditable incidence series`. A consulta histórica já está
+disponível no domínio e no armazenamento, sem cálculo de tendência, cenário ou
+alteração de ranking.
 
 Autenticação de produção, dados reais em nível de pessoa, automação clínica e
 modelos preditivos permanecem fora do ciclo atual.
