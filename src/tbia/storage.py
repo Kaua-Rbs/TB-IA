@@ -50,6 +50,7 @@ from tbia.domain.models import (
     ScenarioRule,
     ScenarioRuleEvaluation,
     ScenarioSeverity,
+    SourceProvenance,
     Strategy,
     Territory,
     TerritoryScenario,
@@ -123,6 +124,8 @@ class PopulationDenominatorRecord(Base):
     stratifier: Mapped[str] = mapped_column(String(80), primary_key=True, default="total")
     population: Mapped[int] = mapped_column(Integer)
     source_id: Mapped[str] = mapped_column(String(80))
+    source_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_kind: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class CaseAggregateRecord(Base):
@@ -320,6 +323,8 @@ class IndicatorValueRecord(Base):
     is_suppressed: Mapped[bool] = mapped_column(Boolean, default=False)
     source_ids: Mapped[list[str]] = mapped_column(JSON)
     caveats: Mapped[str] = mapped_column(Text)
+    denominator_year: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    source_provenance: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
 
@@ -420,6 +425,7 @@ def create_session_factory(engine: Engine) -> sessionmaker[Session]:
 def initialize_database(engine: Engine) -> None:
     Base.metadata.create_all(engine)
     migrate_import_run_scope_columns(engine)
+    migrate_indicator_provenance_columns(engine)
     migrate_comparison_scope_tables(engine)
     migrate_scenario_metadata_columns(engine)
 
@@ -447,6 +453,35 @@ def migrate_import_run_scope_columns(engine: Engine) -> None:
                 "ON import_runs (source_id, year, geographic_scope, import_run_id)"
             )
         )
+
+
+def migrate_indicator_provenance_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    population_columns = {
+        column["name"]
+        for column in inspector.get_columns(PopulationDenominatorRecord.__tablename__)
+    }
+    indicator_columns = {
+        column["name"] for column in inspector.get_columns(IndicatorValueRecord.__tablename__)
+    }
+
+    with engine.begin() as connection:
+        if "source_year" not in population_columns:
+            connection.execute(
+                text("ALTER TABLE population_denominators ADD COLUMN source_year INTEGER")
+            )
+        if "source_kind" not in population_columns:
+            connection.execute(
+                text("ALTER TABLE population_denominators ADD COLUMN source_kind VARCHAR(40)")
+            )
+        if "denominator_year" not in indicator_columns:
+            connection.execute(
+                text("ALTER TABLE indicator_values ADD COLUMN denominator_year INTEGER")
+            )
+        if "source_provenance" not in indicator_columns:
+            connection.execute(
+                text("ALTER TABLE indicator_values ADD COLUMN source_provenance JSON")
+            )
 
 
 def migrate_comparison_scope_tables(engine: Engine) -> None:
@@ -633,6 +668,8 @@ def save_populations(session: Session, populations: Iterable[PopulationDenominat
                 stratifier=population.stratifier,
                 population=population.population,
                 source_id=population.source_id,
+                source_year=population.source_year,
+                source_kind=population.source_kind,
             )
         )
 
@@ -961,6 +998,17 @@ def save_indicator_values(
                 is_suppressed=value.is_suppressed,
                 source_ids=list(value.source_ids),
                 caveats=value.caveats,
+                denominator_year=value.denominator_year,
+                source_provenance=[
+                    {
+                        "source_id": item.source_id,
+                        "reference_year": item.reference_year,
+                        "release_status": item.release_status,
+                        "dataset_kind": item.dataset_kind,
+                        "artifact_sha256": item.artifact_sha256,
+                    }
+                    for item in value.source_provenance
+                ],
                 computed_at=value.computed_at,
             )
         )
@@ -1121,6 +1169,8 @@ def load_populations(session: Session, year: int) -> list[PopulationDenominator]
             population=record.population,
             source_id=record.source_id,
             stratifier=record.stratifier,
+            source_year=record.source_year,
+            source_kind=record.source_kind or "unknown",
         )
         for record in records
     ]
@@ -1200,6 +1250,25 @@ def load_indicator_values(
             is_suppressed=record.is_suppressed,
             source_ids=tuple(record.source_ids),
             caveats=record.caveats,
+            denominator_year=record.denominator_year,
+            source_provenance=tuple(
+                SourceProvenance(
+                    source_id=str(item["source_id"]),
+                    reference_year=(
+                        int(item["reference_year"])
+                        if item.get("reference_year") is not None
+                        else None
+                    ),
+                    release_status=str(item.get("release_status", "unknown")),
+                    dataset_kind=str(item.get("dataset_kind", "unknown")),
+                    artifact_sha256=(
+                        str(item["artifact_sha256"])
+                        if item.get("artifact_sha256") is not None
+                        else None
+                    ),
+                )
+                for item in (record.source_provenance or [])
+            ),
             computed_at=record.computed_at,
         )
         for record in records

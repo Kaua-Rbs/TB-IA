@@ -138,6 +138,8 @@ def test_read_sidra_population_payload_extracts_municipality_year() -> None:
     assert len(populations) == 1
     assert populations[0].territory_id == "2304400"
     assert populations[0].population == 2_570_000
+    assert populations[0].source_year == 2023
+    assert populations[0].source_kind == "estimate"
 
 
 def test_read_sidra_values_population_payload_extracts_census_denominator() -> None:
@@ -147,12 +149,16 @@ def test_read_sidra_values_population_payload_extracts_census_denominator() -> N
         {"V": "-", "D1C": "2303709"},
     ]
 
-    populations = read_sidra_values_population_payload(payload, analysis_year=2023)
+    populations = read_sidra_values_population_payload(
+        payload, analysis_year=2023, source_year=2022
+    )
 
     assert len(populations) == 1
     assert populations[0].territory_id == "2304400"
     assert populations[0].year == 2023
     assert populations[0].population == 2_428_708
+    assert populations[0].source_year == 2022
+    assert populations[0].source_kind == "census"
 
 
 def test_read_case_aggregates_csv_collapses_duplicate_municipality_year(tmp_path: Path) -> None:

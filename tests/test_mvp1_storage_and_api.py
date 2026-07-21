@@ -16,6 +16,7 @@ from tbia.domain.models import (
     MortalityAggregate,
     PopulationDenominator,
     ScenarioSeverity,
+    SourceProvenance,
     Territory,
     TerritoryScenario,
 )
@@ -34,6 +35,8 @@ from tbia.storage import (
     initialize_database,
     latest_import_runs_for_scope,
     load_cases,
+    load_indicator_values,
+    load_populations,
     load_territories,
     load_territory_scenarios,
     save_case_aggregates,
@@ -471,6 +474,107 @@ def test_initialize_database_migrates_legacy_import_run_scope_columns(tmp_path: 
     assert {"year", "geographic_scope", "loaded_months"} <= column_names
     assert "ix_import_runs_source_year_scope" in index_names
     assert tuple(legacy_row) == (None, None, None)
+
+
+def test_initialize_database_migrates_legacy_indicator_provenance(tmp_path: Path) -> None:
+    engine = create_engine_for_url(f"sqlite:///{tmp_path / 'legacy-provenance.db'}")
+    with engine.begin() as connection:
+        connection.execute(
+            text(
+                "CREATE TABLE population_denominators ("
+                "territory_id VARCHAR(20) NOT NULL, "
+                "year INTEGER NOT NULL, "
+                "stratifier VARCHAR(80) NOT NULL, "
+                "population INTEGER NOT NULL, "
+                "source_id VARCHAR(80) NOT NULL, "
+                "PRIMARY KEY (territory_id, year, stratifier)"
+                ")"
+            )
+        )
+        connection.execute(
+            text(
+                "CREATE TABLE indicator_values ("
+                "indicator_id VARCHAR(120) NOT NULL, "
+                "territory_id VARCHAR(20) NOT NULL, "
+                "year INTEGER NOT NULL, "
+                "value FLOAT, "
+                "numerator_value FLOAT NOT NULL, "
+                "denominator_value FLOAT NOT NULL, "
+                "is_suppressed BOOLEAN NOT NULL, "
+                "source_ids JSON NOT NULL, "
+                "caveats TEXT NOT NULL, "
+                "computed_at DATETIME NOT NULL, "
+                "PRIMARY KEY (indicator_id, territory_id, year)"
+                ")"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO population_denominators VALUES "
+                "('2304400', 2023, 'total', 100000, 'ibge_population')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO indicator_values VALUES "
+                "('tb_incidence_per_100k', '2304400', 2023, 10, 10, 100000, "
+                "0, '[\"sinan_tb\", \"ibge_population\"]', '', '2023-12-31')"
+            )
+        )
+
+    initialize_database(engine)
+    with engine.connect() as connection:
+        population_row = connection.execute(
+            text("SELECT source_year, source_kind FROM population_denominators")
+        ).one()
+        indicator_row = connection.execute(
+            text("SELECT denominator_year, source_provenance FROM indicator_values")
+        ).one()
+    engine.dispose()
+
+    assert tuple(population_row) == (None, None)
+    assert tuple(indicator_row) == (None, None)
+
+
+def test_population_and_indicator_provenance_round_trip(tmp_path: Path) -> None:
+    engine = create_engine_for_url(f"sqlite:///{tmp_path / 'provenance.db'}")
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    population = PopulationDenominator(
+        "2304400",
+        2023,
+        100_000,
+        "ibge_population",
+        source_year=2022,
+        source_kind="census",
+    )
+    value = IndicatorValue(
+        "tb_incidence_per_100k",
+        "2304400",
+        2023,
+        10.0,
+        10,
+        100_000,
+        False,
+        ("sinan_tb", "ibge_population"),
+        "fixture",
+        denominator_year=2022,
+        source_provenance=(
+            SourceProvenance("sinan_tb", 2023, "preliminary", "notification", "a" * 64),
+            SourceProvenance("ibge_population", 2022, "final", "census", "b" * 64),
+        ),
+    )
+    with session_factory() as session:
+        save_populations(session, [population])
+        save_indicator_values(session, [value], 2023)
+        session.commit()
+        loaded_population = load_populations(session, 2023)[0]
+        loaded_value = load_indicator_values(session, 2023)[0]
+    engine.dispose()
+
+    assert loaded_population == population
+    assert loaded_value.denominator_year == 2022
+    assert loaded_value.source_provenance == value.source_provenance
 
 
 def test_initialize_database_migrates_legacy_scenario_metadata(tmp_path: Path) -> None:

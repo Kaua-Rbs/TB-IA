@@ -13,7 +13,14 @@ from tbia.domain.models import CaseAggregate, MortalityAggregate, PopulationDeno
 def test_compute_indicator_values_applies_formulas_and_suppression() -> None:
     values = compute_indicator_values(
         populations=[
-            PopulationDenominator("2304400", 2023, 1_000_000, "ibge_population"),
+            PopulationDenominator(
+                "2304400",
+                2023,
+                1_000_000,
+                "ibge_population",
+                source_year=2022,
+                source_kind="census",
+            ),
             PopulationDenominator("2303709", 2023, 100_000, "ibge_population"),
         ],
         cases=[
@@ -48,6 +55,12 @@ def test_compute_indicator_values_applies_formulas_and_suppression() -> None:
     incidence = by_key[("2304400", "tb_incidence_per_100k")]
     assert incidence.value == 8.0
     assert incidence.is_suppressed is False
+    assert incidence.denominator_year == 2022
+    provenance = [
+        (item.source_id, item.reference_year, item.dataset_kind)
+        for item in incidence.source_provenance
+    ]
+    assert provenance == [("sinan_tb", 2023, "notification"), ("ibge_population", 2022, "census")]
 
     cure = by_key[("2304400", "cure_proportion")]
     assert cure.value == 80.0

@@ -468,6 +468,7 @@ def read_ibge_population_payload(
         populations = read_sidra_values_population_payload(
             cast(list[dict[str, str]], payload),
             analysis_year=analysis_year,
+            source_year=source_year,
         )
     else:
         populations = normalize_population_year(
@@ -503,6 +504,8 @@ def normalize_population_year(
             population=population.population,
             source_id=population.source_id,
             stratifier=population.stratifier,
+            source_year=population.source_year,
+            source_kind=population.source_kind,
         )
         for population in populations
     ]

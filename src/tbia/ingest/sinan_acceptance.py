@@ -122,7 +122,9 @@ def build_case_checks(
     actual_values = (
         {
             value.indicator_id: value
-            for value in case_indicator_values(aggregate, population=0, minimum_count=minimum_count)
+            for value in case_indicator_values(
+                aggregate, population=None, minimum_count=minimum_count
+            )
         }
         if aggregate is not None
         else {}

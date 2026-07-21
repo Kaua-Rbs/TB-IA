@@ -92,6 +92,8 @@ class PopulationDenominator:
     population: int
     source_id: str
     stratifier: str = "total"
+    source_year: int | None = None
+    source_kind: str = "unknown"
 
 
 @dataclass(frozen=True)
@@ -265,6 +267,15 @@ class IndicatorDefinition:
 
 
 @dataclass(frozen=True)
+class SourceProvenance:
+    source_id: str
+    reference_year: int | None = None
+    release_status: str = "unknown"
+    dataset_kind: str = "unknown"
+    artifact_sha256: str | None = None
+
+
+@dataclass(frozen=True)
 class IndicatorValue:
     indicator_id: str
     territory_id: str
@@ -276,6 +287,8 @@ class IndicatorValue:
     source_ids: tuple[str, ...]
     caveats: str
     computed_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    denominator_year: int | None = None
+    source_provenance: tuple[SourceProvenance, ...] = ()
 
 
 @dataclass(frozen=True)

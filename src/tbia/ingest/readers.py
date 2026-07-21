@@ -205,6 +205,8 @@ def read_sidra_population_payload(
                         year=year,
                         population=positive_int(str(raw_population), "population"),
                         source_id=source_id,
+                        source_year=year,
+                        source_kind="estimate",
                     )
                 )
     return sorted(populations, key=lambda population: population.territory_id)
@@ -214,6 +216,7 @@ def read_sidra_values_population_payload(
     payload: list[dict[str, str]],
     analysis_year: int,
     source_id: str = "ibge_population",
+    source_year: int | None = None,
 ) -> list[PopulationDenominator]:
     populations: list[PopulationDenominator] = []
     for row in payload:
@@ -229,6 +232,8 @@ def read_sidra_values_population_payload(
                 year=analysis_year,
                 population=positive_int(raw_population, "population"),
                 source_id=source_id,
+                source_year=source_year or analysis_year,
+                source_kind="census",
             )
         )
     return sorted(populations, key=lambda population: population.territory_id)
@@ -246,12 +251,16 @@ def read_population_csv(
             year=int(key[1]),
             population=positive_int(row["population"], "population"),
             source_id=source_id,
+            source_year=int(row["source_year"]) if row.get("source_year") else None,
+            source_kind=row.get("source_kind") or "unknown",
         ),
         merge=lambda existing, new: PopulationDenominator(
             territory_id=existing.territory_id,
             year=existing.year,
             population=new.population,
             source_id=source_id,
+            source_year=new.source_year,
+            source_kind=new.source_kind,
         ),
     )
 

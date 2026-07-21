@@ -70,7 +70,7 @@ um componente de cenário composto.
 | Ordem | ID | Capacidade | Estado |
 | --- | --- | --- | --- |
 | 1 | CAP-01 | Priorização por testagem de HIV, TRM-TB e cultura | **Em validação** |
-| 2 | CAP-02 | Tendências históricas e incidência crescente | **Em andamento (planejamento)** |
+| 2 | CAP-02 | Tendências históricas e incidência crescente | **Em andamento (infraestrutura)** |
 | 3 | CAP-03 | Investigação de contatos com dados públicos | **Planejada** |
 | 4 | CAP-04 | Vigilância de resistência em camadas | **Planejada** |
 | 5 | CAP-05 | Monitoramento de tratamento preventivo | **Condicional** |
@@ -119,8 +119,10 @@ API e no produto.
 **Objetivo:** distinguir um valor anual elevado de uma piora persistente no
 tempo.
 
-**Estado atual:** planejamento iniciado em 21 de julho de 2026. Nenhum cálculo
-de tendência, cenário ou alteração de ranking foi implementado nesta etapa.
+**Estado atual:** implementação da infraestrutura iniciada em 21 de julho de
+2026\. O armazenamento preserva separadamente ano de análise, ano e tipo do
+denominador e proveniência estruturada das fontes. Nenhum cálculo de tendência,
+cenário ou alteração de ranking foi implementado.
 
 **Recorte inicial:** começar apenas pela série anual municipal de incidência de
 TB já definida como `tb_incidence_per_100k`. O primeiro recorte não inclui
@@ -138,6 +140,12 @@ indicadores.
    epidemiológica.
 
 **Sequência prevista de commits atômicos:**
+
+1. `feat(storage): preserve annual indicator provenance`
+
+   Preservar ano e tipo da população de referência e a proveniência estruturada
+   dos indicadores. A migração mantém metadados legados como desconhecidos, sem
+   inferi-los. **Implementado.**
 
 1. `feat(storage): expose territorial indicator history`
 
@@ -281,12 +289,10 @@ trabalho para encerrá-la é:
 1. Implementar e testar eventuais alterações, registrar a decisão e só então
    remover o estado provisório.
 
-CAP-02 está em andamento apenas como planejamento. O próximo commit de código
-previsto é `feat(storage): expose territorial indicator history`. Ele deve
-introduzir a consulta histórica e seus testes sem calcular tendência, criar
-cenário ou alterar o ranking. Assim, a infraestrutura auditável pode avançar
-enquanto a validação de CAP-01 é organizada, sem antecipar decisões médicas da
-CAP-02.
+CAP-02 está em implementação de infraestrutura. O próximo commit previsto é
+`feat(storage): expose territorial indicator history`. Ele introduz a consulta
+histórica e seus testes sem calcular tendência, criar cenário ou alterar o
+ranking, sem antecipar decisões médicas da CAP-02.
 
 Autenticação de produção, dados reais em nível de pessoa, automação clínica e
 modelos preditivos permanecem fora do ciclo atual.

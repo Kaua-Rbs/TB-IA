@@ -12,6 +12,7 @@ from tbia.domain.models import (
     MortalityAggregate,
     PopulationDenominator,
     PublicDataStatus,
+    SourceProvenance,
 )
 
 INDICATOR_DEFINITIONS: tuple[IndicatorDefinition, ...] = (
@@ -157,9 +158,7 @@ def compute_indicator_values(
     year: int,
     minimum_count: int = 5,
 ) -> list[IndicatorValue]:
-    population_by_territory = {
-        item.territory_id: item.population for item in populations if item.year == year
-    }
+    population_by_territory = {item.territory_id: item for item in populations if item.year == year}
     case_by_territory = {item.territory_id: item for item in cases if item.year == year}
     mortality_by_territory = {item.territory_id: item for item in mortalities if item.year == year}
     hospitalization_by_territory = {
@@ -175,7 +174,7 @@ def compute_indicator_values(
     )
 
     for territory_id in territory_ids:
-        population = population_by_territory.get(territory_id, 0)
+        population = population_by_territory.get(territory_id)
         case = case_by_territory.get(territory_id)
         mortality = mortality_by_territory.get(territory_id)
         hospitalization = hospitalization_by_territory.get(territory_id)
@@ -189,8 +188,15 @@ def compute_indicator_values(
                     territory_id,
                     year,
                     numerator=mortality.tb_deaths,
-                    denominator=population,
-                    source_ids=("sim", "ibge_population"),
+                    denominator=population.population if population is not None else 0,
+                    source_ids=(mortality.source_id, "ibge_population"),
+                    denominator_year=population.source_year if population is not None else None,
+                    source_provenance=rate_provenance(
+                        mortality.source_id,
+                        "mortality",
+                        year,
+                        population,
+                    ),
                     scale=100_000,
                     minimum_count=minimum_count,
                 )
@@ -202,8 +208,15 @@ def compute_indicator_values(
                     territory_id,
                     year,
                     numerator=hospitalization.tb_admissions,
-                    denominator=population,
-                    source_ids=("sih_sus", "ibge_population"),
+                    denominator=population.population if population is not None else 0,
+                    source_ids=(hospitalization.source_id, "ibge_population"),
+                    denominator_year=population.source_year if population is not None else None,
+                    source_provenance=rate_provenance(
+                        hospitalization.source_id,
+                        "hospitalization",
+                        year,
+                        population,
+                    ),
                     scale=100_000,
                     minimum_count=minimum_count,
                 )
@@ -214,17 +227,27 @@ def compute_indicator_values(
 
 def case_indicator_values(
     case: CaseAggregate,
-    population: int,
+    population: PopulationDenominator | None,
     minimum_count: int,
 ) -> list[IndicatorValue]:
+    case_provenance = (
+        SourceProvenance(case.source_id, reference_year=case.year, dataset_kind="notification"),
+    )
     return [
         build_value(
             "tb_incidence_per_100k",
             case.territory_id,
             case.year,
             numerator=case.new_cases,
-            denominator=population,
-            source_ids=("sinan_tb", "ibge_population"),
+            denominator=population.population if population is not None else 0,
+            source_ids=(case.source_id, "ibge_population"),
+            denominator_year=population.source_year if population is not None else None,
+            source_provenance=rate_provenance(
+                case.source_id,
+                "notification",
+                case.year,
+                population,
+            ),
             scale=100_000,
             minimum_count=minimum_count,
         ),
@@ -234,7 +257,9 @@ def case_indicator_values(
             case.year,
             numerator=case.cured_cases,
             denominator=case.closed_cases,
-            source_ids=("sinan_tb",),
+            source_ids=(case.source_id,),
+            denominator_year=case.year,
+            source_provenance=case_provenance,
             scale=100,
             minimum_count=minimum_count,
         ),
@@ -244,7 +269,9 @@ def case_indicator_values(
             case.year,
             numerator=case.treatment_interruption_cases,
             denominator=case.closed_cases,
-            source_ids=("sinan_tb",),
+            source_ids=(case.source_id,),
+            denominator_year=case.year,
+            source_provenance=case_provenance,
             scale=100,
             minimum_count=minimum_count,
         ),
@@ -254,7 +281,9 @@ def case_indicator_values(
             case.year,
             numerator=case.retreatment_cases,
             denominator=case.notified_cases,
-            source_ids=("sinan_tb",),
+            source_ids=(case.source_id,),
+            denominator_year=case.year,
+            source_provenance=case_provenance,
             scale=100,
             minimum_count=minimum_count,
         ),
@@ -264,7 +293,9 @@ def case_indicator_values(
             case.year,
             numerator=case.lab_confirmed_pulmonary_cases,
             denominator=case.new_pulmonary_cases,
-            source_ids=("sinan_tb",),
+            source_ids=(case.source_id,),
+            denominator_year=case.year,
+            source_provenance=case_provenance,
             scale=100,
             minimum_count=minimum_count,
         ),
@@ -274,7 +305,9 @@ def case_indicator_values(
             case.year,
             numerator=case.hiv_tested_cases,
             denominator=case.new_cases,
-            source_ids=("sinan_tb",),
+            source_ids=(case.source_id,),
+            denominator_year=case.year,
+            source_provenance=case_provenance,
             scale=100,
             minimum_count=minimum_count,
         ),
@@ -284,7 +317,9 @@ def case_indicator_values(
             case.year,
             numerator=case.tb_hiv_cases,
             denominator=case.new_cases,
-            source_ids=("sinan_tb",),
+            source_ids=(case.source_id,),
+            denominator_year=case.year,
+            source_provenance=case_provenance,
             scale=100,
             minimum_count=minimum_count,
         ),
@@ -294,7 +329,9 @@ def case_indicator_values(
             case.year,
             numerator=case.trm_tb_cases,
             denominator=case.new_pulmonary_cases,
-            source_ids=("sinan_tb",),
+            source_ids=(case.source_id,),
+            denominator_year=case.year,
+            source_provenance=case_provenance,
             scale=100,
             minimum_count=minimum_count,
         ),
@@ -304,7 +341,9 @@ def case_indicator_values(
             case.year,
             numerator=case.culture_retreated_cases,
             denominator=case.retreatment_pulmonary_cases,
-            source_ids=("sinan_tb",),
+            source_ids=(case.source_id,),
+            denominator_year=case.year,
+            source_provenance=case_provenance,
             scale=100,
             minimum_count=minimum_count,
         ),
@@ -319,6 +358,8 @@ def build_value(
     numerator: float,
     denominator: float,
     source_ids: tuple[str, ...],
+    denominator_year: int | None,
+    source_provenance: tuple[SourceProvenance, ...],
     scale: float,
     minimum_count: int,
 ) -> IndicatorValue:
@@ -349,7 +390,28 @@ def build_value(
         is_suppressed=suppressed,
         source_ids=source_ids,
         caveats=caveats,
+        denominator_year=denominator_year,
+        source_provenance=source_provenance,
     )
+
+
+def rate_provenance(
+    event_source_id: str,
+    event_dataset_kind: str,
+    year: int,
+    population: PopulationDenominator | None,
+) -> tuple[SourceProvenance, ...]:
+    event_source = SourceProvenance(
+        event_source_id,
+        reference_year=year,
+        dataset_kind=event_dataset_kind,
+    )
+    population_source = SourceProvenance(
+        population.source_id if population is not None else "ibge_population",
+        reference_year=population.source_year if population is not None else None,
+        dataset_kind=population.source_kind if population is not None else "unknown",
+    )
+    return event_source, population_source
 
 
 def get_indicator_definition(indicator_id: str) -> IndicatorDefinition:
