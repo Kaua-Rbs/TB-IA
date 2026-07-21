@@ -54,7 +54,7 @@ from tbia.domain.models import (
     Territory,
     TerritoryScenario,
 )
-from tbia.domain.scenarios import summarize_dimension_scores
+from tbia.domain.scenarios import DIAGNOSTIC_SCENARIO_RULE_IDS, summarize_dimension_scores
 from tbia.geography import BRAZIL_SCOPE, normalize_geographic_scope, ufs_for_scope
 
 
@@ -1473,13 +1473,6 @@ REGIONAL_PUBLIC_SOURCE_IDS = frozenset(
     {"ibge_localidades", "ibge_malhas", "ibge_population", "sim", "sih_sus", "cnes"}
 )
 INHERITABLE_NATIONAL_SOURCE_IDS = frozenset({"sinan_tb"})
-DIAGNOSTIC_SCENARIO_RULE_IDS = frozenset(
-    {
-        "low_hiv_testing",
-        "low_trm_tb_use",
-        "low_culture_use_among_retreatment",
-    }
-)
 
 
 def scenario_rule_evaluation_rows(

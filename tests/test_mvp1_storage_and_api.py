@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -1383,3 +1384,96 @@ def test_diagnostic_scenario_readiness_is_persisted_and_localized(tmp_path: Path
     assert localized_evaluations["low_hiv_testing"]["review_status_label"] == (
         "revisão de domínio pendente"
     )
+
+
+def test_diagnostic_rules_are_ready_for_uf_and_national_comparisons(
+    tmp_path: Path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'diagnostic-national.db'}"
+    processed_dir = tmp_path / "processed"
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    diagnostic_rule_ids = {
+        "low_hiv_testing",
+        "low_trm_tb_use",
+        "low_culture_use_among_retreatment",
+    }
+    indicator_ids = {
+        "hiv_testing_proportion",
+        "trm_tb_use_proportion",
+        "culture_use_among_retreatment",
+    }
+    diagnostic_values = [
+        IndicatorValue(
+            indicator_id=indicator_id,
+            territory_id=f"{prefix}{index:05d}",
+            year=2023,
+            value=float(21 - index),
+            numerator_value=float(21 - index),
+            denominator_value=100.0,
+            is_suppressed=False,
+            source_ids=("fixture",),
+            caveats="fixture",
+        )
+        for prefix in ("23", "26")
+        for indicator_id in indicator_ids
+        for index in range(1, 21)
+    ]
+
+    with session_factory() as session:
+        seed_reference_data(session)
+        save_territories(
+            session,
+            [
+                *fixture_scope_territories("23", "CE", "23", list(range(20))),
+                *fixture_scope_territories("26", "PE", "26", list(range(20))),
+            ],
+        )
+        save_indicator_values(session, diagnostic_values, 2023)
+        build_and_store_scenarios(
+            session,
+            Mvp1Config(uf="BR", year=2023, processed_dir=processed_dir),
+        )
+        session.commit()
+        ce_context = dashboard_context(session, 2023, "CE", "uf")
+        pe_context = dashboard_context(session, 2023, "PE", "uf")
+        national_context = dashboard_context(session, 2023, "BR", "national")
+        uf_scenarios = load_territory_scenarios(session, 2023, "uf")
+        national_scenarios = load_territory_scenarios(session, 2023, "national")
+    engine.dispose()
+
+    for expected_scope, context in (
+        ("CE", ce_context),
+        ("PE", pe_context),
+        ("BR", national_context),
+    ):
+        diagnostic_evaluations = [
+            row
+            for row in context["scenario_rule_evaluations"]
+            if row["rule_id"] in diagnostic_rule_ids
+        ]
+        assert {row["rule_id"] for row in diagnostic_evaluations} == diagnostic_rule_ids
+        assert {row["geographic_scope"] for row in diagnostic_evaluations} == {expected_scope}
+        assert all(row["status"] == "ready" for row in diagnostic_evaluations)
+        assert all(row["available_count"] >= 20 for row in diagnostic_evaluations)
+
+    assert {
+        scenario.rule_id for scenario in uf_scenarios if scenario.rule_id in diagnostic_rule_ids
+    } == diagnostic_rule_ids
+    assert {
+        scenario.rule_id
+        for scenario in national_scenarios
+        if scenario.rule_id in diagnostic_rule_ids
+    } == diagnostic_rule_ids
+    assert all(
+        scenario.review_status == "pending_domain_review"
+        for scenario in [*uf_scenarios, *national_scenarios]
+        if scenario.rule_id in diagnostic_rule_ids
+    )
+
+    impact_path = processed_dir / "validation" / "diagnostic_ranking_impact_br_2023.json"
+    impact = json.loads(impact_path.read_text(encoding="utf-8"))
+    assert set(impact["comparisons"]) == {"uf", "national"}
+    assert impact["comparisons"]["uf"]["scenario_counts"]["diagnostic"] > 0
+    assert impact["comparisons"]["national"]["scenario_counts"]["diagnostic"] > 0

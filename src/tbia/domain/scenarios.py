@@ -14,6 +14,14 @@ from tbia.domain.models import (
     TerritoryScenario,
 )
 
+DIAGNOSTIC_SCENARIO_RULE_IDS = frozenset(
+    {
+        "low_hiv_testing",
+        "low_trm_tb_use",
+        "low_culture_use_among_retreatment",
+    }
+)
+
 DEFAULT_SCENARIO_RULES: tuple[ScenarioRule, ...] = (
     ScenarioRule(
         rule_id="high_incidence",

@@ -21,6 +21,7 @@ from tbia.pipeline import (
     build_and_store_scenarios,
     build_sinan_validation_report_file,
     compute_and_store_indicators,
+    generate_diagnostic_ranking_impact_report,
     ingest_public_data,
 )
 from tbia.preparation import DemoPreparationResult, prepare_demo_environment
@@ -123,6 +124,24 @@ def validate_sinan_mappings(
     typer.echo(f"Diagnostic acceptance status: {acceptance_status}")
     if acceptance_status == "failed":
         raise typer.Exit(code=1)
+
+
+@app.command("validate-diagnostic-ranking")
+def validate_diagnostic_ranking(
+    uf: UfOption = "CE",
+    uf_code: UfCodeOption = None,
+    year: YearOption = 2023,
+    raw_dir: RawDirOption = DEFAULT_RAW_DIR,
+    database_url: DatabaseUrlOption = DEFAULT_DATABASE_URL,
+) -> None:
+    config = build_config(uf, uf_code, year, raw_dir, population_source_year=None)
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    with session_factory() as session:
+        output_path = generate_diagnostic_ranking_impact_report(session, config)
+    engine.dispose()
+    typer.echo(f"Generated diagnostic ranking impact report: {output_path}")
 
 
 @app.command()

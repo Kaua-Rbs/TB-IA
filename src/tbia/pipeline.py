@@ -20,6 +20,11 @@ from tbia.domain.models import (
     PopulationDenominator,
     ScenarioRuleEvaluation,
     Territory,
+    TerritoryScenario,
+)
+from tbia.domain.ranking_impact import (
+    build_diagnostic_ranking_impact_report,
+    write_diagnostic_ranking_impact_report,
 )
 from tbia.domain.recommendations import STRATEGIES, build_recommendations
 from tbia.domain.scenarios import DEFAULT_SCENARIO_RULES, evaluate_territory_scenarios
@@ -65,6 +70,7 @@ from tbia.storage import (
     load_mortalities,
     load_populations,
     load_territories,
+    load_territory_scenarios,
     save_case_aggregates,
     save_data_sources,
     save_facilities,
@@ -1069,12 +1075,56 @@ def record_indicator_validation_report(
     )
 
 
+def diagnostic_comparison_scopes(config: Mvp1Config) -> tuple[str, ...]:
+    if config.is_national:
+        return COMPARISON_SCOPE_UF, COMPARISON_SCOPE_NATIONAL
+    return (COMPARISON_SCOPE_UF,)
+
+
+def generate_diagnostic_ranking_impact_report(
+    session: Session,
+    config: Mvp1Config,
+    *,
+    scenarios: Sequence[TerritoryScenario] | None = None,
+) -> Path:
+    territory_ids = target_municipality_ids(session, config)
+    scenario_records = (
+        list(scenarios)
+        if scenarios is not None
+        else [
+            scenario
+            for comparison_scope in diagnostic_comparison_scopes(config)
+            for scenario in load_territory_scenarios(
+                session,
+                config.year,
+                comparison_scope,
+            )
+        ]
+    )
+    scoped_scenarios = [
+        scenario for scenario in scenario_records if scenario.territory_id in territory_ids
+    ]
+    territory_names = {
+        territory.territory_id: territory.name
+        for territory in load_territories(session, config.uf)
+        if territory.territory_id in territory_ids
+    }
+    report = build_diagnostic_ranking_impact_report(
+        scoped_scenarios,
+        territory_names,
+        year=config.year,
+        geographic_scope=config.uf,
+        comparison_scopes=diagnostic_comparison_scopes(config),
+    )
+    return write_diagnostic_ranking_impact_report(report, config.validation_dir)
+
+
 def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int, int]:
     territory_ids = target_municipality_ids(session, config)
     if not territory_ids:
         return 0, 0
 
-    scenarios: list[Any] = []
+    scenarios: list[TerritoryScenario] = []
     recommendations: list[Any] = []
     uf_scenarios, uf_evaluations = build_uf_scope_scenarios(session, config, territory_ids)
     uf_recommendations = build_recommendations(uf_scenarios)
@@ -1145,18 +1195,19 @@ def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int
         scenarios.extend(national_scenarios)
         recommendations.extend(national_recommendations)
 
+    generate_diagnostic_ranking_impact_report(session, config, scenarios=scenarios)
     return len(scenarios), len(recommendations)
 
 
 def build_uf_scope_scenarios(
     session: Session, config: Mvp1Config, territory_ids: set[str]
-) -> tuple[list[Any], list[ScenarioRuleEvaluation]]:
+) -> tuple[list[TerritoryScenario], list[ScenarioRuleEvaluation]]:
     complete_scopes = complete_sih_scopes(
         session,
         year=config.year,
         geographic_scopes=ufs_for_scope(config.uf),
     )
-    scenarios: list[Any] = []
+    scenarios: list[TerritoryScenario] = []
     evaluations: list[ScenarioRuleEvaluation] = []
     if not config.is_national:
         values = load_indicator_values(session, config.year, territory_ids)

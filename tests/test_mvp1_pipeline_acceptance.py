@@ -169,6 +169,14 @@ def assert_validation_report(processed_dir: Path) -> None:
     assert validation["scope"] == {"year": 2023, "geographic_scope": "CE"}
     assert validation["violation_count"] == 0
 
+    impact_path = processed_dir / "validation" / "diagnostic_ranking_impact_ce_2023.json"
+    impact = json.loads(impact_path.read_text(encoding="utf-8"))
+    assert impact["status"] == "technical_validation_pending_domain_review"
+    assert impact["scope"] == {"year": 2023, "geographic_scope": "CE"}
+    comparison = impact["comparisons"]["uf"]
+    assert comparison["scenario_counts"]["candidate"] >= comparison["scenario_counts"]["baseline"]
+    assert comparison["dimension_cap"]["duplicate_score_excluded"] >= 0
+
 
 def assert_api_consistency(
     database_url: str, expected: dict[str, Any], snapshot: dict[str, Any]

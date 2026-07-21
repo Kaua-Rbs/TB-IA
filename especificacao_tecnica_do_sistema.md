@@ -388,6 +388,19 @@ provisional comparative rules. The acceptance fixture validates transformation
 behavior, but epidemiology/domain review of thresholds, severity, and suggested
 strategies remains required before CAP-01 can be considered complete.
 
+Scenario generation also writes
+`diagnostic_ranking_impact_<scope>_<year>.json` under the processed validation
+directory. The report isolates CAP-01 impact by comparing the current
+dimension-capped ranking with and without the three diagnostic rules. It
+records score and rank changes, top-ten overlap, newly ranked municipalities,
+and the amount of correlated scenario weight removed by dimension caps. Both
+versions use the production ranking function; the baseline is not a separate
+scoring implementation.
+
+The report status remains
+`technical_validation_pending_domain_review`. It is reproducible technical
+evidence and cannot approve the percentile, severity, grouping, or strategy.
+
 A scenario is triggered when the municipality value crosses the rule threshold:
 
 ```text
