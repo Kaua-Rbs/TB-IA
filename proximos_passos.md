@@ -71,7 +71,7 @@ um componente de cenário composto.
 | --- | --- | --- | --- |
 | 1 | CAP-01 | Priorização por testagem de HIV, TRM-TB e cultura | **Em validação** |
 | 2 | CAP-02 | Tendências históricas e incidência crescente | **Em validação (método)** |
-| 3 | CAP-03 | Investigação de contatos com dados públicos | **Planejada** |
+| 3 | CAP-03 | Investigação de contatos com dados públicos | **Em andamento (reconciliação técnica)** |
 | 4 | CAP-04 | Vigilância de resistência em camadas | **Planejada** |
 | 5 | CAP-05 | Monitoramento de tratamento preventivo | **Condicional** |
 | 6 | CAP-06 | Análise espacial de hotspots | **Pesquisa posterior** |
@@ -223,10 +223,49 @@ impacto aceito por revisão de domínio e linguagem de incerteza aprovada.
 **Objetivo:** decidir com evidência se os campos públicos do SINAN-TB sustentam
 um indicador territorial defensável de contatos examinados.
 
-**Abordagem:** confrontar os campos com o dicionário e o caderno oficial de
-indicadores, auditar completude e categorias e reproduzir manualmente uma
-amostra municipal. A implementação somente segue se numerador, denominador e
-universo forem semanticamente confiáveis.
+**Estado atual:** a investigação técnica foi iniciada sem incorporar o indicador
+ao produto. O arquivo público contém campos candidatos para contatos
+identificados e examinados, mas a primeira reprodução CE/2022 divergiu dos
+totais publicados e a exploração CE/2023 encontrou campos ausentes e agregados
+municipais com examinados acima de identificados. Esses resultados impedem que
+uma proporção aparentemente válida seja tratada como indicador pronto.
+
+**Recorte técnico:** auditar os arquivos SINAN-TB de 2018 a 2024 em um comando
+independente da ingestão e da demonstração. O relatório deve registrar os
+artefatos e seus hashes, os filtros candidatos, a completude dos campos, duas
+formas explícitas de somar registros incompletos, anomalias por município e a
+comparação com referências oficiais. Divergências geram evidência e código de
+erro; nunca são corrigidas silenciosamente.
+
+**Contrato candidato:** contatos examinados divididos por contatos identificados
+entre casos novos de TB pulmonar com confirmação laboratorial. A seleção usa
+município de residência, tipos de entrada `1`, `4` e `6`, formas `1` e `3`,
+exclui mudança de diagnóstico e considera confirmação por baciloscopia inicial
+ou de acompanhamento, cultura positiva ou TRM-TB detectável. O contrato é uma
+transcrição técnica para auditoria e permanece sujeito à revisão clínica e
+epidemiológica.
+
+**Sequência prevista de commits atômicos:**
+
+1. `docs(roadmap): start CAP-03 contact validation`
+
+   Formalizar o recorte, o contrato candidato e os bloqueadores sem alterar o
+   produto público.
+
+1. `feat(validation): audit SINAN contact investigation fields`
+
+   Criar manifesto, auditoria CE/2018-2024, comparação com benchmarks oficiais,
+   comando isolado e testes de filtros, incompletude, anomalias, hashes e códigos
+   de saída.
+
+1. `docs(validation): prepare CAP-03 domain review`
+
+   Apresentar fórmula, evidências, divergências, amostra municipal e formulário
+   de decisão em linguagem acessível a profissionais sem formação técnica.
+
+**Fora deste recorte:** não adicionar campos ao agregado canônico de casos,
+indicador, cenário, recomendação, persistência, API, ranking ou interface. O
+alerta sintético de contato pendente permanece um fluxo operacional separado.
 
 **Critério de saída:** indicador implementado com sinalização de qualidade ou
 decisão documentada de mantê-lo fora do produto público. O alerta sintético de
@@ -308,8 +347,10 @@ A infraestrutura, a auditoria, a documentação para revisão e a apresentação
 histórica da CAP-02 estão prontas. O cálculo de tendência e a medição do impacto
 no ranking permanecem bloqueados até que as decisões clínicas e epidemiológicas
 do `guia_validacao_de_dominio.md` sejam preenchidas. Até essa revisão, o
-próximo recorte técnico independente na ordem canônica é a investigação de
-fontes públicas da CAP-03.
+recorte técnico independente ativo na ordem canônica é a auditoria das fontes
+públicas da CAP-03. Ela permanece fora da ingestão, da demonstração e do ranking
+até que a reconciliação com as referências oficiais e a revisão de domínio
+estejam registradas.
 
 Autenticação de produção, dados reais em nível de pessoa, automação clínica e
 modelos preditivos permanecem fora do ciclo atual.

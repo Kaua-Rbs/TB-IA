@@ -303,6 +303,19 @@ there is institutional authorization, a curated local extract, or a specific pub
 
 Current MVP 1 SINAN transform choices are provisional but explicit: case type codes `1`, `4`, and `6` form the new-case universe, matching the Boletim 2026 note for caso novo, não sabe, and pós-óbito; case type codes `2` and `3` form the retreatment universe. Treatment outcome proportions are calculated only among new cases with outcome denominator closures for cure, interruption, death, ignored, or not evaluated; diagnosis change, TB-DR, regimen change, and failure-style closure codes are excluded pending domain review. Bounded proportions with numerator greater than denominator are suppressed in public outputs and reported as validation violations; zero-over-zero denominators are reported as missingness warnings.
 
+The CAP-03 contact-investigation audit uses a separate candidate contract and
+does not extend the production aggregate while validation is open. It reads
+`NU_CONTATO` as identified contacts and `NU_COMU_EX` as examined contacts after
+selecting the notification year and municipality of residence. Candidate cases
+use entry types `1`, `4`, and `6`, pulmonary or mixed form, every closure except
+change of diagnosis, and laboratory confirmation through positive initial
+smear (`BACILOSC_E`), positive second smear (`BACILOS_E2`), positive culture, or
+detected TRM-TB. Missing contact counts are reported both as independently
+recorded sums and as complete numerator/denominator pairs; neither treatment is
+accepted as the official indicator until source reconciliation and domain
+review. The audit must not persist person-level rows or feed scenarios, APIs, or
+rankings.
+
 ### Scenario and prioritization engine
 
 The first version should use transparent rules and scoring, not opaque AI.
