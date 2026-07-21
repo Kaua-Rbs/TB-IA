@@ -1,0 +1,229 @@
+{
+  "manifest_id": "sinan_contact_audit_ce_2018_2024_v1",
+  "review_status": "technical_acceptance_pending_domain_review",
+  "scope": {
+    "uf": "CE",
+    "uf_code": "23",
+    "year_from": 2018,
+    "year_to": 2024
+  },
+  "candidate_contract": {
+    "name": "Proporção candidata de contatos examinados",
+    "numerator": "NU_COMU_EX summed for eligible records",
+    "denominator": "NU_CONTATO summed for eligible records",
+    "geography": "ID_MN_RESI",
+    "period": "NU_ANO",
+    "entry_types": [
+      "1",
+      "4",
+      "6"
+    ],
+    "clinical_forms": [
+      "1",
+      "3"
+    ],
+    "excluded_closure": "6",
+    "laboratory_confirmation": {
+      "BACILOSC_E": [
+        "1"
+      ],
+      "BACILOS_E2": [
+        "1"
+      ],
+      "CULTURA_ES": [
+        "1"
+      ],
+      "TEST_MOLEC": [
+        "1",
+        "2"
+      ]
+    }
+  },
+  "source_artifacts": [
+    {
+      "year": 2018,
+      "filename": "sinan_tb_br_2018.dbc",
+      "sha256": "6e130706f522e51dbe9a954acc34ad96281fc5a483a66f206ae19622e9233eca",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR18.dbc"
+    },
+    {
+      "year": 2019,
+      "filename": "sinan_tb_br_2019.dbc",
+      "sha256": "7a00e29a5a309b794e21f1a650d3b04b9d3cb05fcc6ef8c9feefab3a961c9144",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR19.dbc"
+    },
+    {
+      "year": 2020,
+      "filename": "sinan_tb_br_2020.dbc",
+      "sha256": "9ecf487348b6196c7af143376e10ad70bdb9ef5ecc6ed9026cfa52f39b0b0edc",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR20.dbc"
+    },
+    {
+      "year": 2021,
+      "filename": "sinan_tb_br_2021.dbc",
+      "sha256": "82992aa0c638d3d17dc11bbda58488888c8709fb84fb6bda0cab42d00d57b5ef",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR21.dbc"
+    },
+    {
+      "year": 2022,
+      "filename": "sinan_tb_br_2022.dbc",
+      "sha256": "f1690ddb28aa28687d00ce9a3ce0c6956364c92098acf447ee123d44492a071d",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR22.dbc"
+    },
+    {
+      "year": 2023,
+      "filename": "sinan_tb_br_2023.dbc",
+      "sha256": "fb324cb3007d67ba98df167a8274776172187ea3dac5b021d3f23b624a0442e5",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR23.dbc"
+    },
+    {
+      "year": 2023,
+      "filename": "sinan_tb_br_2023.dbf",
+      "sha256": "d0a8115f8d1738606a8ffa257290f28b970cd55771b09769402ca73c22e77ba6",
+      "derived_from": "sinan_tb_br_2023.dbc"
+    },
+    {
+      "year": 2024,
+      "filename": "sinan_tb_br_2024.dbc",
+      "sha256": "fec4fe93ce383c3d700ccad00abfb2f3a2bf6b3bc73f9388df356bea1bd5ae8d",
+      "origin": "ftp://ftp.datasus.gov.br/dissemin/publicos/SINAN/DADOS/PRELIM/TUBEBR24.dbc"
+    }
+  ],
+  "official_benchmarks": [
+    {
+      "uf": "CE",
+      "year": 2022,
+      "identified_contacts": 6449,
+      "examined_contacts": 4684,
+      "proportion": 72.6,
+      "publication": "Boletim Epidemiológico de Tuberculose - Número Especial, março de 2024",
+      "reference": "https://www.gov.br/saude/pt-br/centrais-de-conteudo/publicacoes/boletins/epidemiologicos/especiais/2024/boletim-epidemiologico-de-tuberculose-numero-especial-mar-2024.pdf/view",
+      "table": "Tabela 7",
+      "database_extraction": "fevereiro de 2024"
+    },
+    {
+      "uf": "CE",
+      "year": 2024,
+      "identified_contacts": 7454,
+      "examined_contacts": 5921,
+      "proportion": 79.4,
+      "publication": "Boletim Epidemiológico de Tuberculose - Número Especial, março de 2026",
+      "reference": "documentos/boletim_epidemiologico_tuberculose_2026.pdf",
+      "online_reference": "https://www.gov.br/saude/pt-br/centrais-de-conteudo/publicacoes/boletins/epidemiologicos/especiais/2026/boletim-epidemiologico-de-tuberculose-numero-especial-mar-2026.pdf/view",
+      "table": "Tabela 7",
+      "database_extraction": "fevereiro de 2026"
+    }
+  ],
+  "headline_municipalities": [
+    {
+      "year": 2024,
+      "municipality_code": "230440",
+      "territory_id": "2304400",
+      "territory_name": "Fortaleza",
+      "expected": {
+        "eligible_case_count": 907,
+        "missing_identified_count": 17,
+        "missing_examined_count": 251,
+        "examined_above_identified_count": 5,
+        "recorded_values": {
+          "identified_contacts": 2026,
+          "examined_contacts": 991,
+          "proportion": 48.914116
+        },
+        "complete_pairs": {
+          "identified_contacts": 1545,
+          "examined_contacts": 988,
+          "proportion": 63.94822
+        }
+      }
+    },
+    {
+      "year": 2024,
+      "municipality_code": "230370",
+      "territory_id": "2303709",
+      "territory_name": "Caucaia",
+      "expected": {
+        "eligible_case_count": 129,
+        "missing_identified_count": 0,
+        "missing_examined_count": 16,
+        "examined_above_identified_count": 0,
+        "recorded_values": {
+          "identified_contacts": 399,
+          "examined_contacts": 305,
+          "proportion": 76.441103
+        },
+        "complete_pairs": {
+          "identified_contacts": 357,
+          "examined_contacts": 305,
+          "proportion": 85.434174
+        }
+      }
+    },
+    {
+      "year": 2024,
+      "municipality_code": "231290",
+      "territory_id": "2312908",
+      "territory_name": "Sobral",
+      "expected": {
+        "eligible_case_count": 91,
+        "missing_identified_count": 1,
+        "missing_examined_count": 0,
+        "examined_above_identified_count": 4,
+        "recorded_values": {
+          "identified_contacts": 311,
+          "examined_contacts": 334,
+          "proportion": 107.395498
+        },
+        "complete_pairs": {
+          "identified_contacts": 311,
+          "examined_contacts": 332,
+          "proportion": 106.752412
+        }
+      }
+    },
+    {
+      "year": 2024,
+      "municipality_code": "230765",
+      "territory_id": "2307650",
+      "territory_name": "Maracanaú",
+      "expected": {
+        "eligible_case_count": 51,
+        "missing_identified_count": 1,
+        "missing_examined_count": 7,
+        "examined_above_identified_count": 0,
+        "recorded_values": {
+          "identified_contacts": 108,
+          "examined_contacts": 82,
+          "proportion": 75.925926
+        },
+        "complete_pairs": {
+          "identified_contacts": 89,
+          "examined_contacts": 82,
+          "proportion": 92.134831
+        }
+      }
+    },
+    {
+      "year": 2024,
+      "municipality_code": "231130",
+      "territory_id": "2311306",
+      "territory_name": "Quixadá",
+      "expected": {
+        "eligible_case_count": 10,
+        "missing_identified_count": 1,
+        "missing_examined_count": 3,
+        "examined_above_identified_count": 0,
+        "recorded_values": {
+          "identified_contacts": 7,
+          "examined_contacts": 6,
+          "proportion": 85.714286
+        },
+        "complete_pairs": {
+          "identified_contacts": 7,
+          "examined_contacts": 6,
+          "proportion": 85.714286
+        }
+      }
+    }
+  ]
+}

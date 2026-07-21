@@ -19,6 +19,11 @@ from tbia.incidence_history_fixture import (
     prepare_bundled_incidence_history,
 )
 from tbia.ingest.datasus import datasus_demo_files, download_datasus_file
+from tbia.ingest.sinan_contacts_validation import (
+    REPORT_STATUS_PENDING_REVIEW,
+    build_cached_sinan_contact_audit,
+    write_sinan_contact_audit_report,
+)
 from tbia.mvp2 import (
     Mvp2Config,
     build_and_store_operational_alerts,
@@ -134,6 +139,44 @@ def validate_sinan_mappings(
     typer.echo(f"Generated SINAN mapping audit for {row_count} records: {output_path}")
     typer.echo(f"Diagnostic acceptance status: {acceptance_status}")
     if acceptance_status == "failed":
+        raise typer.Exit(code=1)
+
+
+@app.command("validate-sinan-contacts")
+def validate_sinan_contacts(
+    uf: UfOption = "CE",
+    uf_code: UfCodeOption = None,
+    year_from: Annotated[int, typer.Option(help="First SINAN cohort to audit.")] = 2018,
+    year_to: Annotated[int, typer.Option(help="Last SINAN cohort to audit.")] = 2024,
+    raw_dir: RawDirOption = DEFAULT_RAW_DIR,
+    output_dir: OutputDirOption = Path("data/processed/mvp1/validation"),
+) -> None:
+    if year_from > year_to:
+        typer.echo("Error: --year-from must not exceed --year-to.", err=True)
+        raise typer.Exit(code=2)
+    config = build_config(
+        uf,
+        uf_code,
+        year_from,
+        raw_dir,
+        population_source_year=None,
+    )
+    report = build_cached_sinan_contact_audit(
+        raw_dir=raw_dir,
+        uf=config.uf,
+        uf_code=config.uf_code,
+        year_from=year_from,
+        year_to=year_to,
+    )
+    output_path = write_sinan_contact_audit_report(report, output_dir)
+    typer.echo(f"Generated SINAN contact-investigation audit: {output_path}")
+    typer.echo(f"Status: {report['status']}")
+    for comparison in report["official_benchmark_comparisons"]:
+        typer.echo(
+            f"{config.uf}/{comparison['year']} official benchmark: "
+            f"{'matched' if comparison['matches_official'] else 'mismatch'}"
+        )
+    if report["status"] != REPORT_STATUS_PENDING_REVIEW:
         raise typer.Exit(code=1)
 
 
