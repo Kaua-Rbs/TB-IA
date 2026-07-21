@@ -76,6 +76,16 @@ download historical source files. The standalone offline command is:
 python -m tbia prepare-incidence-history
 ```
 
+Generate the CE/2018-2023 technical comparability audit with:
+
+```bash
+python -m tbia validate-incidence-history
+```
+
+The report is written under `data/processed/mvp1/validation/`. It separates
+availability and suppression from release and population-denominator changes;
+its technical candidate status is not approval of a trend rule.
+
 The individual commands remain available for source-specific debugging:
 
 ```bash

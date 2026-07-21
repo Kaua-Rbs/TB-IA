@@ -6,9 +6,15 @@ from typing import Annotated
 
 import typer
 from click import BadParameter
+from sqlalchemy.orm import Session
 
+from tbia.domain.history_comparability import write_history_comparability_report
+from tbia.history_validation import build_stored_incidence_comparability_report
 from tbia.incidence_history_builder import generate_incidence_history_fixture
 from tbia.incidence_history_fixture import (
+    FIXTURE_END_YEAR,
+    FIXTURE_START_YEAR,
+    FIXTURE_UF,
     IncidenceHistoryPreparationResult,
     prepare_bundled_incidence_history,
 )
@@ -338,6 +344,71 @@ def build_incidence_history_fixture(
     typer.echo(f"Aggregate: {result.aggregate_path}")
     typer.echo(f"Manifest: {result.manifest_path}")
     typer.echo(f"Aggregate SHA-256: {result.aggregate_sha256}")
+
+
+@app.command("validate-incidence-history")
+def validate_incidence_history(
+    uf: UfOption = "CE",
+    year_from: Annotated[int, typer.Option(help="First annual observation.")] = 2018,
+    year_to: Annotated[int, typer.Option(help="Last annual observation.")] = 2023,
+    output_dir: OutputDirOption = Path("data/processed/mvp1/validation"),
+    database_url: DatabaseUrlOption = DEFAULT_DATABASE_URL,
+) -> None:
+    if year_from > year_to:
+        raise BadParameter("--year-from must not exceed --year-to")
+    scope = uf.upper()
+    engine = create_engine_for_url(database_url)
+    try:
+        initialize_database(engine)
+        session_factory = create_session_factory(engine)
+        with session_factory() as session:
+            source_bundle_sha256 = prepare_fixture_for_audit(
+                session,
+                geographic_scope=scope,
+                start_year=year_from,
+                end_year=year_to,
+            )
+            session.commit()
+            report = build_stored_incidence_comparability_report(
+                session,
+                geographic_scope=scope,
+                start_year=year_from,
+                end_year=year_to,
+                source_bundle_sha256=source_bundle_sha256,
+            )
+        output_path = write_history_comparability_report(report, output_dir)
+    finally:
+        engine.dispose()
+    summary = report["summary"]
+    typer.echo(f"Generated incidence comparability audit: {output_path}")
+    typer.echo(
+        f"Coverage: {summary['available_point_count']} available, "
+        f"{summary['suppressed_point_count']} suppressed, "
+        f"{summary['missing_point_count']} missing."
+    )
+    typer.echo(
+        "Candidates for domain comparison: "
+        f"{summary['candidate_for_domain_comparison_count']}/"
+        f"{summary['territory_count']} municipalities."
+    )
+    typer.echo(f"Status: {report['status']}")
+
+
+def prepare_fixture_for_audit(
+    session: Session,
+    *,
+    geographic_scope: str,
+    start_year: int,
+    end_year: int,
+) -> str | None:
+    if (
+        geographic_scope == FIXTURE_UF
+        and start_year >= FIXTURE_START_YEAR
+        and end_year <= FIXTURE_END_YEAR
+    ):
+        result = prepare_bundled_incidence_history(session)
+        return result.aggregate_sha256
+    return None
 
 
 @app.command("prepare-demo")

@@ -122,9 +122,13 @@ tempo.
 **Estado atual:** infraestrutura histórica em implementação desde 21 de julho
 de 2026. O armazenamento preserva ano de análise, ano e tipo do denominador e
 proveniência estruturada. A mesma série auditável já pode ser consultada no
-armazenamento, na API e no relatório municipal, com lacunas, supressão e
-mudanças de fonte explícitas. Nenhum cálculo de tendência, cenário ou alteração
-de ranking foi implementado.
+armazenamento, na API e no relatório municipal, e a demonstração inclui um
+agregado CE/2018-2023 verificável e carregado sem rede. A auditoria técnica
+encontrou os 1.104 pontos esperados: 534 disponíveis, 570 suprimidos, nenhum
+ausente e nenhum com proveniência incompleta. Apenas 56 dos 184 municípios têm
+os seis anos publicáveis. Mudanças de situação da fonte e do denominador foram
+mantidas como quebras explícitas. Nenhum cálculo de tendência, cenário ou
+alteração de ranking foi implementado.
 
 **Recorte inicial:** começar apenas pela série anual municipal de incidência de
 TB já definida como `tb_incidence_per_100k`. O primeiro recorte não inclui
@@ -171,7 +175,7 @@ indicadores.
 
    Gerar relatório por UF e período com cobertura anual, lacunas, mudanças de
    fonte ou ano do denominador, contagens suprimidas e municípios comparáveis.
-   Preparar uma amostra CE reproduzível antes de propor um limiar.
+   Preparar uma amostra CE reproduzível antes de propor um limiar. **Implementado.**
 
 1. `feat(mvp1): evaluate provisional incidence trends`
 
@@ -298,9 +302,10 @@ trabalho para encerrá-la é:
    remover o estado provisório.
 
 CAP-02 está em implementação de infraestrutura. O próximo commit previsto é
-`feat(api): publish auditable incidence series`. A consulta histórica já está
-disponível no domínio e no armazenamento, sem cálculo de tendência, cenário ou
-alteração de ranking.
+`docs(validation): prepare CAP-02 domain review`, seguido pela apresentação da
+série no dossiê territorial. Armazenamento, API, agregado histórico e auditoria
+de comparabilidade já estão disponíveis. O cálculo de tendência permanece
+bloqueado até as decisões clínicas e epidemiológicas documentadas.
 
 Autenticação de produção, dados reais em nível de pessoa, automação clínica e
 modelos preditivos permanecem fora do ciclo atual.

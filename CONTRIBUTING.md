@@ -129,6 +129,13 @@ The packaged historical aggregate can be loaded independently and offline:
 python -m tbia prepare-incidence-history
 ```
 
+Generate the technical comparability report before presenting CAP-02 to a
+domain reviewer:
+
+```bash
+python -m tbia validate-incidence-history
+```
+
 Regenerating that committed aggregate is a maintainer operation that downloads
 official SINAN-TB and IBGE artifacts and rewrites its manifest:
 
