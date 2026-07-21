@@ -199,6 +199,138 @@ const territorialContext = {
     },
   ],
 };
+function buildIncidenceHistory(english = false) {
+  const years = [2018, 2019, 2020, 2021, 2022, 2023];
+  const values = [60.3, 59.6, null, null, 59.6, 60.4];
+  const numerators = [1593, 1591, null, null, 1447, 1467];
+  const populations = [2643247, 2669342, 2686612, null, 2428708, 2428708];
+
+  return {
+    territory_id: "2304400",
+    territory_name: "Fortaleza",
+    uf: "CE",
+    indicator_id: "tb_incidence_per_100k",
+    indicator_name: english ? "TB incidence" : "Incidência de TB",
+    unit: "per_100k",
+    direction: "high_bad",
+    start_year: 2018,
+    end_year: 2023,
+    coverage: {
+      requested_year_count: 6,
+      available_year_count: 4,
+      suppressed_year_count: 1,
+      missing_year_count: 1,
+      provenance_incomplete_year_count: 0,
+      status: "partial",
+      status_label: english ? "partial" : "parcial",
+    },
+    comparability_flags: [
+      {
+        code: "suppressed_year",
+        years: [2020],
+        detail: english
+          ? "At least one annual value is hidden by the minimum-count rule."
+          : "Ao menos um valor anual está oculto pela regra de contagem mínima.",
+      },
+      {
+        code: "source_release_changed",
+        years: [2020],
+        detail: english
+          ? "The series crosses source releases with different finality status."
+          : "A série atravessa versões da fonte com situações de fechamento diferentes.",
+      },
+      {
+        code: "denominator_method_changed",
+        years: [2022],
+        detail: english
+          ? "The population denominator changes between estimate and Census methods."
+          : "O denominador populacional alterna entre estimativa e Censo.",
+      },
+      {
+        code: "denominator_year_mismatch",
+        years: [2023],
+        detail: english
+          ? "At least one rate uses a population reference year different from the event year."
+          : "Ao menos uma taxa usa população de referência de ano diferente do evento.",
+      },
+    ],
+    points: years.map((pointYear, index) => {
+      const status =
+        pointYear === 2020
+          ? "suppressed"
+          : pointYear === 2021
+            ? "missing"
+            : "available";
+      const populationYear = pointYear === 2023 ? 2022 : pointYear;
+      const preliminary = pointYear >= 2020;
+      const census = pointYear >= 2022;
+      return {
+        year: pointYear,
+        status,
+        status_label:
+          status === "available"
+            ? english
+              ? "available"
+              : "disponível"
+            : status === "suppressed"
+              ? english
+                ? "suppressed"
+                : "suprimido"
+              : english
+                ? "missing"
+                : "ausente",
+        value: values[index],
+        numerator_value: numerators[index],
+        denominator_value: populations[index],
+        denominator_year: status === "missing" ? null : populationYear,
+        source_provenance:
+          status === "missing"
+            ? []
+            : [
+                {
+                  source_id: "sinan_tb",
+                  source_label: "SINAN-TB / DATASUS",
+                  reference_year: pointYear,
+                  release_status: preliminary ? "preliminary" : "final",
+                  release_status_label: preliminary
+                    ? english
+                      ? "preliminary"
+                      : "preliminar"
+                    : "final",
+                  dataset_kind: "notification",
+                  dataset_kind_label: english
+                    ? "notification records"
+                    : "registros de notificação",
+                  artifact_sha256: "a".repeat(64),
+                },
+                {
+                  source_id: "ibge_population",
+                  source_label: english ? "IBGE population" : "População IBGE",
+                  reference_year: populationYear,
+                  release_status: "final",
+                  release_status_label: "final",
+                  dataset_kind: census ? "census" : "estimate",
+                  dataset_kind_label: census
+                    ? english
+                      ? "Census"
+                      : "Censo"
+                    : english
+                      ? "population estimate"
+                      : "estimativa populacional",
+                  artifact_sha256: "b".repeat(64),
+                },
+              ],
+        caveats:
+          status === "missing"
+            ? ""
+            : english
+              ? "Uses municipality of residence and the official new-case mapping."
+              : "Usa município de residência e o mapeamento oficial de casos novos.",
+      };
+    }),
+  };
+}
+
 
 const operationAlert = {
   alert_id: "alert-1",
@@ -352,6 +484,7 @@ beforeEach(() => {
         territory_name: "Fortaleza",
         year: 2023,
         indicators: [],
+        incidence_history: buildIncidenceHistory(url.includes("lang=en")),
         recommendations: [],
         scenarios: mapPayload.features[0].properties.top_scenarios,
       });
@@ -408,6 +541,72 @@ describe("App", () => {
       screen.getByRole("button", { name: /Fortaleza/ }),
     ).toHaveAttribute("aria-pressed", "true");
   });
+  it("shows auditable annual incidence without inferring a trend", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/territorios?uf=BR&year=2023&lang=pt");
+    render(<App />);
+
+    const heading = await screen.findByText("Incidência histórica");
+    const section = heading.closest("section");
+    expect(section).not.toBeNull();
+    const history = within(section as HTMLElement);
+
+    expect(history.getByText("4/6 anos disponíveis")).toBeInTheDocument();
+    expect(
+      history.getByRole("img", {
+        name: /Incidência de TB: 2018-2023/,
+      }),
+    ).toBeInTheDocument();
+    expect(history.getAllByText("suprimido").length).toBeGreaterThan(0);
+    expect(history.getAllByText("ausente").length).toBeGreaterThan(0);
+    expect(
+      history.getByText(
+        "A série atravessa versões da fonte com situações de fechamento diferentes.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      history.getByText(
+        "Série observada e auditável; não é previsão e ainda não gera pontuação.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/tendência crescente/i)).not.toBeInTheDocument();
+
+    await user.click(history.getByText("Ver base anual e fontes"));
+
+    expect(
+      history.getByText("Casos: 1.593 · População: 2.643.247"),
+    ).toBeVisible();
+    expect(
+      history.getAllByText(/SINAN-TB \/ DATASUS:/).length,
+    ).toBeGreaterThan(0);
+    expect(
+      history.getAllByText(/População IBGE: final · Censo · 2022/).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("localizes incidence-history boundaries and audit labels", async () => {
+    window.history.pushState({}, "", "/territorios?uf=BR&year=2023&lang=en");
+    render(<App />);
+
+    const heading = await screen.findByText("Historical incidence");
+    const section = heading.closest("section");
+    expect(section).not.toBeNull();
+    const history = within(section as HTMLElement);
+
+    expect(await history.findByText("4/6 available years")).toBeInTheDocument();
+    expect(
+      history.getByText(
+        "Observed, auditable series; it is not a forecast and does not affect the score.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      history.getByText(
+        "The population denominator changes between estimate and Census methods.",
+      ),
+    ).toBeInTheDocument();
+    expect(history.getByText("View annual basis and sources")).toBeInTheDocument();
+  });
+
 
   it("explains layer values, availability, and units in the map legend", async () => {
     const user = userEvent.setup();

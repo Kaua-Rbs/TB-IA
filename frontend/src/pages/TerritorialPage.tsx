@@ -8,6 +8,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 
+import { IncidenceHistory } from "../components/IncidenceHistory";
 import { MapLegend } from "../components/MapLegend";
 import { MetricCard } from "../components/MetricCard";
 import { PriorityRankingList } from "../components/PriorityRankingList";
@@ -477,6 +478,8 @@ export function TerritorialPage() {
               </div>
               <DetailReport
                 report={reportQuery.data}
+                reportLoading={reportQuery.isLoading}
+                reportError={reportQuery.isError}
                 selectedFeature={selectedFeature}
                 lang={lang}
               />
@@ -573,6 +576,8 @@ function LoadYearProgress({ job }: { job: LoadYearJob | undefined }) {
 function DetailReport({
   report,
   selectedFeature,
+  reportLoading,
+  reportError,
   lang,
 }: {
   report: ReturnType<typeof fetchTerritoryReport> extends Promise<infer T>
@@ -580,6 +585,8 @@ function DetailReport({
     : never;
   selectedFeature: NonNullable<FeatureCollection["features"][number]>;
   lang: ReturnType<typeof normalizeLanguage>;
+  reportLoading: boolean;
+  reportError: boolean;
 }) {
   const labels = copy[lang];
   const indicators =
@@ -652,6 +659,12 @@ function DetailReport({
           ))}
         </div>
       </section>
+      <IncidenceHistory
+        history={report?.incidence_history}
+        isLoading={reportLoading}
+        isError={reportError}
+        lang={lang}
+      />
     </>
   );
 }

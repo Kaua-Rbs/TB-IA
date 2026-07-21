@@ -70,7 +70,7 @@ um componente de cenário composto.
 | Ordem | ID | Capacidade | Estado |
 | --- | --- | --- | --- |
 | 1 | CAP-01 | Priorização por testagem de HIV, TRM-TB e cultura | **Em validação** |
-| 2 | CAP-02 | Tendências históricas e incidência crescente | **Em andamento (infraestrutura)** |
+| 2 | CAP-02 | Tendências históricas e incidência crescente | **Em validação (método)** |
 | 3 | CAP-03 | Investigação de contatos com dados públicos | **Planejada** |
 | 4 | CAP-04 | Vigilância de resistência em camadas | **Planejada** |
 | 5 | CAP-05 | Monitoramento de tratamento preventivo | **Condicional** |
@@ -119,16 +119,19 @@ API e no produto.
 **Objetivo:** distinguir um valor anual elevado de uma piora persistente no
 tempo.
 
-**Estado atual:** infraestrutura histórica em implementação desde 21 de julho
-de 2026. O armazenamento preserva ano de análise, ano e tipo do denominador e
-proveniência estruturada. A mesma série auditável já pode ser consultada no
-armazenamento, na API e no relatório municipal, e a demonstração inclui um
-agregado CE/2018-2023 verificável e carregado sem rede. A auditoria técnica
-encontrou os 1.104 pontos esperados: 534 disponíveis, 570 suprimidos, nenhum
-ausente e nenhum com proveniência incompleta. Apenas 56 dos 184 municípios têm
-os seis anos publicáveis. Mudanças de situação da fonte e do denominador foram
-mantidas como quebras explícitas. Nenhum cálculo de tendência, cenário ou
-alteração de ranking foi implementado.
+**Estado atual:** toda a infraestrutura e a apresentação histórica que não
+dependem da escolha de um método estão implementadas. O armazenamento preserva
+ano de análise, ano e tipo do denominador e proveniência estruturada. A mesma
+série auditável aparece no armazenamento, na API, no relatório municipal e no
+dossiê territorial, que distingue valor disponível, suprimido e ausente e
+expõe as quebras de comparação sem classificá-las como tendência. A demonstração
+inclui um agregado CE/2018-2023 verificável e carregado sem rede.
+
+A auditoria técnica encontrou os 1.104 pontos esperados: 534 disponíveis, 570
+suprimidos, nenhum ausente e nenhum com proveniência incompleta. Apenas 56 dos
+184 municípios têm os seis anos publicáveis. Mudanças de situação da fonte e do
+denominador foram mantidas como quebras explícitas. Nenhum cálculo de tendência,
+cenário ou alteração de ranking foi implementado.
 
 **Recorte inicial:** começar apenas pela série anual municipal de incidência de
 TB já definida como `tb_incidence_per_100k`. O primeiro recorte não inclui
@@ -188,7 +191,7 @@ indicadores.
 
    Mostrar série, unidade, anos ausentes, supressão, fonte e ressalvas no dossiê
    territorial. A interface deve chamar crescimento de sinal histórico, nunca
-   de previsão.
+   de previsão. **Implementado.**
 
 1. `test(validation): measure CAP-02 ranking impact`
 
@@ -301,12 +304,12 @@ trabalho para encerrá-la é:
 1. Implementar e testar eventuais alterações, registrar a decisão e só então
    remover o estado provisório.
 
-A documentação de revisão de domínio da CAP-02 está pronta. Enquanto o cálculo
-de tendência permanece bloqueado pelas decisões clínicas e epidemiológicas, o
-próximo commit executável é `feat(frontend): show municipal incidence history`.
-Essa antecipação apresenta somente a série já armazenada, com ressalvas, e não
-cria regra, cenário ou peso no ranking. Armazenamento, API, agregado histórico
-e auditoria de comparabilidade já estão disponíveis.
+A infraestrutura, a auditoria, a documentação para revisão e a apresentação
+histórica da CAP-02 estão prontas. O cálculo de tendência e a medição do impacto
+no ranking permanecem bloqueados até que as decisões clínicas e epidemiológicas
+do `guia_validacao_de_dominio.md` sejam preenchidas. Até essa revisão, o
+próximo recorte técnico independente na ordem canônica é a investigação de
+fontes públicas da CAP-03.
 
 Autenticação de produção, dados reais em nível de pessoa, automação clínica e
 modelos preditivos permanecem fora do ciclo atual.

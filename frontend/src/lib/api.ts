@@ -161,6 +161,65 @@ export interface ReportIndicator extends IndicatorValue {
   indicator_name: string;
 }
 
+export interface IndicatorHistorySource {
+  source_id: string;
+  source_label?: string;
+  reference_year: number | null;
+  release_status: string;
+  release_status_label?: string;
+  dataset_kind: string;
+  dataset_kind_label?: string;
+  artifact_sha256?: string | null;
+}
+
+export type IndicatorHistoryPointStatus =
+  | "available"
+  | "suppressed"
+  | "missing";
+
+export interface IndicatorHistoryPoint {
+  year: number;
+  status: IndicatorHistoryPointStatus;
+  status_label?: string;
+  value: number | null;
+  numerator_value: number | null;
+  denominator_value: number | null;
+  denominator_year: number | null;
+  source_provenance: IndicatorHistorySource[];
+  caveats: string;
+}
+
+export interface IndicatorHistoryCoverage {
+  requested_year_count: number;
+  available_year_count: number;
+  suppressed_year_count: number;
+  missing_year_count: number;
+  provenance_incomplete_year_count: number;
+  status: "complete" | "partial" | "empty";
+  status_label?: string;
+}
+
+export interface IndicatorHistoryFlag {
+  code: string;
+  years: number[];
+  detail?: string;
+}
+
+export interface IndicatorHistory {
+  territory_id: string;
+  territory_name: string;
+  uf?: string;
+  indicator_id: string;
+  indicator_name: string;
+  unit: string | null;
+  direction: string | null;
+  start_year: number;
+  end_year: number;
+  coverage: IndicatorHistoryCoverage;
+  comparability_flags: IndicatorHistoryFlag[];
+  points: IndicatorHistoryPoint[];
+}
+
 export interface RecommendationRow {
   strategy_id?: string;
   rule_id?: string;
@@ -177,6 +236,7 @@ export interface TerritoryReport {
   territory_name: string;
   year: number;
   comparison_scope?: string;
+  incidence_history?: IndicatorHistory | null;
   indicators: ReportIndicator[];
   recommendations: RecommendationRow[];
   scenarios?: ScenarioRow[];

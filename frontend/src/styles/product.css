@@ -889,6 +889,333 @@
   text-align: right;
 }
 
+.product-shell .incidence-history {
+  gap: 8px;
+  min-width: 0;
+}
+
+.product-shell .history-title-row {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.product-shell .history-title-row h4 {
+  min-width: 0;
+}
+
+.product-shell .history-coverage {
+  flex: 0 0 auto;
+  padding: 3px 5px;
+  border: 1px solid var(--situation-line);
+  border-radius: 4px;
+  background: var(--situation-soft);
+  color: var(--situation-muted);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.product-shell .history-coverage-complete {
+  border-color: rgba(19, 128, 111, 0.26);
+  background: var(--situation-map-soft);
+  color: var(--situation-petrol);
+}
+
+.product-shell .history-coverage-partial {
+  border-color: rgba(181, 111, 22, 0.3);
+  background: var(--situation-amber-soft);
+  color: var(--situation-amber);
+}
+
+.product-shell .history-boundary {
+  color: var(--situation-muted-soft);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
+.product-shell .history-state {
+  padding: 10px 0;
+  color: var(--situation-muted);
+  font-size: 11px;
+}
+
+.product-shell .history-state-error {
+  color: var(--situation-carmine);
+}
+
+.product-shell .history-content {
+  display: grid;
+  min-width: 0;
+  gap: 9px;
+}
+
+.product-shell .history-chart {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 25 / 11;
+  overflow: visible;
+}
+
+.product-shell .history-chart-grid {
+  stroke: var(--situation-line);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.product-shell .history-chart-line {
+  fill: none;
+  stroke: var(--situation-map);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.product-shell .history-chart-point {
+  fill: var(--situation-paper);
+  stroke: var(--situation-map);
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}
+
+.product-shell .history-chart-suppressed {
+  fill: var(--situation-amber-soft);
+  stroke: var(--situation-amber);
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.product-shell .history-chart-missing {
+  fill: var(--situation-paper);
+  stroke: var(--situation-muted-soft);
+  stroke-dasharray: 2 2;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}
+
+.product-shell .history-chart-year {
+  fill: var(--situation-muted-soft);
+  font-family: "IBM Plex Sans", sans-serif;
+  font-size: 8px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-anchor: middle;
+}
+
+.product-shell .history-year-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--situation-line);
+  border-bottom: 1px solid var(--situation-line);
+}
+
+.product-shell .history-year {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  padding: 6px;
+  border-right: 1px solid var(--situation-line);
+}
+
+.product-shell .history-year:nth-child(3n) {
+  border-right: 0;
+}
+
+.product-shell .history-year:nth-child(-n + 3) {
+  border-bottom: 1px solid var(--situation-line);
+}
+
+.product-shell .history-year span {
+  color: var(--situation-muted-soft);
+  font-size: 9px;
+  font-variant-numeric: tabular-nums;
+}
+
+.product-shell .history-year strong {
+  min-width: 0;
+  color: var(--situation-ink);
+  font-size: 10px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.product-shell .history-year-suppressed strong {
+  color: var(--situation-amber);
+}
+
+.product-shell .history-year-missing strong {
+  color: var(--situation-muted-soft);
+}
+
+.product-shell .history-key {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px 10px;
+  margin: 0;
+  padding: 0;
+  color: var(--situation-muted);
+  font-size: 10px;
+  list-style: none;
+}
+
+.product-shell .history-key li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.product-shell .history-status-mark {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+}
+
+.product-shell .history-status-available {
+  border: 2px solid var(--situation-map);
+  border-radius: 50%;
+  background: var(--situation-paper);
+}
+
+.product-shell .history-status-suppressed {
+  border: 1px solid var(--situation-amber);
+  border-radius: 1px;
+  background: var(--situation-amber-soft);
+}
+
+.product-shell .history-status-missing {
+  border: 1px dashed var(--situation-muted-soft);
+  border-radius: 50%;
+  background: var(--situation-paper);
+}
+
+.product-shell .history-flags {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.product-shell .history-flags li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: start;
+  padding-left: 7px;
+  border-left: 2px solid var(--situation-amber);
+  color: var(--situation-muted);
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.product-shell .history-flags svg {
+  margin-top: 1px;
+  color: var(--situation-amber);
+}
+
+.product-shell .history-flags strong {
+  color: var(--situation-amber);
+  font-size: 10px;
+  font-weight: 700;
+  max-width: 92px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  text-align: right;
+  white-space: normal;
+}
+
+.product-shell .history-no-flags {
+  color: var(--situation-muted-soft);
+  font-size: 10px;
+}
+
+.product-shell .history-audit {
+  border-top: 1px solid var(--situation-line);
+  border-bottom: 1px solid var(--situation-line);
+}
+
+.product-shell .history-audit summary {
+  min-height: 40px;
+  padding: 11px 2px;
+  color: var(--situation-petrol);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.product-shell .history-audit summary:focus-visible {
+  outline: 3px solid rgba(9, 107, 140, 0.38);
+  outline-offset: 2px;
+}
+
+.product-shell .history-audit[open] summary {
+  border-bottom: 1px solid var(--situation-line);
+}
+
+.product-shell .history-audit-list {
+  display: grid;
+}
+
+.product-shell .history-audit-row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 6px 10px;
+  padding: 9px 2px;
+  border-bottom: 1px solid var(--situation-line);
+}
+
+.product-shell .history-audit-row:last-child {
+  border-bottom: 0;
+}
+
+.product-shell .history-audit-heading,
+.product-shell .history-audit-measure,
+.product-shell .history-audit-sources {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.product-shell .history-audit-heading strong,
+.product-shell .history-audit-measure strong {
+  color: var(--situation-ink);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.product-shell .history-audit-status {
+  color: var(--situation-muted);
+  font-size: 10px;
+}
+
+.product-shell .history-audit-suppressed {
+  color: var(--situation-amber);
+}
+
+.product-shell .history-audit-missing {
+  color: var(--situation-muted-soft);
+}
+
+.product-shell .history-audit-measure small,
+.product-shell .history-audit-sources small {
+  color: var(--situation-muted-soft);
+  font-size: 10px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.product-shell .history-audit-sources {
+  grid-column: 1 / -1;
+  padding-left: 82px;
+}
+
+
 .product-shell .secondary-action {
   min-height: 40px;
   border-color: var(--situation-line-strong);

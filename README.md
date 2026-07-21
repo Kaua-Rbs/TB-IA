@@ -124,7 +124,10 @@ The product frontend at `/` and `/territorios` is a responsive public aggregate
 territorial workbench with Portuguese default UI text and optional English via
 `?lang=en`. It exposes data readiness, UF/year/comparison controls,
 municipality search, synchronized MapLibre map/ranking/dossier selection,
-source freshness, and grouped territory reports. The map legend follows the
+source freshness, and grouped territory reports. The municipal dossier also
+shows the auditable annual TB-incidence series, explicitly separating available,
+suppressed, and missing years and exposing source or denominator breaks without
+inferring a trend. The map legend follows the
 selected layer, reports values and units, and distinguishes available,
 suppressed, and missing data. `uf=BR` shows a national municipality map using
 national percentiles; a single UF can switch between the existing intra-UF
