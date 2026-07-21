@@ -11,6 +11,8 @@ The backend is implemented in Python. The active stack includes public-data inge
 
 - `descricao_do_projeto.md`: product vision, scope, MVP assumptions, data sources, and LGPD constraints.
 - `frentes_de_desenvolvimento.md`: workstreams for product, evidence, data, rules, interface, architecture, and validation.
+- `guia_validacao_de_dominio.md`: plain-language clinical and epidemiological
+  review packet, decision checklist, and CAP-01 evidence summary.
 - `proximos_passos.md`: canonical prioritized roadmap, capability statuses, dependencies, and Biochallenge completion work.
 - `referencias.md`: related systems, papers, and design references for public health surveillance and TB decision support.
 - `especificacao_tecnica_do_sistema.md`: engineering-oriented specification for MVP scope, data contracts, architecture, workflows, governance, and validation.
@@ -72,6 +74,7 @@ python -m tbia ingest --uf CE --year 2023
 python -m tbia validate-sinan-mappings --uf CE --year 2023
 python -m tbia compute-indicators --uf CE --year 2023
 python -m tbia build-scenarios --uf CE --year 2023
+python -m tbia validate-diagnostic-ranking --uf CE --year 2023
 python -m tbia serve
 ```
 
@@ -81,6 +84,13 @@ For CE/2023, `validate-sinan-mappings` also verifies a packaged aggregate accept
 sample for HIV testing, TRM-TB, and culture against the expected source hash. A
 mismatch is written to the report and makes the command fail; passing this
 technical check does not replace epidemiological or domain review.
+
+`build-scenarios` and `prepare-demo` also write
+`diagnostic_ranking_impact_<scope>_<year>.json` under the validation
+directory. It compares the production ranking with the provisional CAP-01
+diagnostic rules disabled and enabled. `validate-diagnostic-ranking`
+regenerates that artifact from the stored scenarios without rebuilding source
+data; its technical status never substitutes for domain approval.
 
 The product frontend at `/` and `/territorios` is a responsive public aggregate
 territorial workbench with Portuguese default UI text and optional English via

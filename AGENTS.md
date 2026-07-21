@@ -12,6 +12,8 @@ The backend is implemented in Python. The current application includes public-da
 - `frentes_de_desenvolvimento.md`: workstreams for scope, users, evidence, data, rules, product, architecture, governance, and validation.
 - `proximos_passos.md`: canonical prioritized roadmap, capability statuses, dependencies, and remaining Biochallenge deliverables.
 - `referencias.md`: related systems, papers, and design references for public health surveillance and TB decision support.
+- `guia_validacao_de_dominio.md`: plain-language clinical and epidemiological
+  validation guide, evidence summary, and reviewer decision record.
 - `especificacao_tecnica_do_sistema.md`: engineering-oriented specification for MVP scope, data contracts, architecture, workflows, governance, and validation.
 - `mvp2_municipal_contracts.md`: synthetic municipal CSV contracts, privacy rules, and operational alert behavior.
 - `documentos/`: source PDFs and supporting reference documents used during project formulation.
@@ -118,6 +120,7 @@ Coverage and dependency checks now include the MVP 1 package. Do not add fake mu
 - Keep domain rules, epidemiological indicators, data ingestion, persistence, and presentation separated.
 - Avoid circular imports and broad shared utility modules.
 - Prefer cohesive modules over adding more code to very large files.
+- Keep `guia_validacao_de_dominio.md` aligned with provisional health-domain rules and their generated evidence.
 
 ## Definition Of Done
 

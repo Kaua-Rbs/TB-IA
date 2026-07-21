@@ -43,6 +43,21 @@ last-review date in the same commit that starts or completes a listed
 capability. Do not reorder capabilities or mark one complete without recording
 the reason and satisfying its documented exit criteria.
 
+## Domain Validation
+
+`guia_validacao_de_dominio.md` is the plain-language handoff for clinical and
+epidemiological reviewers. Update it whenever a provisional health-domain rule
+changes its universe, source-field interpretation, threshold, severity,
+ranking dimension, recommendation, evidence, or review status.
+
+Technical checks may prepare evidence, but they must not be recorded as
+clinical approval. Keep provisional rules marked `pending_domain_review` until
+the guide's decision record is completed by an appropriately qualified
+reviewer and requested changes have passed the normal quality gates.
+
+Regenerate the CAP-01 ranking comparison with
+`python -m tbia validate-diagnostic-ranking --uf CE --year 2023`.
+
 ## Additional Quality Commands
 
 ```bash
@@ -102,6 +117,7 @@ python -m tbia ingest --uf CE --uf-code 23 --year 2023
 python -m tbia validate-sinan-mappings --uf CE --uf-code 23 --year 2023
 python -m tbia compute-indicators --uf CE --year 2023
 python -m tbia build-scenarios --uf CE --year 2023
+python -m tbia validate-diagnostic-ranking --uf CE --year 2023
 python -m tbia serve
 ```
 
