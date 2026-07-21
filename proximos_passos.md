@@ -182,7 +182,7 @@ indicadores.
    Somente depois da decisão de domínio sobre janela e método, implementar uma
    função transparente e testável. O resultado candidato deve ser auditável e
    permanecer fora do escore oficial enquanto estiver
-   `pending_domain_review`.
+   `pending_domain_review`. **Aguardando revisão de domínio.**
 
 1. `feat(frontend): show municipal incidence history`
 
@@ -199,7 +199,7 @@ indicadores.
 **Decisões de domínio necessárias:** janela de anos, tratamento do período da
 pandemia, definição de crescimento persistente, volume mínimo de casos,
 comparabilidade de denominadores, tolerância a lacunas, gravidade e resposta
-sugerida. O formulário inicial está em `guia_validacao_de_dominio.md`.
+sugerida. O formulário completo está em `guia_validacao_de_dominio.md`.
 
 **Critérios técnicos de aceitação:**
 
@@ -301,11 +301,12 @@ trabalho para encerrá-la é:
 1. Implementar e testar eventuais alterações, registrar a decisão e só então
    remover o estado provisório.
 
-CAP-02 está em implementação de infraestrutura. O próximo commit previsto é
-`docs(validation): prepare CAP-02 domain review`, seguido pela apresentação da
-série no dossiê territorial. Armazenamento, API, agregado histórico e auditoria
-de comparabilidade já estão disponíveis. O cálculo de tendência permanece
-bloqueado até as decisões clínicas e epidemiológicas documentadas.
+A documentação de revisão de domínio da CAP-02 está pronta. Enquanto o cálculo
+de tendência permanece bloqueado pelas decisões clínicas e epidemiológicas, o
+próximo commit executável é `feat(frontend): show municipal incidence history`.
+Essa antecipação apresenta somente a série já armazenada, com ressalvas, e não
+cria regra, cenário ou peso no ranking. Armazenamento, API, agregado histórico
+e auditoria de comparabilidade já estão disponíveis.
 
 Autenticação de produção, dados reais em nível de pessoa, automação clínica e
 modelos preditivos permanecem fora do ciclo atual.

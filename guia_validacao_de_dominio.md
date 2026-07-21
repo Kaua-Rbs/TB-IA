@@ -8,10 +8,11 @@ Este documento orienta a revisão humana das regras de saúde usadas pelo TB-IA.
 Ele foi escrito para profissionais que não trabalham com programação. Não é
 necessário abrir o código-fonte para preencher a revisão.
 
-A versão atual detalha a validação da **CAP-01**, que prioriza municípios com
+A versão atual detalha duas revisões. A **CAP-01** prioriza municípios com
 sinais comparativos de baixa testagem para HIV, baixo uso de TRM-TB e baixo uso
-de cultura entre casos de retratamento. Ao final há também a lista inicial de
-decisões clínicas necessárias para a CAP-02, sobre tendências históricas.
+de cultura entre casos de retratamento. A **CAP-02** apresenta a série histórica
+de incidência, suas quebras de comparabilidade e as decisões necessárias antes
+de criar qualquer regra de crescimento.
 
 ## Quem deve revisar
 
@@ -267,32 +268,180 @@ aprovados, as alterações pedidas forem implementadas e testadas, e o teste de
 compreensão com usuários estiver registrado. Até lá, as regras devem continuar
 marcadas como provisórias.
 
-## Decisões de domínio antecipadas para a CAP-02
+## CAP-02 em linguagem simples
 
-A CAP-02 pretende diferenciar incidência alta em um único ano de crescimento
-persistente. Antes de ativar qualquer novo sinal no ranking, a revisão clínica e
-epidemiológica deverá decidir:
+### O que a série mede
 
-1. Quantos anos formam uma série suficientemente longa.
-1. Como tratar 2020 e 2021 e possíveis mudanças de notificação durante a
-   pandemia.
-1. O que significa "crescimento": anos consecutivos, variação percentual,
-   inclinação de uma série ou outra regra transparente.
-1. Qual volume mínimo de casos reduz oscilações enganosas em municípios
-   pequenos.
-1. Quando mudanças de denominador populacional impedem comparação direta.
-1. Quanta ausência de anos ou fontes torna a tendência inconclusiva.
-1. Qual gravidade e qual resposta municipal correspondem ao sinal.
-1. Como explicar incerteza sem apresentar tendência como previsão.
+A série disponível mostra a incidência anual de tuberculose por município entre
+2018 e 2023. Para cada ano, o cálculo usado na demonstração é:
 
-Essas decisões estão abertas. O planejamento técnico da CAP-02 deve produzir
-séries auditáveis e relatórios de qualidade antes de pedir aprovação de uma
-regra.
+```text
+casos novos de TB notificados / população de referência x 100.000
+```
+
+O numerador atual considera notificações classificadas pelos códigos 1, 4 e 6 do
+campo `TRATAMENTO` do SINAN-TB. A revisão de domínio deve confirmar se esse
+universo e o tratamento de duplicidades ou atualizações representam corretamente
+"casos novos" para a finalidade proposta.
+
+A taxa permite comparar populações de tamanhos diferentes, mas não mostra risco
+individual, não explica por que houve mudança e não prevê o ano seguinte. Um
+aumento também não prova, sozinho, piora da assistência: pode refletir
+transmissão, busca ativa, acesso ao diagnóstico, atualização da base ou mudança
+do denominador.
+
+### O que a verificação técnica encontrou
+
+O pacote CE/2018-2023 contém exatamente 184 municípios e seis observações por
+município, totalizando 1.104 registros agregados. Nenhum registro esperado está
+ausente e todos têm fonte, período e denominador identificados.
+
+Valores com menos de cinco casos são ocultados para evitar exposição indevida de
+contagens pequenas. Eles permanecem marcados como **suprimidos** e nunca são
+substituídos por zero. Por isso, existência do registro não significa que a taxa
+possa ser mostrada ou comparada.
+
+| Ano | Taxas disponíveis | Suprimidas | Situação do SINAN-TB | População usada | Atenção |
+| --- | ---: | ---: | --- | --- | --- |
+| 2018 | 95 | 89 | Final | Estimativa de 2018 | Início da série |
+| 2019 | 83 | 101 | Final | Estimativa de 2019 | Mesma família de denominador |
+| 2020 | 83 | 101 | Preliminar | Estimativa de 2020 | Mudança da situação da fonte e pandemia |
+| 2021 | 89 | 95 | Preliminar | Estimativa de 2021 | Período da pandemia |
+| 2022 | 90 | 94 | Preliminar | Censo de 2022 | Mudança de estimativa para Censo |
+| 2023 | 94 | 90 | Preliminar | Censo de 2022 | Eventos de 2023 sobre população de 2022 |
+
+No total, 534 taxas podem ser mostradas e 570 estão suprimidas. Somente 56 dos
+184 municípios têm os seis anos disponíveis. Os outros 128 têm ao menos um ano
+suprimido. O rótulo técnico "candidato à comparação" significa apenas série
+completa e proveniência preenchida; não significa que a comparação tenha sido
+aprovada por médico ou epidemiologista.
+
+### Exemplos para conferência
+
+Os cinco municípios abaixo foram escolhidos para uma conferência reproduzível,
+não porque representem todo o Ceará. Todos têm os seis anos disponíveis. Os
+valores são taxas por 100 mil habitantes, arredondadas para duas casas.
+
+| Município | 2018 | 2019 | 2020 | 2021 | 2022 | 2023 |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Fortaleza | 60,27 | 59,60 | 48,87 | 47,38 | 59,58 | 60,40 |
+| Caucaia | 54,12 | 42,06 | 44,08 | 44,18 | 53,14 | 60,45 |
+| Sobral | 74,52 | 74,19 | 57,42 | 57,43 | 71,91 | 63,54 |
+| Maracanaú | 49,53 | 48,27 | 38,35 | 41,99 | 39,23 | 40,94 |
+| Quixadá | 25,25 | 26,22 | 18,12 | 34,87 | 19,01 | 13,07 |
+
+Fortaleza ilustra por que a inspeção humana é necessária. Entre 2021 e 2022, os
+casos novos passam de 1.281 para 1.447, enquanto o denominador muda de uma
+estimativa de 2.703.391 habitantes para 2.428.708 habitantes no Censo. A taxa
+resultante sobe de 47,38 para 59,58. O software registra os dois movimentos, mas
+não decide quanto da diferença representa mudança epidemiológica.
+
+### Quebras que exigem decisão de domínio
+
+1. **Situação da fonte:** 2018 e 2019 usam arquivos finais; 2020 a 2023 usam
+   arquivos preliminares. O revisor deve decidir se podem participar da mesma
+   análise e qual ressalva é obrigatória.
+1. **Pandemia:** notificações e acesso ao diagnóstico em 2020 e 2021 podem ter
+   sido afetados. O revisor deve decidir se esses anos entram, ficam destacados
+   ou impedem determinada interpretação.
+1. **Método populacional:** a série troca estimativas anuais pelo Censo em 2022.
+   O revisor deve decidir se a quebra permite comparação direta ou exige outro
+   denominador.
+1. **Ano do denominador:** a taxa de 2023 usa casos de 2023 e população do Censo
+   de 2022, em alinhamento com a demonstração atual. Essa escolha precisa ser
+   aceita ou substituída.
+1. **Supressão:** municípios pequenos frequentemente não têm uma sequência
+   publicável. O revisor deve decidir quantos anos disponíveis bastam e se uma
+   lacuna torna o resultado inconclusivo.
+
+### O que o software ainda não decidiu
+
+Nenhuma regra de tendência foi implementada. O sistema ainda não:
+
+- escolhe uma janela de três, quatro, cinco ou seis anos;
+- classifica crescimento por anos consecutivos, diferença percentual ou
+  inclinação;
+- corrige ou exclui automaticamente os anos da pandemia;
+- define volume mínimo de casos ou população;
+- preenche anos suprimidos, calcula previsão ou atribui causalidade;
+- atribui gravidade, recomendação ou pontos no ranking pela série histórica.
+
+Essas ausências são intencionais. Implementar uma fórmula antes das decisões
+abaixo criaria uma regra de saúde sem aprovação adequada.
+
+## Roteiro sugerido para a revisão da CAP-02
+
+1. Confirmar a definição de caso novo e o período de notificação usado.
+1. Ler a tabela de cobertura e distinguir dado suprimido de dado ausente.
+1. Conferir os cinco exemplos diretamente na fonte ou em uma extração oficial
+   aceita pelo revisor.
+1. Discutir separadamente as quatro quebras: arquivos preliminares, pandemia,
+   troca para o Censo e uso da população de 2022 em 2023.
+1. Escolher uma regra simples e explicável somente se a série for considerada
+   comparável.
+1. Definir quando a regra deve responder "inconclusivo" em vez de classificar o
+   município.
+1. Revisar a linguagem, a possível resposta municipal e qualquer peso no
+   ranking.
+1. Registrar a decisão e as fontes consultadas no formulário abaixo.
+
+## Registro de decisão da CAP-02
+
+| ID | Decisão | Aprovar | Alterar | Reprovar | Inconclusivo | Observações |
+| --- | --- | :---: | :---: | :---: | :---: | --- |
+| D02-01 | Universo de casos novos, período e duplicidades | [ ] | [ ] | [ ] | [ ] | |
+| D02-02 | Uso conjunto de arquivos finais e preliminares | [ ] | [ ] | [ ] | [ ] | |
+| D02-03 | Tratamento de 2020 e 2021 | [ ] | [ ] | [ ] | [ ] | |
+| D02-04 | Troca de estimativa populacional para Censo | [ ] | [ ] | [ ] | [ ] | |
+| D02-05 | Casos de 2023 sobre população de 2022 | [ ] | [ ] | [ ] | [ ] | |
+| D02-06 | Quantidade de anos da janela | [ ] | [ ] | [ ] | [ ] | |
+| D02-07 | Tolerância a anos suprimidos ou ausentes | [ ] | [ ] | [ ] | [ ] | |
+| D02-08 | Definição matemática de crescimento persistente | [ ] | [ ] | [ ] | [ ] | |
+| D02-09 | Volume mínimo de casos ou população | [ ] | [ ] | [ ] | [ ] | |
+| D02-10 | Critério para resultado inconclusivo | [ ] | [ ] | [ ] | [ ] | |
+| D02-11 | Gravidade e resposta municipal sugerida | [ ] | [ ] | [ ] | [ ] | |
+| D02-12 | Linguagem de incerteza e segurança | [ ] | [ ] | [ ] | [ ] | |
+| D02-13 | Peso e ativação futura no ranking | [ ] | [ ] | [ ] | [ ] | |
+| D02-14 | Compreensão do fluxo por usuários | [ ] | [ ] | [ ] | [ ] | |
+
+**Janela escolhida:**
+
+**Regra de crescimento escolhida, em linguagem simples:**
+
+**Anos ou situações que impedem o cálculo:**
+
+**Volume mínimo escolhido e justificativa:**
+
+**Decisão geral:** [ ] aprovar [ ] aprovar com alterações [ ] reprovar [ ]
+inconclusivo
+
+**Alterações obrigatórias antes da aprovação:**
+
+______________________________________________________________________
+
+**Nome do revisor responsável:**
+
+**Formação e função:**
+
+**Instituição:**
+
+**Data:**
+
+**Versão ou identificação das fontes consultadas:**
+
+**Assinatura ou registro equivalente:**
+
+A equipe técnica só deve implementar a regra candidata depois que janela,
+método, exceções e volume mínimo estiverem preenchidos. A CAP-02 só pode alterar
+o ranking depois que o impacto da regra implementada também for apresentado e
+aceito em nova revisão.
 
 ## Onde encontrar a evidência
 
 A equipe técnica pode apresentar os seguintes artefatos sem exigir que o revisor
-os edite:
+os edite.
+
+### Evidência da CAP-01
 
 - Amostra municipal:
   `src/tbia/resources/validation/sinan_diagnostic_acceptance_ce_2023.json`.
@@ -302,9 +451,21 @@ os edite:
   `data/processed/mvp1/validation/indicator_validation_ce_2023.json`.
 - Comparação do ranking:
   `data/processed/mvp1/validation/diagnostic_ranking_impact_ce_2023.json`.
-- Interface de demonstração: `/territorios`, após executar `make demo` e
-  iniciar o servidor.
 
-Os arquivos gerados em `data/processed/` são evidência reproduzível local e
-não são versionados no Git. Os identificadores criptográficos dos arquivos DBC
-e DBF usados na amostra ficam registrados no próprio arquivo da amostra.
+### Evidência da CAP-02
+
+- Agregado municipal anual:
+  `src/tbia/resources/demo/incidence_history_ce_2018_2023.json`.
+- Manifesto com fontes, datas e identificadores criptográficos:
+  `src/tbia/resources/demo/incidence_history_ce_2018_2023.manifest.json`.
+- Auditoria de comparabilidade:
+  `data/processed/mvp1/validation/incidence_history_comparability_ce_2018_2023.json`,
+  gerada por `python -m tbia validate-incidence-history`.
+- Série de um município, disponível na API
+  `/api/territorial/history` com município, indicador e intervalo informados.
+
+A interface de demonstração fica em `/territorios`, após executar `make demo`
+e iniciar o servidor. Os arquivos gerados em `data/processed/` são evidência
+reproduzível local e não são versionados no Git. Os identificadores
+criptográficos dos arquivos de origem ficam registrados nos artefatos
+versionados de cada capacidade.
