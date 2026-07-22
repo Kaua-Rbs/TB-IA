@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date
 from pathlib import Path
 from typing import Annotated
@@ -38,6 +39,7 @@ from tbia.pipeline import (
     build_sinan_validation_report_file,
     compute_and_store_indicators,
     generate_diagnostic_ranking_impact_report,
+    generate_resistance_surveillance_audit_report,
     ingest_public_data,
 )
 from tbia.preparation import DemoPreparationResult, prepare_demo_environment
@@ -196,6 +198,36 @@ def validate_diagnostic_ranking(
         output_path = generate_diagnostic_ranking_impact_report(session, config)
     engine.dispose()
     typer.echo(f"Generated diagnostic ranking impact report: {output_path}")
+
+
+@app.command("validate-resistance-surveillance")
+def validate_resistance_surveillance(
+    uf: UfOption = "CE",
+    uf_code: UfCodeOption = None,
+    year: YearOption = 2023,
+    raw_dir: RawDirOption = DEFAULT_RAW_DIR,
+    database_url: DatabaseUrlOption = DEFAULT_DATABASE_URL,
+    output_dir: OutputDirOption = Path("data/processed/mvp1/validation"),
+) -> None:
+    config = build_config(uf, uf_code, year, raw_dir, population_source_year=None)
+    engine = create_engine_for_url(database_url)
+    initialize_database(engine)
+    session_factory = create_session_factory(engine)
+    with session_factory() as session:
+        output_path = generate_resistance_surveillance_audit_report(session, config, output_dir)
+    engine.dispose()
+
+    report = json.loads(output_path.read_text(encoding="utf-8"))
+    typer.echo(f"Generated resistance-surveillance audit: {output_path}")
+    typer.echo(f"Status: {report['status']}")
+    for comparison_scope, comparison in report["comparisons"].items():
+        typer.echo(
+            f"{comparison_scope}: {comparison['profile_count']}/"
+            f"{comparison['expected_territory_count']} territory profiles; "
+            f"{comparison['overlap']['triggered_territory_count']} with triggered signals"
+        )
+    if report["status"] == "failed":
+        raise typer.Exit(code=1)
 
 
 @app.command()

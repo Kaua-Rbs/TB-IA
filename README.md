@@ -109,6 +109,7 @@ python -m tbia validate-sinan-mappings --uf CE --year 2023
 python -m tbia compute-indicators --uf CE --year 2023
 python -m tbia build-scenarios --uf CE --year 2023
 python -m tbia validate-diagnostic-ranking --uf CE --year 2023
+python -m tbia validate-resistance-surveillance --uf CE --year 2023
 python -m tbia serve
 ```
 
@@ -125,6 +126,14 @@ directory. It compares the production ranking with the provisional CAP-01
 diagnostic rules disabled and enabled. `validate-diagnostic-ranking`
 regenerates that artifact from the stored scenarios without rebuilding source
 data; its technical status never substitutes for domain approval.
+
+The same workflows write
+`resistance_surveillance_audit_<scope>_<year>.json`. It summarizes CAP-04
+public surveillance-signal availability, overlap, and provenance while
+enforcing that the profile has no ranking effect and does not claim confirmed
+resistance burden. `validate-resistance-surveillance` regenerates this audit
+from stored public aggregates; a passing technical status remains pending
+health-domain review.
 
 Maintainers can regenerate the packaged aggregate from official SINAN-TB and
 IBGE artifacts. This command is network-dependent and is not part of ordinary

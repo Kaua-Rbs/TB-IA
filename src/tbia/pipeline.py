@@ -27,6 +27,10 @@ from tbia.domain.ranking_impact import (
     write_diagnostic_ranking_impact_report,
 )
 from tbia.domain.recommendations import STRATEGIES, build_recommendations
+from tbia.domain.resistance_surveillance_audit import (
+    build_resistance_surveillance_audit,
+    write_resistance_surveillance_audit,
+)
 from tbia.domain.scenarios import DEFAULT_SCENARIO_RULES, evaluate_territory_scenarios
 from tbia.geography import BRAZIL_SCOPE, is_brazil_scope, uf_code_for, ufs_for_scope
 from tbia.ingest.contracts import SOURCE_CONTRACTS
@@ -71,6 +75,7 @@ from tbia.storage import (
     load_populations,
     load_territories,
     load_territory_scenarios,
+    resistance_surveillance_profile_for_territory,
     save_case_aggregates,
     save_data_sources,
     save_facilities,
@@ -1122,6 +1127,50 @@ def generate_diagnostic_ranking_impact_report(
     return write_diagnostic_ranking_impact_report(report, config.validation_dir)
 
 
+def generate_resistance_surveillance_audit_report(
+    session: Session,
+    config: Mvp1Config,
+    output_dir: Path | None = None,
+) -> Path:
+    territory_ids = target_municipality_ids(session, config)
+    territories = {
+        territory.territory_id: territory
+        for territory in load_territories(session, config.uf)
+        if territory.territory_id in territory_ids
+    }
+    profiles_by_scope: dict[str, dict[str, dict[str, Any]]] = {}
+    for comparison_scope in diagnostic_comparison_scopes(config):
+        triggered_by_territory: dict[str, set[str]] = {}
+        for scenario in load_territory_scenarios(
+            session,
+            config.year,
+            comparison_scope,
+        ):
+            if scenario.territory_id in territory_ids:
+                triggered_by_territory.setdefault(scenario.territory_id, set()).add(
+                    scenario.rule_id
+                )
+        profiles_by_scope[comparison_scope] = {
+            territory_id: resistance_surveillance_profile_for_territory(
+                session,
+                territory_id=territory_id,
+                territory_uf=territory.uf_sigla,
+                year=config.year,
+                comparison_scope=comparison_scope,
+                triggered_rule_ids=triggered_by_territory.get(territory_id, set()),
+            )
+            for territory_id, territory in sorted(territories.items())
+        }
+
+    report = build_resistance_surveillance_audit(
+        profiles_by_scope,
+        sorted(territory_ids),
+        year=config.year,
+        geographic_scope=config.uf,
+    )
+    return write_resistance_surveillance_audit(report, output_dir or config.validation_dir)
+
+
 def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int, int]:
     territory_ids = target_municipality_ids(session, config)
     if not territory_ids:
@@ -1199,6 +1248,7 @@ def build_and_store_scenarios(session: Session, config: Mvp1Config) -> tuple[int
         recommendations.extend(national_recommendations)
 
     generate_diagnostic_ranking_impact_report(session, config, scenarios=scenarios)
+    generate_resistance_surveillance_audit_report(session, config)
     return len(scenarios), len(recommendations)
 
 

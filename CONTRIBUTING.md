@@ -58,6 +58,12 @@ reviewer and requested changes have passed the normal quality gates.
 Regenerate the CAP-01 ranking comparison with
 `python -m tbia validate-diagnostic-ranking --uf CE --year 2023`.
 
+Regenerate the CAP-04 public-signal audit with
+`python -m tbia validate-resistance-surveillance --uf CE --year 2023`. The
+artifact checks availability, overlap, provenance, and the non-scoring safety
+boundary; it does not validate clinical meaning or confirmed resistance
+burden.
+
 Generate the CAP-03 contact-field audit with
 `python -m tbia validate-sinan-contacts --uf CE --year-from 2018 --year-to 2024`. It is intentionally independent of ingestion and `make demo`. While
 official totals remain unreconciled, it writes the evidence and returns code
@@ -125,6 +131,7 @@ python -m tbia validate-sinan-mappings --uf CE --uf-code 23 --year 2023
 python -m tbia compute-indicators --uf CE --year 2023
 python -m tbia build-scenarios --uf CE --year 2023
 python -m tbia validate-diagnostic-ranking --uf CE --year 2023
+python -m tbia validate-resistance-surveillance --uf CE --year 2023
 python -m tbia serve
 ```
 

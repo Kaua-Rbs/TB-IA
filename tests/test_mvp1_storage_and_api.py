@@ -7,7 +7,9 @@ from typing import Any
 
 from fastapi.testclient import TestClient
 from sqlalchemy import inspect, text
+from typer.testing import CliRunner
 
+from tbia.cli import app
 from tbia.domain.models import (
     CaseAggregate,
     Facility,
@@ -817,6 +819,36 @@ def test_public_api_returns_aggregate_indicators_and_ranking(tmp_path: Path) -> 
     )
     assert incidence_pt["indicator_name"] == "Incidência de TB"
     assert "Recomendado porque" in report_pt.json()["recommendations"][0]["explanation"]
+
+
+def test_validate_resistance_surveillance_cli_writes_pending_review_audit(
+    tmp_path: Path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'audit-cli.db'}"
+    populate_database(database_url)
+    output_dir = tmp_path / "validation"
+
+    result = CliRunner().invoke(
+        app,
+        [
+            "validate-resistance-surveillance",
+            "--uf",
+            "CE",
+            "--year",
+            "2023",
+            "--database-url",
+            database_url,
+            "--output-dir",
+            str(output_dir),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "technical_validation_pending_domain_review" in result.output
+    report_path = output_dir / "resistance_surveillance_audit_ce_2023.json"
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report["structural_violation_count"] == 0
+    assert report["comparisons"]["uf"]["profile_count"] == 6
 
 
 def test_public_api_exposes_auditable_localized_indicator_history(tmp_path: Path) -> None:
@@ -1761,3 +1793,13 @@ def test_diagnostic_rules_are_ready_for_uf_and_national_comparisons(
     assert set(impact["comparisons"]) == {"uf", "national"}
     assert impact["comparisons"]["uf"]["scenario_counts"]["diagnostic"] > 0
     assert impact["comparisons"]["national"]["scenario_counts"]["diagnostic"] > 0
+    resistance_audit_path = (
+        processed_dir / "validation" / "resistance_surveillance_audit_br_2023.json"
+    )
+    resistance_audit = json.loads(resistance_audit_path.read_text(encoding="utf-8"))
+    assert set(resistance_audit["comparisons"]) == {"uf", "national"}
+    assert resistance_audit["structural_violation_count"] == 0
+    assert all(
+        comparison["profile_count"] == comparison["expected_territory_count"]
+        for comparison in resistance_audit["comparisons"].values()
+    )

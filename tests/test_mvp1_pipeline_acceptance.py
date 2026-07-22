@@ -176,6 +176,15 @@ def assert_validation_report(processed_dir: Path) -> None:
     comparison = impact["comparisons"]["uf"]
     assert comparison["scenario_counts"]["candidate"] >= comparison["scenario_counts"]["baseline"]
     assert comparison["dimension_cap"]["duplicate_score_excluded"] >= 0
+    resistance_path = processed_dir / "validation" / "resistance_surveillance_audit_ce_2023.json"
+    resistance_audit = json.loads(resistance_path.read_text(encoding="utf-8"))
+    assert resistance_audit["status"] == "technical_validation_pending_domain_review"
+    assert resistance_audit["structural_violation_count"] == 0
+    resistance_comparison = resistance_audit["comparisons"]["uf"]
+    assert (
+        resistance_comparison["profile_count"] == resistance_comparison["expected_territory_count"]
+    )
+    assert resistance_comparison["ranking_guard"]["violating_profile_count"] == 0
 
 
 def assert_api_consistency(
