@@ -20,6 +20,8 @@ entrega.
 - **Em validação**: implementação e gates técnicos concluídos, mas ainda depende
   de revisão de domínio, governança ou fluxo com usuários para atender ao
   critério de saída.
+- **Em espera**: o trabalho local conhecido está documentado, mas a capacidade
+  depende de fonte, reconciliação ou decisão externa antes de ser retomada.
 - **Planejada**: possui ordem definida, mas depende das entregas anteriores.
 - **Condicional**: depende de fonte autorizada, qualidade mínima ou decisão de
   governança.
@@ -71,8 +73,8 @@ um componente de cenário composto.
 | --- | --- | --- | --- |
 | 1 | CAP-01 | Priorização por testagem de HIV, TRM-TB e cultura | **Em validação** |
 | 2 | CAP-02 | Tendências históricas e incidência crescente | **Em validação (método)** |
-| 3 | CAP-03 | Investigação de contatos com dados públicos | **Em andamento (reconciliação técnica)** |
-| 4 | CAP-04 | Vigilância de resistência em camadas | **Planejada** |
+| 3 | CAP-03 | Investigação de contatos com dados públicos | **Em espera (reconciliação externa e domínio)** |
+| 4 | CAP-04 | Vigilância de resistência em camadas | **Em andamento** |
 | 5 | CAP-05 | Monitoramento de tratamento preventivo | **Condicional** |
 | 6 | CAP-06 | Análise espacial de hotspots | **Pesquisa posterior** |
 
@@ -283,10 +285,23 @@ e a utilidade do indicador, não reconciliar arquivos ou código.
 decisão documentada de mantê-lo fora do produto público. O alerta sintético de
 contato pendente permanece separado em ambos os casos.
 
+**Estado de espera:** a implementação local necessária para produzir a
+evidência está concluída, mas a reconciliação depende da versão congelada ou da
+exportação TabWin usada nas publicações. A CAP-03 será retomada quando esse
+artefato estiver disponível ou quando houver decisão epidemiológica documentada
+de manter o indicador fora do produto. Essa espera não equivale a aprovação,
+reprovação ou conclusão da capacidade.
+
 ### CAP-04: vigilância de resistência em camadas
 
 **Objetivo:** separar lacunas de vigilância observáveis em dados públicos de
 casos de resistência confirmada que exigem fonte autorizada.
+
+**Estado atual:** iniciado porque o CAP-03 depende de insumo externo. O recorte
+ativo implementará somente contratos e sinais sintéticos, proveniência
+estruturada, leitura territorial descritiva e auditoria técnica. Não serão
+carregados dados reais, inferida carga de resistência nem criados novos pontos
+no ranking.
 
 **Abordagem:** na camada territorial, combinar apenas sinais transparentes como
 retratamento elevado e baixa realização de cultura ou TRM-TB, sempre rotulados
