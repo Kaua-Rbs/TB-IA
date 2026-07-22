@@ -738,10 +738,22 @@ def test_national_and_uf_scenario_scopes_coexist(tmp_path: Path) -> None:
         pe_map_national = client.get(
             "/api/map/municipalities?uf=PE&year=2023&comparison_scope=national"
         )
+        pe_report_uf = client.get("/api/territories/2600001/report?year=2023&comparison_scope=uf")
+        pe_report_national = client.get(
+            "/api/territories/2600001/report?year=2023&comparison_scope=national"
+        )
 
     assert br_map.status_code == 200
     assert pe_map_uf.status_code == 200
     assert pe_map_national.status_code == 200
+    assert pe_report_uf.status_code == 200
+    assert pe_report_national.status_code == 200
+    assert pe_report_uf.json()["resistance_surveillance"]["comparison_scope"] == "uf"
+    assert pe_report_national.json()["resistance_surveillance"]["comparison_scope"] == "national"
+    assert all(
+        row["data_status"] == "missing"
+        for row in pe_report_national.json()["resistance_surveillance"]["signals"]
+    )
     assert br_map.json()["metadata"]["comparison_scope"] == "national"
     assert len(br_map.json()["features"]) == 10
     pe_uf_scores = [
@@ -761,6 +773,7 @@ def test_public_api_returns_aggregate_indicators_and_ranking(tmp_path: Path) -> 
         indicators = client.get("/api/indicators?uf=CE&year=2023")
         rankings = client.get("/api/rankings?uf=CE&year=2023")
         report = client.get("/api/territories/2304400/report?year=2023")
+        report_other_year = client.get("/api/territories/2304400/report?year=2022")
         report_pt = client.get("/api/territories/2304400/report?year=2023&lang=pt")
         missing_report = client.get("/api/territories/9999999/report?year=2023")
 
@@ -769,6 +782,7 @@ def test_public_api_returns_aggregate_indicators_and_ranking(tmp_path: Path) -> 
     assert report.status_code == 200
     assert report_pt.status_code == 200
     assert missing_report.status_code == 404
+    assert report_other_year.status_code == 200
     incidence = next(
         row for row in indicators.json() if row["indicator_id"] == "tb_incidence_per_100k"
     )
@@ -776,6 +790,26 @@ def test_public_api_returns_aggregate_indicators_and_ranking(tmp_path: Path) -> 
     assert incidence["direction"] == "high_bad"
     assert rankings.json()[0]["territory_id"] == "2304400"
     assert report.json()["territory_name"] == "Fortaleza"
+    resistance_profile = report.json()["resistance_surveillance"]
+    assert resistance_profile["ranking_effect"] == "none"
+    assert (
+        resistance_profile["confirmed_resistance_status"]
+        == "not_available_in_public_aggregate_sources"
+    )
+    assert {row["signal_id"] for row in resistance_profile["signals"]} == {
+        "high_retreatment",
+        "low_culture_use_among_retreatment",
+        "low_trm_tb_use",
+    }
+    assert all(
+        row["data_status"] == "missing"
+        for row in report_other_year.json()["resistance_surveillance"]["signals"]
+    )
+    resistance_profile_pt = report_pt.json()["resistance_surveillance"]
+    assert resistance_profile_pt["confirmed_resistance_status_label"] == (
+        "Não disponível nas fontes públicas agregadas"
+    )
+    assert resistance_profile_pt["ranking_effect_label"] == ("Não altera o ranking de priorização")
     incidence_pt = next(
         row
         for row in report_pt.json()["indicators"]

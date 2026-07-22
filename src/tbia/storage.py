@@ -62,6 +62,7 @@ from tbia.domain.models import (
     Territory,
     TerritoryScenario,
 )
+from tbia.domain.resistance_surveillance import build_resistance_surveillance_profile
 from tbia.domain.scenarios import DIAGNOSTIC_SCENARIO_RULE_IDS, summarize_dimension_scores
 from tbia.geography import BRAZIL_SCOPE, normalize_geographic_scope, ufs_for_scope
 
@@ -2388,6 +2389,52 @@ def optional_incidence_history(
     )
 
 
+def resistance_surveillance_profile_for_territory(
+    session: Session,
+    *,
+    territory_id: str,
+    territory_uf: str,
+    year: int,
+    comparison_scope: str,
+    triggered_rule_ids: set[str],
+) -> dict[str, Any]:
+    target_scopes = (
+        {BRAZIL_SCOPE}
+        if comparison_scope == COMPARISON_SCOPE_NATIONAL
+        else set(ufs_for_scope(territory_uf))
+    )
+    evaluation_records = (
+        session.query(ScenarioRuleEvaluationRecord)
+        .filter_by(year=year, comparison_scope=comparison_scope)
+        .filter(ScenarioRuleEvaluationRecord.geographic_scope.in_(target_scopes))
+        .all()
+    )
+    evaluations = [
+        ScenarioRuleEvaluation(
+            geographic_scope=record.geographic_scope,
+            year=record.year,
+            comparison_scope=record.comparison_scope,
+            rule_id=record.rule_id,
+            status=ScenarioEvaluationStatus(record.status),
+            available_count=record.available_count,
+            suppressed_count=record.suppressed_count,
+            unavailable_count=record.unavailable_count,
+            territory_count=record.territory_count,
+            coverage_ratio=record.coverage_ratio,
+            threshold_value=record.threshold_value,
+            minimum_count=record.minimum_count,
+            minimum_coverage_ratio=record.minimum_coverage_ratio,
+        )
+        for record in evaluation_records
+    ]
+    return build_resistance_surveillance_profile(
+        load_indicator_values(session, year, [territory_id]),
+        evaluations,
+        triggered_rule_ids,
+        comparison_scope=comparison_scope,
+    )
+
+
 def territory_report(
     session: Session,
     territory_id: str,
@@ -2434,6 +2481,14 @@ def territory_report(
         "comparison_scope": scenario_scope,
         "year": year,
         "incidence_history": optional_incidence_history(session, territory_id, year),
+        "resistance_surveillance": resistance_surveillance_profile_for_territory(
+            session,
+            territory_id=territory_id,
+            territory_uf=territory.uf_sigla,
+            year=year,
+            comparison_scope=scenario_scope,
+            triggered_rule_ids={str(row["rule_id"]) for row in scenarios},
+        ),
         "indicators": indicators,
         "scenarios": scenarios,
         "recommendations": recommendations,

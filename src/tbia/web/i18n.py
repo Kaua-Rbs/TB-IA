@@ -159,6 +159,10 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "open": "open",
             "resolved": "resolved",
             "dismissed": "dismissed",
+            "triggered": "triggered",
+            "not_triggered": "not triggered",
+            "not_evaluable": "not evaluable",
+            "not_evaluated": "not evaluated",
         },
         "severity_labels": {
             "high": "high",
@@ -411,6 +415,10 @@ UI_TEXT: dict[str, dict[str, Any]] = {
             "open": "aberto",
             "resolved": "resolvido",
             "dismissed": "descartado",
+            "triggered": "acionado",
+            "not_triggered": "não acionado",
+            "not_evaluable": "não avaliável",
+            "not_evaluated": "não avaliado",
         },
         "severity_labels": {
             "high": "alta",
@@ -825,6 +833,23 @@ ALERT_SOURCE_LABELS = {
     },
 }
 
+RESISTANCE_PROFILE_LABELS = {
+    "en": {
+        "interpretation": ("Public surveillance gaps and proxies, not confirmed resistance burden"),
+        "confirmed_resistance_status": ("Not available in public aggregate sources"),
+        "review_status": "Pending health-domain review",
+        "ranking_effect": "Does not affect prioritization ranking",
+    },
+    "pt": {
+        "interpretation": (
+            "Lacunas e sinais indiretos de vigilância pública, não carga confirmada de resistência"
+        ),
+        "confirmed_resistance_status": ("Não disponível nas fontes públicas agregadas"),
+        "review_status": "Pendente de validação por profissional de saúde",
+        "ranking_effect": "Não altera o ranking de priorização",
+    },
+}
+
 DASHBOARD_READINESS_KEYS = frozenset(
     {
         "public_sources",
@@ -1223,11 +1248,53 @@ def localize_subterritory_payload(payload: dict[str, Any], language: str) -> dic
     return localized
 
 
+def localize_resistance_surveillance_profile(
+    profile: Mapping[str, Any], language: str
+) -> dict[str, Any]:
+    language = normalize_language(language)
+    localized = deepcopy(dict(profile))
+    labels = RESISTANCE_PROFILE_LABELS[language]
+    localized["interpretation_label"] = labels["interpretation"]
+    localized["confirmed_resistance_status_label"] = labels["confirmed_resistance_status"]
+    localized["review_status_label"] = labels["review_status"]
+    localized["ranking_effect_label"] = labels["ranking_effect"]
+
+    localized_signals: list[dict[str, Any]] = []
+    for raw_signal in profile.get("signals", []):
+        if not isinstance(raw_signal, Mapping):
+            continue
+        signal = deepcopy(dict(raw_signal))
+        indicator_id = str(signal.get("indicator_id", ""))
+        signal["label"] = indicator_label(
+            indicator_id, language, str(signal.get("label", indicator_id))
+        )
+        signal["data_status_label"] = localized_status(str(signal.get("data_status", "")), language)
+        signal["evaluation_status_label"] = localized_status(
+            str(signal.get("evaluation_status", "")), language
+        )
+        signal["trigger_status_label"] = localized_status(
+            str(signal.get("trigger_status", "")), language
+        )
+        if language == "pt":
+            signal["caveats"] = indicator_caveat_pt(indicator_id, str(signal.get("caveats", "")))
+        for source in signal.get("source_provenance", []):
+            if isinstance(source, dict):
+                localize_history_source(source, language)
+        localized_signals.append(signal)
+    localized["signals"] = localized_signals
+    return localized
+
+
 def localize_territory_report(report: dict[str, Any], language: str) -> dict[str, Any]:
     localized = deepcopy(report)
     history = report.get("incidence_history")
     if isinstance(history, Mapping):
         localized["incidence_history"] = localize_indicator_history(dict(history), language)
+    resistance_profile = report.get("resistance_surveillance")
+    if isinstance(resistance_profile, Mapping):
+        localized["resistance_surveillance"] = localize_resistance_surveillance_profile(
+            resistance_profile, language
+        )
     if language == FALLBACK_LANGUAGE:
         return localized
     localized["indicators"] = [

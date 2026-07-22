@@ -102,6 +102,11 @@ units, separates available, suppressed, and missing data, and identifies the
 selected municipality and optional public reference overlays. The dossier
 keeps transparent scenario explanations, recommendations, indicators, caveats,
 and source freshness without patient-level maps or clinical automation. The
+The dossier also exposes a non-scoring resistance-surveillance profile using
+retreatment, culture-use, and TRM-TB-use signals. It distinguishes available,
+suppressed, and missing data; carries comparison readiness and source
+provenance; and explicitly states that confirmed resistance burden is not
+available in the public aggregate sources.
 mobile shell reflows controls, rankings, status labels, and detail content
 without horizontal table dependence. Bairros or other public intramunicipal
 polygons are reference geography only; official UBS/team/microarea boundaries
@@ -135,19 +140,21 @@ Core outputs:
 - medication pickup delay alerts;
 - contact investigation pending lists;
 - unit-level operational indicators;
-- drug-resistance vigilance alerts based on retreatment, treatment failure, rifampicin resistance, missing culture, or missing drug susceptibility testing.
+- one resistance-vigilance alert per case, separating explicit final synthetic evidence, treatment-history or legacy unverified risk, and missing completed culture/DST surveillance.
 
 Current first implementation slice:
 
 - use synthetic, pseudonymized municipal CSVs under `data/raw/municipal_demo/`;
 - keep the MVP 2 dashboard visibly labeled as synthetic/pseudonymized until authorized local-data governance, integration, and validation exist;
 - reject obvious identifiable columns before local operational ingestion;
-- persist local teams, TB cases, lab events, pharmacy dispensing events, contact investigations, resource inventory, and generated operational alerts;
+- persist local teams, TB cases, lab events, optional structured synthetic
+  resistance evidence, pharmacy dispensing events, contact investigations,
+  resource inventory, and generated operational alerts;
 - generate transparent alert queues for pending lab results, delayed medication pickup, pending contact evaluation, and resistance vigilance;
 - expose `/acompanhamento` and `/api/operations/*` as the canonical product
   routes for local operations review;
-- provide URL-backed filters by alert type, severity, status, facility, and
-  team, with active-filter count and reset;
+- provide URL-backed filters by alert type, resistance signal kind, severity,
+  status, facility, and team, with active-filter count and reset;
 - identify high-severity and overdue items with text and icons as well as color;
 - keep alert detail sticky beside the desktop queue and expandable in place on
   mobile;
