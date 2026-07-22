@@ -22,7 +22,7 @@ with these canonical product API endpoints:
 - `/api/operations/alerts`
 - `/api/operations/alerts/{alert_id}`
 
-The alerts collection accepts `year`, `alert_type`, `severity`, `status`,
+The alerts collection accepts `year`, `alert_type`, `signal_kind`, `severity`, `status`,
 `facility_id`, `team_id`, and `lang` query parameters. The summary accepts the
 selected `year`.
 
@@ -95,9 +95,10 @@ and the pseudonym must match the case registry. Accepted values are:
 - `source_system`: only `synthetic_demo` in the current implementation.
 
 Only a `final` record explicitly marked `confirmed` may be presented as
-confirmed synthetic evidence. Preliminary, cancelled, indeterminate, legacy,
-and risk-history records remain vigilance signals. A real municipal source must
-not use this contract until authorization, provenance, access control, and
+confirmed synthetic evidence. Preliminary, cancelled, indeterminate, and
+`not_confirmed` records do not independently trigger a resistance alert. Legacy
+flags and treatment history remain explicitly unverified vigilance signals. A
+real municipal source must not use this contract until authorization, provenance, access control, and
 governance decisions under GOV-01 are approved.
 
 ### `local_pharmacy_dispensing.csv`
@@ -133,6 +134,18 @@ Generated alerts use status `open`. This slice does not implement task assignmen
 | `pending_lab_result` | `moderate` | Lab request date plus 7 days is before the reference date, `result_date` is empty, and `status` is not complete. |
 | `medication_pickup_delay` | `high` | Latest dispensing date plus `days_supplied` plus a 7-day grace period is before the reference date for an open case. |
 | `contact_pending_evaluation` | `moderate` | Contact identified date plus 7 days is before the reference date and `evaluation_date` is empty. |
-| `resistance_vigilance` | `high` | Case has retreatment, previous treatment failure, rifampicin resistance, or pulmonary retreatment without completed culture/DST evidence in the lab file. |
+| `resistance_vigilance` | `high` | One alert per case when there is a final record explicitly marked confirmed, treatment-history/unverified risk, or pulmonary retreatment without completed culture/DST evidence. |
+
+Resistance alerts expose structured `signal_kinds` and `evidence` while retaining a
+stable case-level alert ID:
+
+- `confirmed_resistance`: only an explicit `final` + `confirmed` resistance record;
+- `resistance_risk_history`: retreatment, previous treatment failure, or the
+  legacy unverified rifampicin flag;
+- `resistance_surveillance_gap`: pulmonary retreatment without a completed
+  culture or susceptibility result.
+
+All resistance alerts use `review_status=pending_domain_review`. Their evidence
+records contain source IDs and record dates, but never patient pseudonyms.
 
 Alerts are operational signals for human review. They must not be interpreted as diagnosis, prescription, or replacement for professional judgment.

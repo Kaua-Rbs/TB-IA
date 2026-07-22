@@ -48,6 +48,12 @@ class OperationalAlertStatus(StrEnum):
     DISMISSED = "dismissed"
 
 
+class ResistanceSignalKind(StrEnum):
+    CONFIRMED_RESISTANCE = "confirmed_resistance"
+    RESISTANCE_RISK_HISTORY = "resistance_risk_history"
+    RESISTANCE_SURVEILLANCE_GAP = "resistance_surveillance_gap"
+
+
 @dataclass(frozen=True)
 class DataSource:
     source_id: str
@@ -248,6 +254,18 @@ class ResourceInventory:
 
 
 @dataclass(frozen=True)
+class OperationalAlertEvidence:
+    code: str
+    signal_kind: ResistanceSignalKind
+    source_ids: tuple[str, ...]
+    source_record_id: str | None = None
+    observed_at: date | None = None
+    resistance_scope: str | None = None
+    evidence_status: str | None = None
+    source_system: str | None = None
+
+
+@dataclass(frozen=True)
 class OperationalAlert:
     alert_id: str
     year: int
@@ -263,6 +281,9 @@ class OperationalAlert:
     generated_at: datetime
     message: str
     due_date: date | None = None
+    signal_kinds: tuple[ResistanceSignalKind, ...] = ()
+    review_status: str | None = None
+    evidence: tuple[OperationalAlertEvidence, ...] = ()
 
 
 @dataclass(frozen=True)

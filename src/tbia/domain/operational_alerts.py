@@ -6,11 +6,14 @@ from datetime import UTC, date, datetime, timedelta
 from tbia.domain.models import (
     ContactInvestigation,
     LocalLabEvent,
+    LocalResistanceEvidence,
     LocalTbCase,
     MedicationDispensing,
     OperationalAlert,
+    OperationalAlertEvidence,
     OperationalAlertSeverity,
     OperationalAlertStatus,
+    ResistanceSignalKind,
 )
 
 PENDING_GRACE_DAYS = 7
@@ -32,6 +35,11 @@ CLOSED_CASE_STATUSES = frozenset(
     }
 )
 CULTURE_DST_TERMS = ("culture", "cultura", "dst", "sensibilidade", "susceptibility")
+RESISTANCE_SIGNAL_ORDER = (
+    ResistanceSignalKind.CONFIRMED_RESISTANCE,
+    ResistanceSignalKind.RESISTANCE_RISK_HISTORY,
+    ResistanceSignalKind.RESISTANCE_SURVEILLANCE_GAP,
+)
 
 
 def build_operational_alerts(
@@ -40,6 +48,7 @@ def build_operational_alerts(
     dispensings: Sequence[MedicationDispensing],
     contacts: Sequence[ContactInvestigation],
     *,
+    resistance_evidence: Sequence[LocalResistanceEvidence] = (),
     year: int,
     reference_date: date,
     generated_at: datetime | None = None,
@@ -52,7 +61,12 @@ def build_operational_alerts(
         *medication_pickup_delay_alerts(dispensings, cases_by_id, year, reference_date, generated),
         *contact_pending_evaluation_alerts(contacts, cases_by_id, year, reference_date, generated),
         *resistance_vigilance_alerts(
-            cases_by_id.values(), labs_for_year, year, reference_date, generated
+            cases_by_id.values(),
+            labs_for_year,
+            resistance_evidence,
+            year,
+            reference_date,
+            generated,
         ),
     ]
     return sorted(alerts, key=alert_sort_key)
@@ -157,15 +171,30 @@ def contact_pending_evaluation_alerts(
 def resistance_vigilance_alerts(
     cases: Iterable[LocalTbCase],
     lab_events: Sequence[LocalLabEvent],
+    resistance_records: Sequence[LocalResistanceEvidence],
     year: int,
     reference_date: date,
     generated_at: datetime,
 ) -> list[OperationalAlert]:
+    records_by_case: dict[str, list[LocalResistanceEvidence]] = {}
+    for record in resistance_records:
+        if record.year == year:
+            records_by_case.setdefault(record.local_case_id, []).append(record)
+
     alerts: list[OperationalAlert] = []
     for case in cases:
-        reasons = resistance_reasons(case, lab_events)
-        if case.year != year or not reasons:
+        if case.year != year:
             continue
+        evidence = resistance_alert_evidence(
+            case, lab_events, records_by_case.get(case.local_case_id, [])
+        )
+        if not evidence:
+            continue
+        signal_kinds = tuple(
+            signal_kind
+            for signal_kind in RESISTANCE_SIGNAL_ORDER
+            if any(item.signal_kind == signal_kind for item in evidence)
+        )
         alerts.append(
             make_alert(
                 alert_type="resistance_vigilance",
@@ -176,7 +205,10 @@ def resistance_vigilance_alerts(
                 reference_date=reference_date,
                 generated_at=generated_at,
                 due_date=None,
-                message=f"Resistance vigilance for case {case.local_case_id}: {' '.join(reasons)}",
+                message=f"Resistance vigilance for case {case.local_case_id}.",
+                signal_kinds=signal_kinds,
+                review_status="pending_domain_review",
+                evidence=tuple(evidence),
             )
         )
     return alerts
@@ -195,17 +227,71 @@ def latest_dispensings_by_case(
     return latest
 
 
-def resistance_reasons(case: LocalTbCase, lab_events: Sequence[LocalLabEvent]) -> list[str]:
-    reasons: list[str] = []
+def resistance_alert_evidence(
+    case: LocalTbCase,
+    lab_events: Sequence[LocalLabEvent],
+    resistance_records: Sequence[LocalResistanceEvidence],
+) -> list[OperationalAlertEvidence]:
+    evidence = [
+        OperationalAlertEvidence(
+            code="final_confirmed_resistance_record",
+            signal_kind=ResistanceSignalKind.CONFIRMED_RESISTANCE,
+            source_ids=("local_resistance_evidence",),
+            source_record_id=record.resistance_record_id,
+            observed_at=record.recorded_date,
+            resistance_scope=record.resistance_scope,
+            evidence_status="final_confirmed",
+            source_system=record.source_system,
+        )
+        for record in sorted(resistance_records, key=lambda item: item.resistance_record_id)
+        if record.record_status == "final" and record.resistance_status == "confirmed"
+    ]
     if case.rifampicin_resistance:
-        reasons.append("Rifampicin resistance is marked in the local case file.")
+        evidence.append(
+            OperationalAlertEvidence(
+                code="legacy_unverified_resistance_flag",
+                signal_kind=ResistanceSignalKind.RESISTANCE_RISK_HISTORY,
+                source_ids=("local_tb_cases",),
+                source_record_id=case.local_case_id,
+                observed_at=case.notification_date,
+                resistance_scope="rifampicin",
+                evidence_status="unverified_legacy_flag",
+            )
+        )
     if case.previous_treatment_failure:
-        reasons.append("Previous treatment failure is marked in the local case file.")
+        evidence.append(
+            OperationalAlertEvidence(
+                code="previous_treatment_failure",
+                signal_kind=ResistanceSignalKind.RESISTANCE_RISK_HISTORY,
+                source_ids=("local_tb_cases",),
+                source_record_id=case.local_case_id,
+                observed_at=case.notification_date,
+                evidence_status="treatment_history",
+            )
+        )
     if case.retreatment:
-        reasons.append("Retreatment is marked in the local case file.")
+        evidence.append(
+            OperationalAlertEvidence(
+                code="retreatment_history",
+                signal_kind=ResistanceSignalKind.RESISTANCE_RISK_HISTORY,
+                source_ids=("local_tb_cases",),
+                source_record_id=case.local_case_id,
+                observed_at=case.notification_date,
+                evidence_status="treatment_history",
+            )
+        )
     if is_pulmonary_retreatment(case) and not has_culture_or_dst_evidence(case, lab_events):
-        reasons.append("Pulmonary retreatment has no completed culture/DST evidence in labs.")
-    return reasons
+        evidence.append(
+            OperationalAlertEvidence(
+                code="missing_completed_culture_or_dst",
+                signal_kind=ResistanceSignalKind.RESISTANCE_SURVEILLANCE_GAP,
+                source_ids=("local_tb_cases", "local_lab_events"),
+                source_record_id=case.local_case_id,
+                observed_at=case.notification_date,
+                evidence_status="missing_completed_evidence",
+            )
+        )
+    return evidence
 
 
 def has_culture_or_dst_evidence(case: LocalTbCase, lab_events: Sequence[LocalLabEvent]) -> bool:
@@ -248,6 +334,9 @@ def make_alert(
     generated_at: datetime,
     due_date: date | None,
     message: str,
+    signal_kinds: tuple[ResistanceSignalKind, ...] = (),
+    review_status: str | None = None,
+    evidence: tuple[OperationalAlertEvidence, ...] = (),
 ) -> OperationalAlert:
     return OperationalAlert(
         alert_id=build_alert_id(alert_type, related_entity_id, reference_date),
@@ -264,6 +353,9 @@ def make_alert(
         generated_at=generated_at,
         due_date=due_date,
         message=message,
+        signal_kinds=signal_kinds,
+        review_status=review_status,
+        evidence=evidence,
     )
 
 

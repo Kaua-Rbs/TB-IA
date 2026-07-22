@@ -760,6 +760,71 @@ ALERT_MESSAGE_TEMPLATES = {
     },
 }
 
+RESISTANCE_SIGNAL_LABELS = {
+    "en": {
+        "confirmed_resistance": "Explicit final resistance evidence",
+        "resistance_risk_history": "Treatment history or unverified signal",
+        "resistance_surveillance_gap": "Resistance surveillance gap",
+    },
+    "pt": {
+        "confirmed_resistance": "Evidência final explícita de resistência",
+        "resistance_risk_history": "Histórico de tratamento ou sinal não verificado",
+        "resistance_surveillance_gap": "Lacuna na vigilância de resistência",
+    },
+}
+
+ALERT_REVIEW_STATUS_LABELS = {
+    "en": {"pending_domain_review": "Pending health-domain review"},
+    "pt": {"pending_domain_review": "Pendente de validação por profissional de saúde"},
+}
+
+ALERT_EVIDENCE_CODE_LABELS = {
+    "en": {
+        "final_confirmed_resistance_record": "Final record marked as confirmed",
+        "legacy_unverified_resistance_flag": "Legacy unverified resistance flag",
+        "previous_treatment_failure": "Previous treatment failure",
+        "retreatment_history": "Retreatment history",
+        "missing_completed_culture_or_dst": "No completed culture or susceptibility result",
+    },
+    "pt": {
+        "final_confirmed_resistance_record": "Registro final marcado como confirmado",
+        "legacy_unverified_resistance_flag": "Sinal legado de resistência não verificado",
+        "previous_treatment_failure": "Falência prévia de tratamento",
+        "retreatment_history": "Histórico de retratamento",
+        "missing_completed_culture_or_dst": (
+            "Sem resultado concluído de cultura ou teste de sensibilidade"
+        ),
+    },
+}
+
+ALERT_EVIDENCE_STATUS_LABELS = {
+    "en": {
+        "final_confirmed": "Final and explicitly confirmed",
+        "unverified_legacy_flag": "Unverified legacy flag",
+        "treatment_history": "Treatment-history signal",
+        "missing_completed_evidence": "Expected completed evidence not found",
+    },
+    "pt": {
+        "final_confirmed": "Final e explicitamente confirmado",
+        "unverified_legacy_flag": "Sinal legado não verificado",
+        "treatment_history": "Sinal de histórico de tratamento",
+        "missing_completed_evidence": "Evidência concluída esperada não encontrada",
+    },
+}
+
+ALERT_SOURCE_LABELS = {
+    "en": {
+        "local_resistance_evidence": "Synthetic resistance evidence",
+        "local_tb_cases": "Synthetic local TB case registry",
+        "local_lab_events": "Synthetic local laboratory events",
+    },
+    "pt": {
+        "local_resistance_evidence": "Evidência sintética de resistência",
+        "local_tb_cases": "Cadastro sintético local de casos de TB",
+        "local_lab_events": "Eventos laboratoriais locais sintéticos",
+    },
+}
+
 DASHBOARD_READINESS_KEYS = frozenset(
     {
         "public_sources",
@@ -1316,8 +1381,69 @@ def localize_recommendation_row(row: Mapping[str, Any], language: str) -> dict[s
     return localized
 
 
-def localize_alert_row(row: Mapping[str, Any], language: str) -> dict[str, Any]:
+def localize_alert_metadata(row: Mapping[str, Any], language: str) -> dict[str, Any]:
+    normalized_language = normalize_language(language)
     localized = dict(row)
+    signal_kinds = row.get("signal_kinds", [])
+    if isinstance(signal_kinds, list):
+        localized["signal_kind_labels"] = [
+            RESISTANCE_SIGNAL_LABELS[normalized_language].get(
+                str(signal_kind), str(signal_kind).replace("_", " ")
+            )
+            for signal_kind in signal_kinds
+        ]
+
+    review_status = row.get("review_status")
+    localized["review_status_label"] = (
+        ALERT_REVIEW_STATUS_LABELS[normalized_language].get(
+            str(review_status), str(review_status).replace("_", " ")
+        )
+        if review_status
+        else None
+    )
+
+    localized_evidence: list[dict[str, Any]] = []
+    evidence_rows = row.get("evidence", [])
+    if isinstance(evidence_rows, list):
+        for evidence in evidence_rows:
+            if not isinstance(evidence, Mapping):
+                continue
+            item = dict(evidence)
+            code = str(evidence.get("code", ""))
+            signal_kind = str(evidence.get("signal_kind", ""))
+            evidence_status = str(evidence.get("evidence_status", ""))
+            item["code_label"] = ALERT_EVIDENCE_CODE_LABELS[normalized_language].get(
+                code, code.replace("_", " ")
+            )
+            item["signal_kind_label"] = RESISTANCE_SIGNAL_LABELS[normalized_language].get(
+                signal_kind, signal_kind.replace("_", " ")
+            )
+            item["evidence_status_label"] = ALERT_EVIDENCE_STATUS_LABELS[normalized_language].get(
+                evidence_status, evidence_status.replace("_", " ")
+            )
+            source_ids = evidence.get("source_ids", [])
+            item["source_labels"] = (
+                [
+                    ALERT_SOURCE_LABELS[normalized_language].get(
+                        str(source_id), str(source_id).replace("_", " ")
+                    )
+                    for source_id in source_ids
+                ]
+                if isinstance(source_ids, list)
+                else []
+            )
+            scope = evidence.get("resistance_scope")
+            item["resistance_scope_label"] = (
+                "Rifampicina" if normalized_language == "pt" and scope == "rifampicin" else scope
+            )
+            localized_evidence.append(item)
+    localized["evidence"] = localized_evidence
+    return localized
+
+
+def localize_alert_row(row: Mapping[str, Any], language: str) -> dict[str, Any]:
+    language = normalize_language(language)
+    localized = localize_alert_metadata(row, language)
     alert_type = str(row.get("alert_type", ""))
     severity = str(row.get("severity", ""))
     status = str(row.get("status", ""))
@@ -1339,7 +1465,7 @@ def localize_alert_row(row: Mapping[str, Any], language: str) -> dict[str, Any]:
 
 
 def localize_product_alert(row: Mapping[str, Any], language: str) -> dict[str, Any]:
-    localized = dict(row)
+    localized = localize_alert_metadata(row, language)
     templates = ALERT_MESSAGE_TEMPLATES[normalize_language(language)]
     template = templates.get(str(row.get("alert_type", "")))
     if template is not None:

@@ -45,11 +45,13 @@ from tbia.domain.models import (
     MedicationDispensing,
     MortalityAggregate,
     OperationalAlert,
+    OperationalAlertEvidence,
     OperationalAlertSeverity,
     OperationalAlertStatus,
     PopulationDenominator,
     PublicDataStatus,
     Recommendation,
+    ResistanceSignalKind,
     ResourceInventory,
     ScenarioEvaluationStatus,
     ScenarioRule,
@@ -313,6 +315,9 @@ class OperationalAlertRecord(Base):
     generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     message: Mapped[str] = mapped_column(Text)
+    signal_kinds: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    review_status: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    evidence: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON, nullable=True)
 
 
 class IndicatorDefinitionRecord(Base):
@@ -448,6 +453,26 @@ def initialize_database(engine: Engine) -> None:
     migrate_indicator_provenance_columns(engine)
     migrate_comparison_scope_tables(engine)
     migrate_scenario_metadata_columns(engine)
+    migrate_operational_alert_evidence_columns(engine)
+
+
+def migrate_operational_alert_evidence_columns(engine: Engine) -> None:
+    inspector = inspect(engine)
+    if not inspector.has_table(OperationalAlertRecord.__tablename__):
+        return
+
+    existing_columns = {
+        column["name"] for column in inspector.get_columns(OperationalAlertRecord.__tablename__)
+    }
+    with engine.begin() as connection:
+        if "signal_kinds" not in existing_columns:
+            connection.execute(text("ALTER TABLE operational_alerts ADD COLUMN signal_kinds JSON"))
+        if "review_status" not in existing_columns:
+            connection.execute(
+                text("ALTER TABLE operational_alerts ADD COLUMN review_status VARCHAR(80)")
+            )
+        if "evidence" not in existing_columns:
+            connection.execute(text("ALTER TABLE operational_alerts ADD COLUMN evidence JSON"))
 
 
 def migrate_import_run_scope_columns(engine: Engine) -> None:
@@ -973,6 +998,46 @@ def save_resource_inventories(session: Session, resources: Iterable[ResourceInve
         )
 
 
+def operational_alert_evidence_payload(
+    evidence: OperationalAlertEvidence,
+) -> dict[str, Any]:
+    return {
+        "code": evidence.code,
+        "signal_kind": evidence.signal_kind.value,
+        "source_ids": list(evidence.source_ids),
+        "source_record_id": evidence.source_record_id,
+        "observed_at": evidence.observed_at.isoformat()
+        if evidence.observed_at is not None
+        else None,
+        "resistance_scope": evidence.resistance_scope,
+        "evidence_status": evidence.evidence_status,
+        "source_system": evidence.source_system,
+    }
+
+
+def operational_alert_evidence_from_payload(
+    payload: dict[str, Any],
+) -> OperationalAlertEvidence:
+    source_ids = payload.get("source_ids")
+    observed_at = payload.get("observed_at")
+    return OperationalAlertEvidence(
+        code=str(payload["code"]),
+        signal_kind=ResistanceSignalKind(str(payload["signal_kind"])),
+        source_ids=tuple(str(value) for value in source_ids)
+        if isinstance(source_ids, list)
+        else (),
+        source_record_id=optional_payload_text(payload.get("source_record_id")),
+        observed_at=date.fromisoformat(str(observed_at)) if observed_at else None,
+        resistance_scope=optional_payload_text(payload.get("resistance_scope")),
+        evidence_status=optional_payload_text(payload.get("evidence_status")),
+        source_system=optional_payload_text(payload.get("source_system")),
+    )
+
+
+def optional_payload_text(value: Any) -> str | None:
+    return str(value) if value is not None else None
+
+
 def save_operational_alerts(
     session: Session, alerts: Iterable[OperationalAlert], year: int
 ) -> None:
@@ -994,6 +1059,9 @@ def save_operational_alerts(
                 generated_at=alert.generated_at,
                 due_date=alert.due_date,
                 message=alert.message,
+                signal_kinds=[kind.value for kind in alert.signal_kinds],
+                review_status=alert.review_status,
+                evidence=[operational_alert_evidence_payload(item) for item in alert.evidence],
             )
         )
 
@@ -1629,6 +1697,13 @@ def load_operational_alerts(session: Session, year: int) -> list[OperationalAler
             generated_at=record.generated_at,
             message=record.message,
             due_date=record.due_date,
+            signal_kinds=tuple(
+                ResistanceSignalKind(value) for value in (record.signal_kinds or [])
+            ),
+            review_status=record.review_status,
+            evidence=tuple(
+                operational_alert_evidence_from_payload(item) for item in (record.evidence or [])
+            ),
         )
         for record in records
     ]
@@ -2897,6 +2972,7 @@ def mvp2_alert_rows(
     *,
     alert_type: str | None = None,
     severity: str | None = None,
+    signal_kind: str | None = None,
     facility_id: str | None = None,
     team_id: str | None = None,
     status: str | None = None,
@@ -2906,6 +2982,7 @@ def mvp2_alert_rows(
         session,
         year,
         alert_type=alert_type,
+        signal_kind=signal_kind,
         severity=severity,
         facility_id=facility_id,
         team_id=team_id,
@@ -2919,6 +2996,7 @@ def filtered_operational_alert_records(
     year: int,
     *,
     alert_type: str | None,
+    signal_kind: str | None,
     severity: str | None,
     facility_id: str | None,
     team_id: str | None,
@@ -2939,6 +3017,7 @@ def filtered_operational_alert_records(
         record
         for record in records
         if matches_optional(record.alert_type, alert_type)
+        and (signal_kind is None or signal_kind in (record.signal_kinds or []))
         and matches_optional(record.severity, severity)
         and matches_optional(record.facility_id, facility_id)
         and matches_optional(record.team_id, team_id)
@@ -2965,6 +3044,9 @@ def operational_alert_row(
         "generated_at": record.generated_at.isoformat(),
         "due_date": record.due_date.isoformat() if record.due_date else None,
         "message": record.message,
+        "signal_kinds": record.signal_kinds or [],
+        "review_status": record.review_status,
+        "evidence": record.evidence or [],
     }
 
 
@@ -2986,6 +3068,7 @@ def mvp2_summary(session: Session, year: int) -> dict[str, Any]:
         "by_type": count_rows(alerts, "alert_type"),
         "by_severity": count_rows(alerts, "severity"),
         "by_status": count_rows(alerts, "status"),
+        "by_signal_kind": count_list_values(alerts, "signal_kinds", "signal_kind"),
         "by_facility_team": facility_team_summary_rows(alerts),
     }
 
@@ -2996,6 +3079,7 @@ def mvp2_dashboard_context(
     *,
     alert_type: str | None = None,
     severity: str | None = None,
+    signal_kind: str | None = None,
     facility_id: str | None = None,
     team_id: str | None = None,
     status: str | None = None,
@@ -3006,6 +3090,7 @@ def mvp2_dashboard_context(
         alert_type=alert_type,
         severity=severity,
         facility_id=facility_id,
+        signal_kind=signal_kind,
         team_id=team_id,
         status=status,
     )
@@ -3017,6 +3102,7 @@ def mvp2_dashboard_context(
         "filters": {
             "alert_type": alert_type or "",
             "severity": severity or "",
+            "signal_kind": signal_kind or "",
             "facility_id": facility_id or "",
             "team_id": team_id or "",
             "status": status or "",
@@ -3032,6 +3118,7 @@ def mvp2_dashboard_context(
 def mvp2_filter_options(alerts: list[dict[str, Any]]) -> dict[str, list[str]]:
     return {
         "alert_types": unique_filter_values(alerts, "alert_type"),
+        "signal_kinds": unique_list_filter_values(alerts, "signal_kinds"),
         "severities": unique_filter_values(alerts, "severity"),
         "facilities": unique_filter_values(alerts, "facility_id"),
         "teams": unique_filter_values(alerts, "team_id"),
@@ -3045,6 +3132,29 @@ def count_rows(rows: list[dict[str, Any]], key: str) -> list[dict[str, Any]]:
         value = str(row[key])
         counts[value] = counts.get(value, 0) + 1
     return [{key: value, "count": count} for value, count in sorted(counts.items())]
+
+
+def unique_list_filter_values(rows: list[dict[str, Any]], key: str) -> list[str]:
+    values: set[str] = set()
+    for row in rows:
+        row_values = row.get(key, [])
+        if isinstance(row_values, list):
+            values.update(str(value) for value in row_values)
+    return sorted(values)
+
+
+def count_list_values(
+    rows: list[dict[str, Any]], key: str, output_key: str
+) -> list[dict[str, Any]]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        values = row.get(key, [])
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            normalized = str(value)
+            counts[normalized] = counts.get(normalized, 0) + 1
+    return [{output_key: value, "count": count} for value, count in sorted(counts.items())]
 
 
 def facility_team_summary_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -39,6 +39,7 @@ from tbia.storage import (
     clear_local_dimensions,
     load_contact_investigations,
     load_local_lab_events,
+    load_local_resistance_evidence,
     load_local_tb_cases,
     load_medication_dispensings,
     save_contact_investigations,
@@ -227,6 +228,7 @@ def build_and_store_operational_alerts(
         load_local_lab_events(session, config.year),
         load_medication_dispensings(session, config.year),
         load_contact_investigations(session, config.year),
+        resistance_evidence=load_local_resistance_evidence(session, config.year),
         year=config.year,
         reference_date=reference_date,
     )

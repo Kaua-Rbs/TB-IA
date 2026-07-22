@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import inspect, text
 from typer.testing import CliRunner
 
 from tbia.cli import app
@@ -65,6 +66,12 @@ def test_mvp2_storage_and_api_expose_operational_alerts_without_patient_pseudony
         product_summary_response = client.get("/api/operations/summary?year=2023")
         product_alerts_response = client.get("/api/operations/alerts?year=2023")
         english_product_alerts_response = client.get("/api/operations/alerts?year=2023&lang=en")
+        confirmed_signal_response = client.get(
+            "/api/operations/alerts?year=2023&signal_kind=confirmed_resistance"
+        )
+        risk_signal_response = client.get(
+            "/api/mvp2/alerts?year=2023&signal_kind=resistance_risk_history"
+        )
         page_response = client.get("/mvp2?year=2023&severity=high")
         product_page_response = client.get("/acompanhamento?year=2023&severity=high")
         english_page_response = client.get("/acompanhamento?year=2023&severity=high&lang=en")
@@ -76,11 +83,24 @@ def test_mvp2_storage_and_api_expose_operational_alerts_without_patient_pseudony
     assert product_summary_response.status_code == 200
     assert product_alerts_response.status_code == 200
     assert english_product_alerts_response.status_code == 200
+    assert confirmed_signal_response.status_code == 200
+    assert risk_signal_response.status_code == 200
     assert page_response.status_code == 200
     assert product_page_response.status_code == 200
     assert english_page_response.status_code == 200
     assert summary_response.json()["alert_count"] == len(alerts)
     assert product_summary_response.json()["alert_count"] == len(alerts)
+    summary_by_signal = {
+        row["signal_kind"]: row["count"]
+        for row in product_summary_response.json()["by_signal_kind"]
+    }
+    assert summary_by_signal == {
+        "confirmed_resistance": 1,
+        "resistance_risk_history": 1,
+        "resistance_surveillance_gap": 1,
+    }
+    assert [row["local_case_id"] for row in confirmed_signal_response.json()] == ["LC-001"]
+    assert [row["local_case_id"] for row in risk_signal_response.json()] == ["LC-002"]
     assert all(row["severity"] == "high" for row in alerts_response.json())
     assert legacy_alerts_with_lang.json() == all_alerts_response.json()
     assert len(product_alerts_response.json()) == len(all_alerts_response.json())
@@ -124,12 +144,29 @@ def test_mvp2_storage_and_api_expose_operational_alerts_without_patient_pseudony
         assert {row["alert_type"] for row in rows} == set(templates[language])
         for row in rows:
             legacy = legacy_by_id[row["alert_id"]]
-            assert {key: value for key, value in row.items() if key != "message"} == {
-                key: value for key, value in legacy.items() if key != "message"
-            }
+            assert_localized_alert_preserves_raw_fields(row, legacy)
             assert row["message"] == templates[language][row["alert_type"]].format(
                 case_id=row["local_case_id"]
             )
+
+    confirmed_product_alert = next(
+        row
+        for row in product_alerts_response.json()
+        if "confirmed_resistance" in row["signal_kinds"]
+    )
+    assert confirmed_product_alert["signal_kind_labels"] == [
+        "Evidência final explícita de resistência"
+    ]
+    assert (
+        confirmed_product_alert["review_status_label"]
+        == "Pendente de validação por profissional de saúde"
+    )
+    assert confirmed_product_alert["evidence"][0]["code_label"] == (
+        "Registro final marcado como confirmado"
+    )
+    assert confirmed_product_alert["evidence"][0]["source_labels"] == [
+        "Evidência sintética de resistência"
+    ]
 
     first_alert_id = all_alerts_response.json()[0]["alert_id"]
     with TestClient(create_app(database_url)) as client:
@@ -156,11 +193,27 @@ def test_mvp2_storage_and_api_expose_operational_alerts_without_patient_pseudony
     assert english_product_detail_response.json()["message"] == templates["en"][detail_type].format(
         case_id=detail_case_id
     )
-    assert {
-        key: value for key, value in product_detail_response.json().items() if key != "message"
-    } == {key: value for key, value in detail_response.json().items() if key != "message"}
+    assert_localized_alert_preserves_raw_fields(
+        product_detail_response.json(), detail_response.json()
+    )
     assert missing_response.status_code == 404
     assert product_missing_response.status_code == 404
+
+
+def test_initialize_database_migrates_operational_alert_evidence_columns(
+    tmp_path: Path,
+) -> None:
+    engine = create_engine_for_url(f"sqlite:///{tmp_path / 'legacy-alerts.db'}")
+    with engine.begin() as connection:
+        connection.execute(
+            text("CREATE TABLE operational_alerts (alert_id VARCHAR(200) PRIMARY KEY)")
+        )
+
+    initialize_database(engine)
+
+    columns = {column["name"] for column in inspect(engine).get_columns("operational_alerts")}
+    engine.dispose()
+    assert {"signal_kinds", "review_status", "evidence"} <= columns
 
 
 def test_resistance_evidence_file_is_optional(tmp_path: Path) -> None:
@@ -263,6 +316,22 @@ def test_mvp2_cli_smoke_generates_ingests_and_builds_alerts(tmp_path: Path) -> N
 
     assert summary["case_count"] == 3
     assert summary["alert_count"] >= 4
+
+
+def assert_localized_alert_preserves_raw_fields(
+    localized: dict[str, Any], raw: dict[str, Any]
+) -> None:
+    for key, value in raw.items():
+        if key == "message":
+            continue
+        if key == "evidence":
+            assert len(localized[key]) == len(value)
+            for localized_item, raw_item in zip(localized[key], value, strict=True):
+                assert all(
+                    localized_item[raw_key] == raw_value for raw_key, raw_value in raw_item.items()
+                )
+            continue
+        assert localized[key] == value
 
 
 def populate_mvp2_database(tmp_path: Path) -> str:
