@@ -332,6 +332,118 @@ function buildIncidenceHistory(english = false) {
 }
 
 
+function buildResistanceProfile(english = false) {
+  return {
+    interpretation: "surveillance_gap_not_confirmed_burden",
+    interpretation_label: english
+      ? "Public surveillance gaps and proxies, not confirmed resistance burden"
+      : "Lacunas e sinais indiretos de vigilância pública, não carga confirmada de resistência",
+    confirmed_resistance_status:
+      "not_available_in_public_aggregate_sources",
+    confirmed_resistance_status_label: english
+      ? "Not available in public aggregate sources"
+      : "Não disponível nas fontes públicas agregadas",
+    review_status: "pending_domain_review",
+    review_status_label: english
+      ? "Pending health-domain review"
+      : "Pendente de validação por profissional de saúde",
+    ranking_effect: "none",
+    ranking_effect_label: english
+      ? "Does not affect prioritization ranking"
+      : "Não altera o ranking de priorização",
+    comparison_scope: "national",
+    signals: [
+      {
+        signal_id: "high_retreatment",
+        rule_id: "high_retreatment",
+        indicator_id: "retreatment_proportion",
+        label: english
+          ? "Retreatment proportion"
+          : "Proporção de retratamento",
+        unit: "percentage",
+        data_status: "available",
+        data_status_label: english ? "available" : "disponível",
+        evaluation_status: "ready",
+        evaluation_status_label: english ? "ready" : "pronto",
+        trigger_status: "triggered",
+        trigger_status_label: english ? "triggered" : "acionado",
+        value: 18,
+        numerator_value: 9,
+        denominator_value: 50,
+        threshold_value: 12,
+        coverage_ratio: 1,
+        source_ids: ["sinan_tb"],
+        source_provenance: [
+          {
+            source_id: "sinan_tb",
+            source_label: "SINAN-TB / DATASUS",
+            reference_year: 2023,
+            release_status: "final",
+            dataset_kind: "notification",
+          },
+        ],
+        caveats: english
+          ? "Comparative signal; it is not a resistance diagnosis."
+          : "Sinal comparativo; não representa diagnóstico de resistência.",
+      },
+      {
+        signal_id: "low_culture_use_among_retreatment",
+        rule_id: "low_culture_use_among_retreatment",
+        indicator_id: "culture_use_among_retreatment",
+        label: english
+          ? "Culture use among retreatment"
+          : "Uso de cultura entre retratamentos",
+        unit: "percentage",
+        data_status: "suppressed",
+        data_status_label: english ? "suppressed" : "suprimido",
+        evaluation_status: "ready",
+        evaluation_status_label: english ? "ready" : "pronto",
+        trigger_status: "not_evaluable",
+        trigger_status_label: english ? "not evaluable" : "não avaliável",
+        value: null,
+        numerator_value: null,
+        denominator_value: null,
+        threshold_value: 30,
+        coverage_ratio: 1,
+        source_ids: ["sinan_tb"],
+        source_provenance: [],
+        caveats: "",
+      },
+      {
+        signal_id: "low_trm_tb_use",
+        rule_id: "low_trm_tb_use",
+        indicator_id: "trm_tb_use_proportion",
+        label: english
+          ? "Rapid molecular test use"
+          : "Uso de teste rápido molecular",
+        unit: "percentage",
+        data_status: "available",
+        data_status_label: english ? "available" : "disponível",
+        evaluation_status: "ready",
+        evaluation_status_label: english ? "ready" : "pronto",
+        trigger_status: "not_triggered",
+        trigger_status_label: english ? "not triggered" : "não acionado",
+        value: 75,
+        numerator_value: 75,
+        denominator_value: 100,
+        threshold_value: 40,
+        coverage_ratio: 1,
+        source_ids: ["sinan_tb"],
+        source_provenance: [
+          {
+            source_id: "sinan_tb",
+            source_label: "SINAN-TB / DATASUS",
+            reference_year: 2023,
+            release_status: "final",
+            dataset_kind: "notification",
+          },
+        ],
+        caveats: "",
+      },
+    ],
+  };
+}
+
 const operationAlert = {
   alert_id: "alert-1",
   year: 2023,
@@ -348,6 +460,11 @@ const operationAlert = {
   generated_at: "2026-06-29T00:00:00",
   due_date: "2026-07-02",
   message: "Resultado laboratorial pendente.",
+  signal_kinds: [],
+  signal_kind_labels: [],
+  review_status: null,
+  review_status_label: null,
+  evidence: [],
 };
 
 const secondOperationAlert = {
@@ -368,6 +485,58 @@ const englishOperationAlert = {
 const secondEnglishOperationAlert = {
   ...secondOperationAlert,
   message: "Medication pickup is delayed for open case CASE-2.",
+};
+
+const resistanceOperationAlert = {
+  ...operationAlert,
+  alert_id: "alert-resistance",
+  alert_type: "resistance_vigilance",
+  local_case_id: "CASE-3",
+  message: "Vigilância de resistência para o caso CASE-3.",
+  signal_kinds: ["confirmed_resistance", "resistance_surveillance_gap"],
+  signal_kind_labels: [
+    "Evidência final explícita de resistência",
+    "Lacuna na vigilância de resistência",
+  ],
+  review_status: "pending_domain_review",
+  review_status_label: "Pendente de validação por profissional de saúde",
+  evidence: [
+    {
+      code: "final_confirmed_resistance_record",
+      code_label: "Registro final marcado como confirmado",
+      signal_kind: "confirmed_resistance",
+      signal_kind_label: "Evidência final explícita de resistência",
+      source_ids: ["local_resistance_evidence"],
+      source_labels: ["Evidência sintética de resistência"],
+      source_record_id: "RSE-001",
+      observed_at: "2026-06-25",
+      resistance_scope: "rifampicin",
+      resistance_scope_label: "Rifampicina",
+      evidence_status: "final_confirmed",
+      evidence_status_label: "Final e explicitamente confirmado",
+      source_system: "synthetic_lab",
+    },
+  ],
+};
+
+const englishResistanceOperationAlert = {
+  ...resistanceOperationAlert,
+  message: "Resistance vigilance for case CASE-3.",
+  signal_kind_labels: [
+    "Explicit final resistance evidence",
+    "Resistance surveillance gap",
+  ],
+  review_status_label: "Pending health-domain review",
+  evidence: [
+    {
+      ...resistanceOperationAlert.evidence[0],
+      code_label: "Final record marked as confirmed",
+      signal_kind_label: "Explicit final resistance evidence",
+      source_labels: ["Synthetic resistance evidence"],
+      resistance_scope_label: "rifampicin",
+      evidence_status_label: "Final and explicitly confirmed",
+    },
+  ],
 };
 
 beforeEach(() => {
@@ -448,7 +617,11 @@ beforeEach(() => {
         open_alert_count: 1,
         by_type: [{ alert_type: "pending_lab_result", count: 1 }],
         by_severity: [{ severity: "high", count: 1 }],
-        by_status: [{ status: "open", count: 1 }],
+        by_status: [{ status: "open", count: 3 }],
+        by_signal_kind: [
+          { signal_kind: "confirmed_resistance", count: 1 },
+          { signal_kind: "resistance_surveillance_gap", count: 1 },
+        ],
         by_facility_team: [
           {
             facility_id: "UBS-1",
@@ -462,6 +635,12 @@ beforeEach(() => {
         ],
       });
     }
+    if (url.includes("/api/operations/alerts/alert-resistance"))
+      return jsonResponse(
+        url.includes("lang=en")
+          ? englishResistanceOperationAlert
+          : resistanceOperationAlert,
+      );
     if (url.includes("/api/operations/alerts/alert-1"))
       return jsonResponse(
         url.includes("lang=en") ? englishOperationAlert : operationAlert,
@@ -475,8 +654,16 @@ beforeEach(() => {
     if (url.includes("/api/operations/alerts"))
       return jsonResponse(
         url.includes("lang=en")
-          ? [englishOperationAlert, secondEnglishOperationAlert]
-          : [operationAlert, secondOperationAlert],
+          ? [
+              englishOperationAlert,
+              secondEnglishOperationAlert,
+              englishResistanceOperationAlert,
+            ]
+          : [
+              operationAlert,
+              secondOperationAlert,
+              resistanceOperationAlert,
+            ],
       );
     if (url.includes("/api/territories/2304400/report")) {
       return jsonResponse({
@@ -485,6 +672,9 @@ beforeEach(() => {
         year: 2023,
         indicators: [],
         incidence_history: buildIncidenceHistory(url.includes("lang=en")),
+        resistance_surveillance: buildResistanceProfile(
+          url.includes("lang=en"),
+        ),
         recommendations: [],
         scenarios: mapPayload.features[0].properties.top_scenarios,
       });
@@ -541,6 +731,42 @@ describe("App", () => {
       screen.getByRole("button", { name: /Fortaleza/ }),
     ).toHaveAttribute("aria-pressed", "true");
   });
+  it("presents resistance surveillance without implying confirmed burden", async () => {
+    window.history.pushState({}, "", "/territorios?uf=BR&year=2023&lang=pt");
+    render(<App />);
+
+    const heading = await screen.findByRole("heading", {
+      name: "Vigilância da resistência",
+    });
+    const section = heading.closest("section");
+    expect(section).not.toBeNull();
+    const profile = within(section as HTMLElement);
+
+    expect(
+      profile.getByText(
+        "Lacunas e sinais indiretos de vigilância pública, não carga confirmada de resistência",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      profile.getByText("Não disponível nas fontes públicas agregadas"),
+    ).toBeInTheDocument();
+    expect(
+      profile.getByText("Não altera o ranking de priorização"),
+    ).toBeInTheDocument();
+    expect(profile.getByText("Proporção de retratamento")).toBeInTheDocument();
+    expect(profile.getByText("18,0%")).toBeInTheDocument();
+    expect(profile.getByText("suprimido")).toBeInTheDocument();
+    expect(
+      profile.getAllByText("SINAN-TB / DATASUS · 2023").length,
+    ).toBeGreaterThan(0);
+    expect(
+      profile.queryByText("surveillance_gap_not_confirmed_burden"),
+    ).not.toBeInTheDocument();
+    expect(
+      profile.queryByText("not_available_in_public_aggregate_sources"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows auditable annual incidence without inferring a trend", async () => {
     const user = userEvent.setup();
     window.history.pushState({}, "", "/territorios?uf=BR&year=2023&lang=pt");
@@ -847,6 +1073,55 @@ describe("App", () => {
     expect(teamPanel).toHaveTextContent(/Alertas abertos\s*1/);
     expect(screen.queryByText("MVP1")).not.toBeInTheDocument();
     expect(screen.queryByText("MVP2")).not.toBeInTheDocument();
+  });
+
+  it("filters and presents structured resistance evidence", async () => {
+    const user = userEvent.setup();
+    window.history.pushState({}, "", "/acompanhamento?year=2023&lang=pt");
+    render(<App />);
+
+    await user.selectOptions(
+      await screen.findByRole("combobox", { name: "Natureza do sinal" }),
+      "confirmed_resistance",
+    );
+
+    await waitFor(() => {
+      expect(
+        new URLSearchParams(window.location.search).get("signal_kind"),
+      ).toBe("confirmed_resistance");
+    });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      expect.stringContaining("signal_kind=confirmed_resistance"),
+      expect.any(Object),
+    );
+
+    const resistanceRow = await screen.findByRole("row", {
+      name: /Vigilância de resistência/,
+    });
+    await user.click(resistanceRow);
+
+    const detailHeading = screen.getByRole("heading", {
+      name: "Detalhe do alerta",
+    });
+    const detailPanel = detailHeading.closest("aside");
+    expect(detailPanel).not.toBeNull();
+    const detail = within(detailPanel as HTMLElement);
+
+    expect(
+      await detail.findByText("Registro final marcado como confirmado"),
+    ).toBeInTheDocument();
+    expect(
+      detail.getByText("Pendente de validação por profissional de saúde"),
+    ).toBeInTheDocument();
+    expect(
+      detail.getByText("Final e explicitamente confirmado"),
+    ).toBeInTheDocument();
+    expect(
+      detail.getByText("Evidência sintética de resistência"),
+    ).toBeInTheDocument();
+    expect(detail.getByText("Rifampicina")).toBeInTheDocument();
+    expect(detail.queryByText("final_confirmed_resistance_record")).not.toBeInTheDocument();
+    expect(detail.queryByText("RSE-001")).not.toBeInTheDocument();
   });
 
   it("counts and resets active operational filters", async () => {

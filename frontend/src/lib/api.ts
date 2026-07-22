@@ -220,6 +220,41 @@ export interface IndicatorHistory {
   points: IndicatorHistoryPoint[];
 }
 
+export interface ResistanceSurveillanceSignal {
+  signal_id: string;
+  rule_id: string;
+  indicator_id: string;
+  label: string;
+  unit: string;
+  data_status: string;
+  data_status_label?: string;
+  evaluation_status: string;
+  evaluation_status_label?: string;
+  trigger_status: string;
+  trigger_status_label?: string;
+  value: number | null;
+  numerator_value: number | null;
+  denominator_value: number | null;
+  threshold_value: number | null;
+  coverage_ratio: number | null;
+  source_ids: string[];
+  source_provenance: IndicatorHistorySource[];
+  caveats: string;
+}
+
+export interface ResistanceSurveillanceProfile {
+  interpretation: string;
+  interpretation_label?: string;
+  confirmed_resistance_status: string;
+  confirmed_resistance_status_label?: string;
+  review_status: string;
+  review_status_label?: string;
+  ranking_effect: string;
+  ranking_effect_label?: string;
+  comparison_scope: string;
+  signals: ResistanceSurveillanceSignal[];
+}
+
 export interface RecommendationRow {
   strategy_id?: string;
   rule_id?: string;
@@ -237,6 +272,7 @@ export interface TerritoryReport {
   year: number;
   comparison_scope?: string;
   incidence_history?: IndicatorHistory | null;
+  resistance_surveillance?: ResistanceSurveillanceProfile | null;
   indicators: ReportIndicator[];
   recommendations: RecommendationRow[];
   scenarios?: ScenarioRow[];
@@ -251,6 +287,7 @@ export interface OperationsSummary {
   by_type: Array<{ alert_type: string; count: number }>;
   by_severity: Array<{ severity: string; count: number }>;
   by_status: Array<{ status: string; count: number }>;
+  by_signal_kind: Array<{ signal_kind: string; count: number }>;
   by_facility_team: FacilityTeamSummary[];
 }
 
@@ -262,6 +299,22 @@ export interface FacilityTeamSummary {
   high: number;
   moderate: number;
   open: number;
+}
+
+export interface OperationalAlertEvidence {
+  code: string;
+  code_label?: string;
+  signal_kind: string;
+  signal_kind_label?: string;
+  source_ids: string[];
+  source_labels?: string[];
+  source_record_id: string | null;
+  observed_at: string | null;
+  resistance_scope: string | null;
+  resistance_scope_label?: string | null;
+  evidence_status: string | null;
+  evidence_status_label?: string | null;
+  source_system: string | null;
 }
 
 export interface OperationalAlert {
@@ -280,6 +333,11 @@ export interface OperationalAlert {
   generated_at: string;
   due_date: string | null;
   message: string;
+  signal_kinds: string[];
+  signal_kind_labels?: string[];
+  review_status: string | null;
+  review_status_label?: string | null;
+  evidence: OperationalAlertEvidence[];
 }
 
 export interface LoadYearJob {
@@ -327,6 +385,7 @@ interface OperationFilters {
   year: number;
   lang?: Language;
   alertType?: string;
+  signalKind?: string;
   severity?: string;
   facilityId?: string;
   teamId?: string;
@@ -443,6 +502,7 @@ export function fetchOperationAlerts(filters: OperationFilters) {
     `/api/operations/alerts?${queryString({
       year: filters.year,
       alert_type: filters.alertType,
+      signal_kind: filters.signalKind,
       severity: filters.severity,
       facility_id: filters.facilityId,
       team_id: filters.teamId,

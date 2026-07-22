@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ChevronDown,
   ClipboardList,
+  FileCheck2,
   ListFilter,
   RotateCcw
 } from 'lucide-react';
@@ -18,11 +19,17 @@ import {
   fetchOperationsSummary,
   type OperationalAlert
 } from '../lib/api';
-import { formatDate, formatNumber, labelAlertType } from '../lib/format';
+import {
+  formatDate,
+  formatNumber,
+  labelAlertType,
+  labelResistanceSignal
+} from '../lib/format';
 import { copy, normalizeLanguage, type Language } from '../lib/i18n';
 
 const operationFilterKeys = [
   'alert_type',
+  'signal_kind',
   'severity',
   'status',
   'facility_id',
@@ -36,6 +43,7 @@ export function OperationsPage() {
   const year = Number(searchParams.get('year') || '2023');
   const filters = {
     alertType: searchParams.get('alert_type') || '',
+    signalKind: searchParams.get('signal_kind') || '',
     severity: searchParams.get('severity') || '',
     facilityId: searchParams.get('facility_id') || '',
     teamId: searchParams.get('team_id') || '',
@@ -59,6 +67,7 @@ export function OperationsPage() {
       fetchOperationAlerts({
         year,
         alertType: filters.alertType,
+        signalKind: filters.signalKind,
         severity: filters.severity,
         facilityId: filters.facilityId,
         teamId: filters.teamId,
@@ -292,6 +301,26 @@ export function OperationsPage() {
               </select>
             </label>
             <label className="filter-field">
+              <span>{labels.operations.signalKind}</span>
+              <select
+                value={filters.signalKind}
+                onChange={(event) =>
+                  updateFilter('signal_kind', event.target.value)
+                }
+              >
+                <option value="">{labels.common.all}</option>
+                <option value="confirmed_resistance">
+                  {labelResistanceSignal('confirmed_resistance', lang)}
+                </option>
+                <option value="resistance_risk_history">
+                  {labelResistanceSignal('resistance_risk_history', lang)}
+                </option>
+                <option value="resistance_surveillance_gap">
+                  {labelResistanceSignal('resistance_surveillance_gap', lang)}
+                </option>
+              </select>
+            </label>
+            <label className="filter-field">
               <span>{labels.common.severity}</span>
               <select
                 value={filters.severity}
@@ -493,15 +522,30 @@ function AlertRow({
         aria-controls={detailId}
       >
         <td data-label={labels.operations.type}>
-          <div className="alert-type-cell">
-            <span>{labelAlertType(alert.alert_type, labels)}</span>
-            <ChevronDown
-              className={
-                'mobile-expand-icon' + (expanded ? ' expanded' : '')
-              }
-              size={17}
-              aria-hidden="true"
-            />
+          <div className="alert-type-stack">
+            <div className="alert-type-cell">
+              <span>{labelAlertType(alert.alert_type, labels)}</span>
+              <ChevronDown
+                className={
+                  'mobile-expand-icon' + (expanded ? ' expanded' : '')
+                }
+                size={17}
+                aria-hidden="true"
+              />
+            </div>
+            {alert.signal_kinds?.length ? (
+              <div className="signal-chip-row">
+                {alert.signal_kinds.map((signalKind) => (
+                  <span
+                    key={signalKind}
+                    className="signal-chip"
+                    data-signal-kind={signalKind}
+                  >
+                    {labelResistanceSignal(signalKind, lang)}
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </div>
         </td>
         <td data-label={labels.common.severity}>
@@ -562,6 +606,13 @@ function AlertDetail({
   lang: Language;
 }) {
   const labels = copy[lang];
+  const signalKinds = alert.signal_kinds ?? [];
+  const evidence = alert.evidence ?? [];
+  const showEvidenceReview =
+    alert.alert_type === 'resistance_vigilance' ||
+    signalKinds.length > 0 ||
+    evidence.length > 0;
+
   return (
     <div className="detail-stack">
       <section className="detail-section">
@@ -593,7 +644,75 @@ function AlertDetail({
           />
           <StatusBadge value={alert.status} lang={lang} />
         </div>
+        {signalKinds.length ? (
+          <div className="signal-chip-row detail-signal-chips">
+            {signalKinds.map((signalKind) => (
+              <span
+                key={signalKind}
+                className="signal-chip"
+                data-signal-kind={signalKind}
+              >
+                {labelResistanceSignal(signalKind, lang)}
+              </span>
+            ))}
+          </div>
+        ) : null}
       </section>
+      {showEvidenceReview ? (
+        <section className="detail-section operational-evidence-section">
+          <div className="evidence-section-heading">
+            <FileCheck2 size={14} aria-hidden="true" />
+            <h4>{labels.operations.evidenceReview}</h4>
+          </div>
+          <div className="evidence-review-status">
+            <span>{labels.operations.evidenceStatus}</span>
+            <strong>{alert.review_status_label ?? '-'}</strong>
+          </div>
+          <h5>{labels.operations.structuredEvidence}</h5>
+          {evidence.length ? (
+            <ul className="operational-evidence-list">
+              {evidence.map((item, index) => (
+                <li key={item.code + '-' + index}>
+                  <div className="operational-evidence-title">
+                    <strong>
+                      {item.code_label ??
+                        item.signal_kind_label ??
+                        labelResistanceSignal(item.signal_kind, lang)}
+                    </strong>
+                    <span
+                      className="signal-chip"
+                      data-signal-kind={item.signal_kind}
+                    >
+                      {item.signal_kind_label ??
+                        labelResistanceSignal(item.signal_kind, lang)}
+                    </span>
+                  </div>
+                  <dl className="operational-evidence-meta">
+                    <div>
+                      <dt>{labels.operations.evidenceStatus}</dt>
+                      <dd>{item.evidence_status_label ?? '-'}</dd>
+                    </div>
+                    <div>
+                      <dt>{labels.operations.observedAt}</dt>
+                      <dd>{formatDate(item.observed_at, lang)}</dd>
+                    </div>
+                    <div>
+                      <dt>{labels.operations.resistanceScope}</dt>
+                      <dd>{item.resistance_scope_label ?? '-'}</dd>
+                    </div>
+                    <div>
+                      <dt>{labels.operations.evidenceSources}</dt>
+                      <dd>{item.source_labels?.join(', ') || '-'}</dd>
+                    </div>
+                  </dl>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="muted-copy">{labels.operations.noEvidence}</p>
+          )}
+        </section>
+      ) : null}
       <section className="detail-section">
         <h4>{labels.operations.reviewWindow}</h4>
         <div className="indicator-list">

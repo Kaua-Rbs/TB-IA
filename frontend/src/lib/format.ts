@@ -22,7 +22,7 @@ export function formatIndicatorValue(
   if (unit === 'proportion') {
     return `${formatNumber(value * 100, lang, 1)}%`;
   }
-  if (unit === 'percent') {
+  if (unit === 'percent' || unit === 'percentage') {
     return `${formatNumber(value, lang, 1)}%`;
   }
   if (unit === 'per_100k') {
@@ -83,6 +83,15 @@ export function labelAlertType(alertType: string | null | undefined, labels: App
   if (!alertType) return '-';
   const alertLabels = labels.alertTypes as Record<string, string>;
   return alertLabels[alertType] ?? alertType;
+}
+
+export function labelResistanceSignal(
+  signalKind: string | null | undefined,
+  lang: Language
+) {
+  if (!signalKind) return '-';
+  const labels = copy[lang].resistanceSignals as Record<string, string>;
+  return labels[signalKind] ?? signalKind;
 }
 
 export function formatDate(value: string | null | undefined, lang: Language) {

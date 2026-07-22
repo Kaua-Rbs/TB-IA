@@ -1538,7 +1538,7 @@
 
 .product-shell .operations-filters {
   display: none;
-  grid-template-columns: repeat(5, minmax(112px, 1fr));
+  grid-template-columns: repeat(3, minmax(140px, 1fr));
   width: 100%;
   gap: 8px;
   margin-bottom: 10px;
@@ -1647,6 +1647,317 @@
   margin-left: 24px;
 }
 
+.product-shell .resistance-profile {
+  gap: 10px;
+}
+
+.product-shell .resistance-profile::before {
+  background: var(--situation-amber);
+  box-shadow: 0 0 0 1px var(--situation-amber);
+}
+
+.product-shell .resistance-profile-heading,
+.product-shell .evidence-section-heading,
+.product-shell .resistance-signal-heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.product-shell .resistance-profile-heading svg,
+.product-shell .evidence-section-heading svg,
+.product-shell .resistance-signal-heading svg {
+  flex: 0 0 auto;
+  color: var(--situation-amber);
+}
+
+.product-shell .resistance-boundary {
+  padding: 8px 9px;
+  border-left: 3px solid var(--situation-amber);
+  border-radius: 4px;
+  background: var(--situation-amber-soft);
+  color: var(--situation-ink);
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.product-shell .resistance-guardrails,
+.product-shell .resistance-signal-metrics,
+.product-shell .operational-evidence-meta {
+  margin: 0;
+}
+
+.product-shell .resistance-guardrails {
+  display: grid;
+  border-top: 1px solid var(--situation-line);
+}
+
+.product-shell .resistance-guardrails div {
+  display: grid;
+  grid-template-columns: minmax(92px, 0.8fr) minmax(0, 1.2fr);
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--situation-line);
+}
+
+.product-shell .resistance-guardrails dt,
+.product-shell .resistance-signal-metrics dt,
+.product-shell .operational-evidence-meta dt {
+  color: var(--situation-muted-soft);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.product-shell .resistance-guardrails dd,
+.product-shell .resistance-signal-metrics dd,
+.product-shell .operational-evidence-meta dd {
+  margin: 0;
+  color: var(--situation-ink);
+  font-size: 10px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.product-shell .resistance-guardrails dd {
+  text-align: right;
+}
+
+.product-shell .resistance-signal-heading {
+  padding-top: 2px;
+  color: var(--situation-muted);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.product-shell .resistance-signal-list,
+.product-shell .operational-evidence-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.product-shell .resistance-signal {
+  display: grid;
+  gap: 6px;
+  padding: 9px 0;
+  border-top: 1px solid var(--situation-line);
+}
+
+.product-shell .resistance-signal:last-child {
+  border-bottom: 1px solid var(--situation-line);
+}
+
+.product-shell .resistance-signal-title {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+}
+
+.product-shell .resistance-signal-title strong {
+  min-width: 0;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.product-shell .resistance-signal-title > span:last-child {
+  max-width: 96px;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background: var(--situation-inset);
+  color: var(--situation-muted);
+  font-size: 9px;
+  font-weight: 600;
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.product-shell .resistance-status-marker {
+  width: 8px;
+  height: 8px;
+  border: 1px solid var(--situation-line-strong);
+  border-radius: 50%;
+  background: var(--situation-inset);
+}
+
+.product-shell .resistance-data-available .resistance-status-marker {
+  border-color: var(--situation-map);
+  background: var(--situation-map);
+}
+
+.product-shell .resistance-data-suppressed .resistance-status-marker {
+  border-color: var(--situation-amber);
+  background: var(--situation-amber);
+}
+
+.product-shell .resistance-trigger-triggered .resistance-signal-title strong {
+  color: var(--situation-petrol);
+  font-weight: 700;
+}
+
+.product-shell .resistance-trigger-status,
+.product-shell .resistance-source,
+.product-shell .resistance-signal-caveat {
+  color: var(--situation-muted);
+  font-size: 9px;
+  line-height: 1.4;
+}
+
+.product-shell .resistance-trigger-status {
+  padding-left: 14px;
+  font-weight: 600;
+}
+
+.product-shell .resistance-signal-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--situation-line);
+}
+
+.product-shell .resistance-signal-metrics div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+  padding: 6px;
+  background: var(--situation-soft);
+}
+
+.product-shell .resistance-source {
+  display: grid;
+  gap: 2px;
+}
+
+.product-shell .resistance-source span {
+  color: var(--situation-muted-soft);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.product-shell .resistance-signal-caveat {
+  padding-left: 7px;
+  border-left: 2px solid var(--situation-line-strong);
+}
+
+.product-shell .alert-type-stack {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.product-shell .signal-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.product-shell .signal-chip {
+  max-width: 100%;
+  padding: 2px 5px;
+  border: 1px solid var(--situation-line);
+  border-radius: 4px;
+  background: var(--situation-inset);
+  color: var(--situation-muted);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
+.product-shell .signal-chip[data-signal-kind="confirmed_resistance"] {
+  border-color: rgba(180, 58, 73, 0.28);
+  background: var(--situation-carmine-soft);
+  color: var(--situation-carmine);
+}
+
+.product-shell .signal-chip[data-signal-kind="resistance_risk_history"] {
+  border-color: rgba(181, 111, 22, 0.28);
+  background: var(--situation-amber-soft);
+  color: var(--situation-amber);
+}
+
+.product-shell .signal-chip[data-signal-kind="resistance_surveillance_gap"] {
+  border-color: rgba(19, 128, 111, 0.28);
+  background: var(--situation-map-soft);
+  color: var(--situation-map);
+}
+
+.product-shell .detail-signal-chips {
+  margin-top: 2px;
+}
+
+.product-shell .operational-evidence-section h5 {
+  margin: 2px 0 0;
+  color: var(--situation-muted);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.product-shell .evidence-review-status {
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border-left: 3px solid var(--situation-amber);
+  border-radius: 4px;
+  background: var(--situation-amber-soft);
+}
+
+.product-shell .evidence-review-status span {
+  color: var(--situation-muted);
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.product-shell .evidence-review-status strong {
+  font-size: 10px;
+  line-height: 1.35;
+}
+
+.product-shell .operational-evidence-list > li {
+  display: grid;
+  gap: 7px;
+  padding: 9px 0;
+  border-top: 1px solid var(--situation-line);
+}
+
+.product-shell .operational-evidence-list > li:last-child {
+  border-bottom: 1px solid var(--situation-line);
+}
+
+.product-shell .operational-evidence-title {
+  display: grid;
+  gap: 5px;
+}
+
+.product-shell .operational-evidence-title > strong {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.product-shell .operational-evidence-title .signal-chip {
+  justify-self: start;
+}
+
+.product-shell .operational-evidence-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px 10px;
+}
+
+.product-shell .operational-evidence-meta div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
 .product-shell .facility-grid {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }

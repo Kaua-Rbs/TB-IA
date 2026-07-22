@@ -12,6 +12,7 @@ import { IncidenceHistory } from "../components/IncidenceHistory";
 import { MapLegend } from "../components/MapLegend";
 import { MetricCard } from "../components/MetricCard";
 import { PriorityRankingList } from "../components/PriorityRankingList";
+import { ResistanceSurveillanceProfile } from "../components/ResistanceSurveillanceProfile";
 import { StatusBadge } from "../components/StatusBadge";
 import {
   TerritorialMap,
@@ -659,6 +660,10 @@ function DetailReport({
           ))}
         </div>
       </section>
+      <ResistanceSurveillanceProfile
+        profile={report?.resistance_surveillance}
+        lang={lang}
+      />
       <IncidenceHistory
         history={report?.incidence_history}
         isLoading={reportLoading}
