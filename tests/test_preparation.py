@@ -64,7 +64,7 @@ def test_territorial_preparation_status_requires_usable_outputs_for_warning() ->
     assert status(download_result(), 0, 0, sih_coverage_complete=False) == "missing"
     missing_demo = DemoPreparationResult(
         territorial=territorial_result("missing"),
-        sample_file_count=7,
+        sample_file_count=8,
         local_source_counts={"local_tb_cases": 3},
         territory_count=184,
         local_case_count=3,
@@ -264,7 +264,7 @@ def test_prepare_demo_environment_regenerates_synthetic_data_idempotently(
     assert first.usable is True
     assert second.usable is True
     assert second.incidence_history_value_count == 1104
-    assert second.sample_file_count == 7
+    assert second.sample_file_count == 8
     assert summary["case_count"] == 3
     assert summary["alert_count"] == second.operational_alert_count
     assert summary["alert_count"] >= 4
@@ -299,7 +299,7 @@ def test_prepare_demo_cli_uses_full_year_defaults_and_reports_summary(
         progress({"stage": "complete", "message": "done"})
         return DemoPreparationResult(
             territorial=territorial_result(),
-            sample_file_count=7,
+            sample_file_count=8,
             local_source_counts={"local_tb_cases": 3},
             territory_count=184,
             local_case_count=3,
@@ -341,7 +341,7 @@ def test_prepare_demo_cli_exits_nonzero_for_unusable_result(
         "prepare_demo_environment",
         lambda *args, **kwargs: DemoPreparationResult(
             territorial=territorial_result("partial"),
-            sample_file_count=7,
+            sample_file_count=8,
             local_source_counts={"local_tb_cases": 3},
             territory_count=184,
             local_case_count=3,
@@ -370,7 +370,7 @@ def test_prepare_demo_cli_accepts_usable_warning(tmp_path: Path, monkeypatch: An
         "prepare_demo_environment",
         lambda *args, **kwargs: DemoPreparationResult(
             territorial=territorial_result("warning"),
-            sample_file_count=7,
+            sample_file_count=8,
             local_source_counts={"local_tb_cases": 3},
             territory_count=184,
             local_case_count=3,

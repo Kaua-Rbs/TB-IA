@@ -40,7 +40,7 @@ The demo files must be synthetic or already pseudonymized. Do not place real CPF
 
 The local CSV readers reject patient-level files containing obvious identifiable columns: `cpf`, `cns`, `nome`, `name`, `endereco`, `address`, `telefone`, or `phone`. The `name` column is accepted only in `local_territories.csv` and `local_teams.csv`, where it is an operational territory/team label rather than a person name.
 
-`pseudonymized_patient_id` is required in local TB case, lab, and pharmacy files. `pseudonymized_contact_id` is required in contact investigation files. The MVP2 API and dashboard do not expose patient or contact pseudonym columns.
+`pseudonymized_patient_id` is required in local TB case, lab, resistance-evidence, and pharmacy files. `pseudonymized_contact_id` is required in contact investigation files. The MVP2 API and dashboard do not expose patient or contact pseudonym columns.
 
 ## CSV Contracts
 
@@ -68,7 +68,7 @@ Natural key: `team_id`. `active` is a boolean-like value such as `true`, `false`
 local_case_id,pseudonymized_patient_id,territory_id,facility_id,team_id,notification_date,diagnosis_date,treatment_start_date,entry_type,clinical_form,closure_status,closure_date,rifampicin_resistance,retreatment,previous_treatment_failure
 ```
 
-Natural key: `local_case_id`. Resistance and treatment-history flags are boolean-like values.
+Natural key: `local_case_id`. Resistance and treatment-history flags are boolean-like values. The legacy `rifampicin_resistance` flag is only an unverified operational signal and never counts as confirmed resistance.
 
 ### `local_lab_events.csv`
 
@@ -77,6 +77,28 @@ local_lab_id,local_case_id,pseudonymized_patient_id,test_type,request_date,colle
 ```
 
 Natural key: `local_lab_id`.
+
+### `local_resistance_evidence.csv`
+
+This file is optional so older synthetic bundles remain ingestible.
+
+```text
+resistance_record_id,local_case_id,pseudonymized_patient_id,recorded_date,evidence_type,resistance_scope,resistance_status,record_status,source_system
+```
+
+Natural key: `resistance_record_id`. The case must exist in the same selected year
+and the pseudonym must match the case registry. Accepted values are:
+
+- `evidence_type`: `laboratory_result` or `authorized_clinical_record`;
+- `resistance_status`: `confirmed`, `not_confirmed`, or `indeterminate`;
+- `record_status`: `final`, `preliminary`, or `cancelled`;
+- `source_system`: only `synthetic_demo` in the current implementation.
+
+Only a `final` record explicitly marked `confirmed` may be presented as
+confirmed synthetic evidence. Preliminary, cancelled, indeterminate, legacy,
+and risk-history records remain vigilance signals. A real municipal source must
+not use this contract until authorization, provenance, access control, and
+governance decisions under GOV-01 are approved.
 
 ### `local_pharmacy_dispensing.csv`
 

@@ -38,6 +38,7 @@ from tbia.domain.models import (
     IndicatorUnit,
     IndicatorValue,
     LocalLabEvent,
+    LocalResistanceEvidence,
     LocalTbCase,
     LocalTeam,
     LocalTerritory,
@@ -239,6 +240,21 @@ class LocalLabEventRecord(Base):
     result_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     result: Mapped[str] = mapped_column(String(120), default="")
     status: Mapped[str] = mapped_column(String(80))
+
+
+class LocalResistanceEvidenceRecord(Base):
+    __tablename__ = "local_resistance_evidence"
+
+    resistance_record_id: Mapped[str] = mapped_column(String(80), primary_key=True)
+    local_case_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    pseudonymized_patient_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    year: Mapped[int] = mapped_column(Integer, nullable=False, index=True)
+    recorded_date: Mapped[date] = mapped_column(Date, nullable=False)
+    evidence_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    resistance_scope: Mapped[str] = mapped_column(String(120), nullable=False)
+    resistance_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    record_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    source_system: Mapped[str] = mapped_column(String(120), nullable=False)
 
 
 class MedicationDispensingRecord(Base):
@@ -804,6 +820,9 @@ def clear_local_data_for_year(session: Session, year: int) -> None:
     session.execute(delete(LocalTbCaseRecord).where(LocalTbCaseRecord.year == year))
     session.execute(delete(LocalLabEventRecord).where(LocalLabEventRecord.year == year))
     session.execute(
+        delete(LocalResistanceEvidenceRecord).where(LocalResistanceEvidenceRecord.year == year)
+    )
+    session.execute(
         delete(MedicationDispensingRecord).where(MedicationDispensingRecord.year == year)
     )
     session.execute(
@@ -880,6 +899,26 @@ def save_local_lab_events(session: Session, lab_events: Iterable[LocalLabEvent])
                 result_date=event.result_date,
                 result=event.result,
                 status=event.status,
+            )
+        )
+
+
+def save_local_resistance_evidence(
+    session: Session, records: Iterable[LocalResistanceEvidence]
+) -> None:
+    for record in records:
+        session.merge(
+            LocalResistanceEvidenceRecord(
+                resistance_record_id=record.resistance_record_id,
+                local_case_id=record.local_case_id,
+                pseudonymized_patient_id=record.pseudonymized_patient_id,
+                year=record.year,
+                recorded_date=record.recorded_date,
+                evidence_type=record.evidence_type,
+                resistance_scope=record.resistance_scope,
+                resistance_status=record.resistance_status,
+                record_status=record.record_status,
+                source_system=record.source_system,
             )
         )
 
@@ -1497,6 +1536,25 @@ def load_local_lab_events(session: Session, year: int) -> list[LocalLabEvent]:
             result_date=record.result_date,
             result=record.result,
             status=record.status,
+        )
+        for record in records
+    ]
+
+
+def load_local_resistance_evidence(session: Session, year: int) -> list[LocalResistanceEvidence]:
+    records = session.query(LocalResistanceEvidenceRecord).filter_by(year=year).all()
+    return [
+        LocalResistanceEvidence(
+            resistance_record_id=record.resistance_record_id,
+            local_case_id=record.local_case_id,
+            pseudonymized_patient_id=record.pseudonymized_patient_id,
+            year=record.year,
+            recorded_date=record.recorded_date,
+            evidence_type=record.evidence_type,
+            resistance_scope=record.resistance_scope,
+            resistance_status=record.resistance_status,
+            record_status=record.record_status,
+            source_system=record.source_system,
         )
         for record in records
     ]

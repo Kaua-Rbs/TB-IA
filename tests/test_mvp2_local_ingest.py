@@ -10,6 +10,7 @@ from tbia.ingest.local import (
     LOCAL_CONTACT_FIELDS,
     LOCAL_LAB_EVENT_FIELDS,
     LOCAL_PHARMACY_DISPENSING_FIELDS,
+    LOCAL_RESISTANCE_EVIDENCE_FIELDS,
     LOCAL_RESOURCE_FIELDS,
     LOCAL_TB_CASE_FIELDS,
     LOCAL_TEAM_FIELDS,
@@ -17,6 +18,7 @@ from tbia.ingest.local import (
     read_local_contacts_csv,
     read_local_lab_events_csv,
     read_local_pharmacy_dispensing_csv,
+    read_local_resistance_evidence_csv,
     read_local_resources_csv,
     read_local_tb_cases_csv,
     read_local_teams_csv,
@@ -68,6 +70,17 @@ BASE_LAB = {
     "result": "",
     "status": "pending",
 }
+BASE_RESISTANCE_EVIDENCE = {
+    "resistance_record_id": "RSE-001",
+    "local_case_id": "LC-001",
+    "pseudonymized_patient_id": "PAT-001",
+    "recorded_date": "2023-01-14",
+    "evidence_type": "laboratory_result",
+    "resistance_scope": "rifampicin",
+    "resistance_status": "confirmed",
+    "record_status": "final",
+    "source_system": "synthetic_demo",
+}
 BASE_DISPENSING = {
     "dispensing_id": "DISP-001",
     "local_case_id": "LC-001",
@@ -104,6 +117,11 @@ def test_local_csv_readers_parse_contracts(tmp_path: Path) -> None:
     team_path = write_rows(tmp_path / "local_teams.csv", LOCAL_TEAM_FIELDS, [BASE_TEAM])
     case_path = write_rows(tmp_path / "local_tb_cases.csv", LOCAL_TB_CASE_FIELDS, [BASE_CASE])
     lab_path = write_rows(tmp_path / "local_lab_events.csv", LOCAL_LAB_EVENT_FIELDS, [BASE_LAB])
+    resistance_path = write_rows(
+        tmp_path / "local_resistance_evidence.csv",
+        LOCAL_RESISTANCE_EVIDENCE_FIELDS,
+        [BASE_RESISTANCE_EVIDENCE],
+    )
     dispensing_path = write_rows(
         tmp_path / "local_pharmacy_dispensing.csv",
         LOCAL_PHARMACY_DISPENSING_FIELDS,
@@ -118,6 +136,7 @@ def test_local_csv_readers_parse_contracts(tmp_path: Path) -> None:
     teams = read_local_teams_csv(team_path)
     cases = read_local_tb_cases_csv(case_path, 2023)
     labs = read_local_lab_events_csv(lab_path, 2023)
+    resistance_evidence = read_local_resistance_evidence_csv(resistance_path, 2023)
     dispensings = read_local_pharmacy_dispensing_csv(dispensing_path, 2023)
     contacts = read_local_contacts_csv(contact_path, 2023)
     resources = read_local_resources_csv(resource_path, 2023)
@@ -126,6 +145,7 @@ def test_local_csv_readers_parse_contracts(tmp_path: Path) -> None:
     assert teams[0].active is True
     assert cases[0].notification_date.isoformat() == "2023-01-10"
     assert labs[0].result_date is None
+    assert resistance_evidence[0].resistance_status == "confirmed"
     assert dispensings[0].days_supplied == 30
     assert contacts[0].evaluation_date is None
     assert resources[0].chw_count == 12
@@ -214,6 +234,55 @@ def test_local_lab_reader_rejects_invalid_date(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="YYYY-MM-DD"):
         read_local_lab_events_csv(csv_path, 2023)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("evidence_type", "unverified_note"),
+        ("resistance_status", "suspected"),
+        ("record_status", "draft"),
+        ("source_system", "real_clinical_system"),
+    ],
+)
+def test_resistance_evidence_reader_rejects_unapproved_categories(
+    tmp_path: Path, field: str, value: str
+) -> None:
+    csv_path = write_rows(
+        tmp_path / "local_resistance_evidence.csv",
+        LOCAL_RESISTANCE_EVIDENCE_FIELDS,
+        [{**BASE_RESISTANCE_EVIDENCE, field: value}],
+    )
+
+    with pytest.raises(ValueError, match=f"{field} must be one of"):
+        read_local_resistance_evidence_csv(csv_path, 2023)
+
+
+def test_resistance_evidence_reader_rejects_duplicate_records(tmp_path: Path) -> None:
+    csv_path = write_rows(
+        tmp_path / "local_resistance_evidence.csv",
+        LOCAL_RESISTANCE_EVIDENCE_FIELDS,
+        [
+            BASE_RESISTANCE_EVIDENCE,
+            {**BASE_RESISTANCE_EVIDENCE, "resistance_scope": "multidrug"},
+        ],
+    )
+
+    with pytest.raises(ValueError, match="duplicate"):
+        read_local_resistance_evidence_csv(csv_path, 2023)
+
+
+def test_resistance_evidence_reader_rejects_identifiable_columns(
+    tmp_path: Path,
+) -> None:
+    csv_path = write_rows(
+        tmp_path / "local_resistance_evidence.csv",
+        (*LOCAL_RESISTANCE_EVIDENCE_FIELDS, "cns"),
+        [{**BASE_RESISTANCE_EVIDENCE, "cns": "000000000000000"}],
+    )
+
+    with pytest.raises(ValueError, match="forbidden identifiable"):
+        read_local_resistance_evidence_csv(csv_path, 2023)
 
 
 def write_rows(path: Path, fieldnames: Sequence[str], rows: Sequence[dict[str, str]]) -> Path:

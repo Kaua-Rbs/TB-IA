@@ -57,7 +57,7 @@ documentation at `/docs`. `make demo` prepares data but does not start the
 server.
 
 `prepare-demo` downloads only missing public DATASUS files, uses all 12 SIH/SUS
-months by default, runs the territorial pipeline, regenerates the seven
+months by default, runs the territorial pipeline, regenerates the eight
 deterministic synthetic municipal CSVs, and builds operational alerts in the
 same database. It safely replaces the selected scope/year and preserves other
 years and UFs. Use `--sih-january-only` for a faster partial SIH/SUS

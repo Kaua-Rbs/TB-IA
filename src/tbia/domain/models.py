@@ -198,6 +198,20 @@ class LocalLabEvent:
 
 
 @dataclass(frozen=True)
+class LocalResistanceEvidence:
+    resistance_record_id: str
+    local_case_id: str
+    pseudonymized_patient_id: str
+    year: int
+    recorded_date: date
+    evidence_type: str
+    resistance_scope: str
+    resistance_status: str
+    record_status: str
+    source_system: str
+
+
+@dataclass(frozen=True)
 class MedicationDispensing:
     dispensing_id: str
     local_case_id: str

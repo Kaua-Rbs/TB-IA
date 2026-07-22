@@ -9,6 +9,7 @@ from typing import TypeVar
 from tbia.domain.models import (
     ContactInvestigation,
     LocalLabEvent,
+    LocalResistanceEvidence,
     LocalTbCase,
     LocalTeam,
     LocalTerritory,
@@ -63,6 +64,21 @@ LOCAL_LAB_EVENT_FIELDS = (
     "result",
     "status",
 )
+LOCAL_RESISTANCE_EVIDENCE_FIELDS = (
+    "resistance_record_id",
+    "local_case_id",
+    "pseudonymized_patient_id",
+    "recorded_date",
+    "evidence_type",
+    "resistance_scope",
+    "resistance_status",
+    "record_status",
+    "source_system",
+)
+RESISTANCE_EVIDENCE_TYPES = frozenset({"laboratory_result", "authorized_clinical_record"})
+RESISTANCE_STATUSES = frozenset({"confirmed", "not_confirmed", "indeterminate"})
+RESISTANCE_RECORD_STATUSES = frozenset({"final", "preliminary", "cancelled"})
+RESISTANCE_SYNTHETIC_SOURCE_SYSTEM = "synthetic_demo"
 LOCAL_PHARMACY_DISPENSING_FIELDS = (
     "dispensing_id",
     "local_case_id",
@@ -167,6 +183,28 @@ def read_local_lab_events_csv(path: Path, year: int) -> list[LocalLabEvent]:
             result_date=optional_date(row, "result_date"),
             result=optional_text(row, "result") or "",
             status=required_text(row, "status"),
+        ),
+    )
+
+
+def read_local_resistance_evidence_csv(path: Path, year: int) -> list[LocalResistanceEvidence]:
+    rows = read_contract_csv(path, LOCAL_RESISTANCE_EVIDENCE_FIELDS)
+    return unique_records(
+        rows,
+        "resistance_record_id",
+        lambda row: LocalResistanceEvidence(
+            resistance_record_id=required_text(row, "resistance_record_id"),
+            local_case_id=required_text(row, "local_case_id"),
+            pseudonymized_patient_id=required_text(row, "pseudonymized_patient_id"),
+            year=year,
+            recorded_date=required_date(row, "recorded_date"),
+            evidence_type=required_choice(row, "evidence_type", RESISTANCE_EVIDENCE_TYPES),
+            resistance_scope=required_text(row, "resistance_scope"),
+            resistance_status=required_choice(row, "resistance_status", RESISTANCE_STATUSES),
+            record_status=required_choice(row, "record_status", RESISTANCE_RECORD_STATUSES),
+            source_system=required_choice(
+                row, "source_system", {RESISTANCE_SYNTHETIC_SOURCE_SYSTEM}
+            ),
         ),
     )
 
@@ -322,6 +360,14 @@ def required_bool(row: dict[str, str], field: str) -> bool:
     if value in FALSE_VALUES:
         return False
     raise ValueError(f"{field} must be boolean-like")
+
+
+def required_choice(row: dict[str, str], field: str, choices: set[str] | frozenset[str]) -> str:
+    value = required_text(row, field).lower()
+    if value not in choices:
+        expected = ", ".join(sorted(choices))
+        raise ValueError(f"{field} must be one of: {expected}")
+    return value
 
 
 def positive_int(row: dict[str, str], field: str) -> int:

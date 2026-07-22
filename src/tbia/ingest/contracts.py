@@ -375,7 +375,11 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
         duplicate_handling="Reject duplicate local_case_id values.",
         privacy_level="pseudonymized synthetic local operational data",
         validation_checks=("required columns", "date parsing", "forbidden identifiable columns"),
-        caveats="No CPF, CNS, person name, address, or phone column is accepted.",
+        caveats=(
+            "No CPF, CNS, person name, address, or phone column is accepted. The "
+            "rifampicin_resistance boolean is a legacy unverified signal and never counts "
+            "as confirmed resistance evidence."
+        ),
     ),
     SourceContract(
         source_id="local_lab_events",
@@ -408,6 +412,48 @@ SOURCE_CONTRACTS: tuple[SourceContract, ...] = (
         privacy_level="pseudonymized synthetic local operational data",
         validation_checks=("required columns", "date parsing", "forbidden identifiable columns"),
         caveats="Laboratory alerts are operational signals for human review.",
+    ),
+    SourceContract(
+        source_id="local_resistance_evidence",
+        name="Synthetic resistance evidence",
+        owner="Municipal pilot synthetic source",
+        access_method="CSV under data/raw/municipal_demo",
+        file_format="CSV",
+        grain="pseudonymized explicit resistance evidence record",
+        geographic_coverage="synthetic municipal pilot",
+        time_coverage="selected analysis year",
+        refresh_cadence="manual demo refresh",
+        required_fields=(
+            "resistance_record_id",
+            "local_case_id",
+            "pseudonymized_patient_id",
+            "recorded_date",
+            "evidence_type",
+            "resistance_scope",
+            "resistance_status",
+            "record_status",
+            "source_system",
+        ),
+        optional_fields=(),
+        code_systems=("local resistance record code", "local case code"),
+        missingness_rules=(
+            "Reject rows without an explicit record, linked case and pseudonym, date, "
+            "evidence type, resistance scope, status, record status, or source system."
+        ),
+        duplicate_handling="Reject duplicate resistance_record_id values.",
+        privacy_level="pseudonymized synthetic local operational data",
+        validation_checks=(
+            "required columns",
+            "date parsing",
+            "accepted categorical values",
+            "linked case and matching pseudonym",
+            "forbidden identifiable columns",
+        ),
+        caveats=(
+            "Only final records explicitly marked confirmed count as confirmed evidence. "
+            "The only accepted source_system is synthetic_demo; use of real records remains "
+            "blocked until municipal authorization and governance are approved."
+        ),
     ),
     SourceContract(
         source_id="local_pharmacy_dispensing",

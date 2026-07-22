@@ -9,13 +9,18 @@ from typing import TypeVar
 
 from sqlalchemy.orm import Session
 
-from tbia.domain.models import ImportRun
+from tbia.domain.models import (
+    ImportRun,
+    LocalResistanceEvidence,
+    LocalTbCase,
+)
 from tbia.domain.operational_alerts import build_operational_alerts
 from tbia.ingest.contracts import SOURCE_CONTRACTS
 from tbia.ingest.local import (
     LOCAL_CONTACT_FIELDS,
     LOCAL_LAB_EVENT_FIELDS,
     LOCAL_PHARMACY_DISPENSING_FIELDS,
+    LOCAL_RESISTANCE_EVIDENCE_FIELDS,
     LOCAL_RESOURCE_FIELDS,
     LOCAL_TB_CASE_FIELDS,
     LOCAL_TEAM_FIELDS,
@@ -23,6 +28,7 @@ from tbia.ingest.local import (
     read_local_contacts_csv,
     read_local_lab_events_csv,
     read_local_pharmacy_dispensing_csv,
+    read_local_resistance_evidence_csv,
     read_local_resources_csv,
     read_local_tb_cases_csv,
     read_local_teams_csv,
@@ -39,6 +45,7 @@ from tbia.storage import (
     save_data_sources,
     save_import_run,
     save_local_lab_events,
+    save_local_resistance_evidence,
     save_local_tb_cases,
     save_local_teams,
     save_local_territories,
@@ -96,6 +103,7 @@ def ingest_local_data(session: Session, config: Mvp2Config) -> dict[str, int]:
             lambda path: read_local_lab_events_csv(path, config.year),
             save_local_lab_events,
         ),
+        "local_resistance_evidence": load_optional_resistance_evidence(session, config),
         "local_pharmacy_dispensing": load_local_source(
             session,
             config.year,
@@ -122,6 +130,65 @@ def ingest_local_data(session: Session, config: Mvp2Config) -> dict[str, int]:
         ),
     }
     return counts
+
+
+def load_optional_resistance_evidence(session: Session, config: Mvp2Config) -> int:
+    source_id = "local_resistance_evidence"
+    path = config.csv_path("local_resistance_evidence.csv")
+    started_at = datetime.now(UTC)
+    if not path.exists():
+        save_import_run(
+            session,
+            ImportRun(
+                source_id=source_id,
+                status="skipped",
+                started_at=started_at,
+                finished_at=datetime.now(UTC),
+                row_count=0,
+                message=f"optional MVP2 local CSV not supplied: {path}",
+                year=config.year,
+            ),
+        )
+        return 0
+
+    records = read_local_resistance_evidence_csv(path, config.year)
+    validate_resistance_evidence_links(records, load_local_tb_cases(session, config.year))
+    save_local_resistance_evidence(session, records)
+    save_import_run(
+        session,
+        ImportRun(
+            source_id=source_id,
+            status="success",
+            started_at=started_at,
+            finished_at=datetime.now(UTC),
+            row_count=len(records),
+            message=f"loaded optional MVP2 local CSV: {path}",
+            year=config.year,
+        ),
+    )
+    return len(records)
+
+
+def validate_resistance_evidence_links(
+    records: Sequence[LocalResistanceEvidence],
+    cases: Sequence[LocalTbCase],
+) -> None:
+    cases_by_id = {case.local_case_id: case for case in cases}
+    for record in records:
+        if record.recorded_date.year != record.year:
+            raise ValueError(
+                "recorded_date year must match the selected analysis year "
+                f"for resistance record {record.resistance_record_id}"
+            )
+        case = cases_by_id.get(record.local_case_id)
+        if case is None:
+            raise ValueError(
+                f"resistance evidence references unknown local_case_id {record.local_case_id}"
+            )
+        if case.pseudonymized_patient_id != record.pseudonymized_patient_id:
+            raise ValueError(
+                f"resistance evidence pseudonym does not match linked case {record.local_case_id}"
+            )
 
 
 def load_local_source(
@@ -188,6 +255,11 @@ def generate_mvp2_sample_data(output_dir: Path) -> list[Path]:
         write_csv(output_dir / "local_teams.csv", LOCAL_TEAM_FIELDS, sample_teams()),
         write_csv(output_dir / "local_tb_cases.csv", LOCAL_TB_CASE_FIELDS, sample_cases()),
         write_csv(output_dir / "local_lab_events.csv", LOCAL_LAB_EVENT_FIELDS, sample_labs()),
+        write_csv(
+            output_dir / "local_resistance_evidence.csv",
+            LOCAL_RESISTANCE_EVIDENCE_FIELDS,
+            sample_resistance_evidence(),
+        ),
         write_csv(
             output_dir / "local_pharmacy_dispensing.csv",
             LOCAL_PHARMACY_DISPENSING_FIELDS,
@@ -348,6 +420,22 @@ def sample_labs() -> list[dict[str, str]]:
             "result": "negative",
             "status": "complete",
         },
+    ]
+
+
+def sample_resistance_evidence() -> list[dict[str, str]]:
+    return [
+        {
+            "resistance_record_id": "RSE-001",
+            "local_case_id": "LC-001",
+            "pseudonymized_patient_id": "PAT-001",
+            "recorded_date": "2023-01-14",
+            "evidence_type": "laboratory_result",
+            "resistance_scope": "rifampicin",
+            "resistance_status": "confirmed",
+            "record_status": "final",
+            "source_system": "synthetic_demo",
+        }
     ]
 
 
