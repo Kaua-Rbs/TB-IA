@@ -544,49 +544,94 @@ campos ausentes e no resultado impossível de Sobral.
 
 ### Responsabilidade técnica antes da aprovação
 
-A equipe de desenvolvimento, e não o profissional de saúde, ainda deve:
+A reconciliação abaixo é responsabilidade da equipe de dados e não deve ser
+transferida ao profissional de saúde. Quando possível, ela deve contar com um
+operador do SINAN ou do TabWin que conheça a extração oficial.
 
-1. Obter, quando possível, a mesma versão congelada usada pelas publicações ou
-   uma exportação oficial equivalente.
-1. Confirmar que a operação do TabWin foi reproduzida sem diferenças técnicas.
-1. Explicar e versionar qualquer diferença causada por atualização posterior do
-   SINAN-TB.
+A equipe técnica ainda deve:
+
+1. Obter a versão congelada ou uma exportação TabWin equivalente usada no
+   Boletim Epidemiológico de Tuberculose de março de 2024, extraída em fevereiro
+   de 2024 para a coorte CE/2022.
+1. Obter a versão congelada ou uma exportação TabWin equivalente usada no
+   Boletim Epidemiológico de Tuberculose de março de 2026, extraída em fevereiro
+   de 2026 para a coorte CE/2024.
+1. Confirmar os filtros, categorias, exclusões e a operação do TabWin usados na
+   Tabela 7 das duas publicações.
+1. Reproduzir os totais oficiais de 4.684 examinados entre 6.449 identificados
+   para CE/2022 e 5.921 entre 7.454 para CE/2024, ou explicar formalmente uma
+   diferença causada por versão ou qualificação posterior do SINAN-TB.
+1. Registrar a origem, data, versão e identificador criptográfico dos arquivos,
+   além dos filtros e resultados da nova tabulação.
+1. Reexecutar a auditoria e conferir Fortaleza, Caucaia, Sobral, Maracanaú e
+   Quixadá contra a fonte aceita para a revisão.
 1. Repetir a auditoria se a ficha migrar para uma nova estrutura do e-SUS SINAN.
 
-Se essas tarefas não forem concluídas, o revisor pode marcar a decisão geral
-como **inconclusiva** sem precisar resolver problemas de banco ou programação.
+A reconciliação técnica estará resolvida somente quando os totais oficiais forem
+reproduzidos ou quando a diferença residual estiver explicada, versionada e
+aceita como evidência suficiente. Se isso não for possível, existem duas opções:
+registrar a decisão geral como **inconclusiva**, mantendo a CAP-03 aberta, ou
+**reprovar** o uso dos campos públicos e concluir a CAP-03 com o indicador fora
+do produto. O revisor não precisa resolver problemas de banco ou programação.
+
+### Quem precisa participar da decisão
+
+| Responsabilidade | Participação esperada |
+| --- | --- |
+| Reconciliação dos arquivos e do TabWin | Equipe de dados, preferencialmente com operador do SINAN ou TabWin |
+| Semântica dos campos e validade epidemiológica | Profissional do programa de TB, vigilância ou epidemiologia com experiência no SINAN |
+| Utilidade municipal e compreensão do fluxo | Usuários da vigilância municipal ou estadual |
+| Inclusão, alteração ou exclusão do produto | Responsáveis de produto e governança, apoiados pelo parecer epidemiológico |
+
+Um médico pode participar, mas a revisão da CAP-03 não deve depender apenas de
+formação clínica. Conhecimento de vigilância da tuberculose, preenchimento do
+SINAN e tabulação dos indicadores é essencial para avaliar os campos e a coorte.
 
 ## Decisões de domínio necessárias para a CAP-03
 
-1. Confirmar se os tipos de entrada, formas clínicas e situações de
-   encerramento representam corretamente o universo pretendido.
-1. Confirmar se as quatro formas de confirmação laboratorial devem entrar e se
-   a segunda baciloscopia tem a interpretação usada.
-1. Confirmar se `NU_CONTATO` representa contatos identificados e `NU_COMU_EX`
-   representa contatos examinados para todo o período analisado.
-1. Decidir se um campo vazio significa zero, informação desconhecida ou outra
-   situação operacional.
-1. Avaliar se duplicidades, atualizações ou transferência de registros podem
-   alterar as contagens e como isso deve ser tratado.
-1. Definir quando uma coorte está madura o suficiente para comparação e qual
-   atraso deve aparecer no produto.
-1. Definir o tratamento de examinados acima de identificados: resultado
-   inconclusivo, exclusão, correção na fonte ou outra conduta.
-1. Definir denominador mínimo, supressão, agregação de anos ou outra proteção
-   para municípios com poucas contagens.
-1. Decidir se a proporção é interpretável no nível municipal ou apenas em
-   agregados maiores.
-1. Confirmar se alguma referência ou meta oficial pode ser usada como limiar.
-   O sistema não deve transformar uma meta em regra comparativa por conta
-   própria.
-1. Somente se o indicador for aceito, definir gravidade, dimensão do ranking,
-   peso e resposta municipal sugerida.
-1. Revisar a linguagem para que o sinal não pareça diagnóstico, punição,
-   avaliação individual de serviço ou prova de baixa qualidade.
-1. Avaliar se a diferença em relação às publicações impede o uso mesmo após uma
-   explicação técnica.
-1. Pedir que usuários da vigilância expliquem o resultado com suas próprias
-   palavras antes de aprovar sua apresentação.
+1. **D03-01 - Universo, município e período:** confirmar o uso de `NU_ANO`, do
+   município de residência `ID_MN_RESI`, dos tipos de entrada `1`, `4` e `6` e
+   da exclusão de mudança de diagnóstico no encerramento.
+1. **D03-02 - Formas clínicas:** confirmar a inclusão das formas pulmonar e
+   pulmonar mais extrapulmonar, códigos `1` e `3`.
+1. **D03-03 - Confirmação laboratorial:** confirmar a inclusão de baciloscopia
+   inicial positiva, segunda baciloscopia positiva, cultura positiva e TRM-TB
+   detectável, especialmente a interpretação da segunda baciloscopia.
+1. **D03-04 - Campos de contatos:** confirmar se `NU_CONTATO` representa
+   contatos identificados e `NU_COMU_EX` representa contatos examinados em todo
+   o período analisado.
+1. **D03-05 - Campos vazios:** decidir se vazio significa zero, informação
+   desconhecida, ausência de preenchimento ou outra situação. Também escolher
+   entre valores registrados, pares completos ou indisponibilidade do resultado.
+1. **D03-06 - Duplicidades, atualizações e transferências:** definir se esses
+   eventos alteram as contagens e como devem ser identificados ou tratados.
+1. **D03-07 - Maturidade da coorte:** definir quanto tempo deve transcorrer para
+   considerar um ano completo e qual atraso deve ser comunicado no produto.
+1. **D03-08 - Examinados acima de identificados:** escolher entre resultado
+   inconclusivo, exclusão, correção na fonte ou outra conduta explícita. O
+   sistema não corrigirá nem limitará automaticamente a proporção a 100%.
+1. **D03-09 - Pequenos denominadores:** definir denominador mínimo, supressão,
+   agregação de anos ou outra proteção para pequenas contagens.
+1. **D03-10 - Nível geográfico:** decidir se a proporção é interpretável por
+   município ou somente em regiões, estados ou outros agregados.
+1. **D03-11 - Referência ou limiar:** confirmar se existe referência oficial
+   adequada e como ela pode ser usada. O sistema não deve transformar uma meta
+   em regra comparativa por conta própria.
+1. **D03-12 - Priorização e resposta:** somente se o indicador for aceito,
+   definir gravidade, dimensão do ranking, peso e resposta municipal sugerida.
+1. **D03-13 - Linguagem de segurança:** revisar o texto para que o sinal não
+   pareça diagnóstico, punição, avaliação individual de serviço ou prova de
+   baixa qualidade.
+1. **D03-14 - Divergências oficiais:** decidir se uma diferença tecnicamente
+   explicada em relação às publicações ainda impede o uso do indicador.
+1. **D03-15 - Compreensão pelos usuários:** pedir que usuários da vigilância
+   expliquem o resultado e suas limitações com as próprias palavras antes de
+   aprovar a apresentação.
+
+D03-01 a D03-10 e D03-14 são essenciais para qualquer cálculo público. D03-11 e
+D03-12 são necessárias se o resultado produzir limiar, alerta, pontos ou
+recomendação. D03-13 e D03-15 devem ser concluídas antes de apresentar o
+indicador aos usuários.
 
 ## Roteiro sugerido para a revisão da CAP-03
 
@@ -625,6 +670,13 @@ como **inconclusiva** sem precisar resolver problemas de banco ou programação.
 | D03-14 | Divergências com as publicações | [ ] | [ ] | [ ] | [ ] | |
 | D03-15 | Compreensão do fluxo por usuários | [ ] | [ ] | [ ] | [ ] | |
 
+**Situação da reconciliação técnica:** [ ] totais oficiais reproduzidos [ ]
+diferença residual explicada e aceita [ ] não reconciliada
+
+**Fonte congelada ou exportação TabWin utilizada:**
+
+**Responsável pela reconciliação e data:**
+
 **Leitura escolhida para campos incompletos:**
 
 **Situações que tornam o resultado inconclusivo:**
@@ -634,6 +686,9 @@ como **inconclusiva** sem precisar resolver problemas de banco ou programação.
 **Denominador mínimo e justificativa:**
 
 **Nível geográfico aprovado:**
+
+**Uso aprovado:** [ ] somente indicador descritivo [ ] limiar, alerta ou ranking
+[ ] fora do produto público
 
 **Decisão geral:** [ ] aprovar [ ] aprovar com alterações [ ] reprovar [ ]
 inconclusivo
@@ -654,10 +709,24 @@ ______________________________________________________________________
 
 **Assinatura ou registro equivalente:**
 
+### Efeito da decisão geral
+
+- **Aprovar:** permite implementar o cálculo somente após a reconciliação
+  técnica e a aprovação de D03-01 a D03-10 e D03-14. Limiar, alerta, ranking ou
+  recomendação também exigem D03-11 a D03-13. A apresentação aos usuários exige
+  D03-13 e D03-15.
+- **Aprovar com alterações:** mantém a CAP-03 aberta até que as alterações sejam
+  implementadas, testadas, auditadas e submetidas a nova revisão.
+- **Reprovar:** conclui a CAP-03 com decisão documentada de manter o indicador
+  fora do produto público. O alerta municipal sintético de contato pendente
+  continua sendo um fluxo operacional separado.
+- **Inconclusivo:** mantém a CAP-03 aberta e impede indicador, cenário, pontos no
+  ranking ou apresentação no produto até que a evidência ausente seja obtida.
+
 A CAP-03 não pode gerar indicador, cenário ou pontos no ranking enquanto a
-reconciliação técnica estiver aberta. Mesmo depois dela, qualquer implementação
-depende das decisões essenciais D03-01 a D03-10 e D03-14. Limiar, gravidade,
-ranking e recomendação dependem também de D03-11 a D03-13.
+reconciliação técnica estiver aberta. Uma aprovação profissional não substitui
+a reconciliação dos arquivos, e a equipe técnica não pode aprovar sozinha a
+semântica ou a utilidade epidemiológica.
 
 ## Onde encontrar a evidência
 
