@@ -36,7 +36,11 @@ backend compatibility; new product code should use the canonical routes above.
 
 ## Privacy Boundary
 
-The demo files must be synthetic or already pseudonymized. Do not place real CPF, CNS, person names, addresses, phone numbers, or free-text identifiers under `data/raw/municipal_demo/`.
+The current demo files must be synthetic and use pseudonymous identifiers. A
+pseudonymized institutional extract remains real personal data and is not
+authorized by this contract; GOV-01 must approve it first. Do not place real
+CPF, CNS, person names, addresses, phone numbers, or free-text identifiers under
+`data/raw/municipal_demo/`.
 
 The local CSV readers reject patient-level files containing obvious identifiable columns: `cpf`, `cns`, `nome`, `name`, `endereco`, `address`, `telefone`, or `phone`. The `name` column is accepted only in `local_territories.csv` and `local_teams.csv`, where it is an operational territory/team label rather than a person name.
 
@@ -147,5 +151,19 @@ stable case-level alert ID:
 
 All resistance alerts use `review_status=pending_domain_review`. Their evidence
 records contain source IDs and record dates, but never patient pseudonyms.
+
+## CAP-04 Validation Status
+
+The synthetic contract, referential checks, evidence classification, case-level
+alert grouping, API filtering, and frontend presentation are technically
+implemented. Every resistance alert remains
+`review_status=pending_domain_review`.
+
+The clinical and epidemiological meaning of final evidence, risk history,
+completed culture/DST, severity, response, and one-alert-per-case grouping must
+be reviewed through `guia_validacao_de_dominio.md`. A technical pass does not
+authorize a real source. Any source other than `synthetic_demo` remains blocked
+until GOV-01 records institutional authorization, purpose, access controls,
+retention, audit logging, and incident response.
 
 Alerts are operational signals for human review. They must not be interpreted as diagnosis, prescription, or replacement for professional judgment.

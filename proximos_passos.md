@@ -74,7 +74,7 @@ um componente de cenário composto.
 | 1 | CAP-01 | Priorização por testagem de HIV, TRM-TB e cultura | **Em validação** |
 | 2 | CAP-02 | Tendências históricas e incidência crescente | **Em validação (método)** |
 | 3 | CAP-03 | Investigação de contatos com dados públicos | **Em espera (reconciliação externa e domínio)** |
-| 4 | CAP-04 | Vigilância de resistência em camadas | **Em andamento** |
+| 4 | CAP-04 | Vigilância de resistência em camadas | **Em validação (domínio e governança)** |
 | 5 | CAP-05 | Monitoramento de tratamento preventivo | **Condicional** |
 | 6 | CAP-06 | Análise espacial de hotspots | **Pesquisa posterior** |
 
@@ -297,21 +297,38 @@ reprovação ou conclusão da capacidade.
 **Objetivo:** separar lacunas de vigilância observáveis em dados públicos de
 casos de resistência confirmada que exigem fonte autorizada.
 
-**Estado atual:** iniciado porque o CAP-03 depende de insumo externo. O recorte
-ativo implementará somente contratos e sinais sintéticos, proveniência
-estruturada, leitura territorial descritiva e auditoria técnica. Não serão
-carregados dados reais, inferida carga de resistência nem criados novos pontos
-no ranking.
+**Implementação técnica concluída:** a camada territorial apresenta um perfil
+descritivo com retratamento elevado, baixo uso de cultura no retratamento e baixo
+uso de TRM-TB, sem criar uma nova contribuição ao ranking. Cada sinal informa
+disponibilidade, resultado da comparação, numerador, denominador, limiar e
+proveniência quando disponível. O perfil declara que as fontes públicas
+agregadas não informam carga confirmada de resistência.
 
-**Abordagem:** na camada territorial, combinar apenas sinais transparentes como
-retratamento elevado e baixa realização de cultura ou TRM-TB, sempre rotulados
-como lacuna de vigilância. Na camada operacional, aceitar resistência confirmada
-somente quando estiver disponível um registro clínico ou laboratorial autorizado
-que declare explicitamente essa condição.
+Na camada operacional sintética, um contrato opcional registra evidência
+estruturada. Somente um registro `final` e `confirmed` é classificado como
+evidência explícita; histórico de retratamento, falha prévia e o campo legado de
+resistência à rifampicina continuam classificados como sinais não verificados.
+O sistema cria um alerta por caso, agrupa os tipos de sinal, registra a evidência
+sem expor o pseudônimo e permite filtrar a fila pelo tipo de sinal. O contrato
+aceita apenas a origem `synthetic_demo` nesta etapa.
 
-**Critério de saída:** terminologia sem inferência clínica indevida, proveniência
-visível, regras públicas testadas e contrato autorizado separado para sinais
-confirmados.
+A auditoria reproduzível cobre os 184 municípios do Ceará em 2023, resume
+disponibilidade, acionamento, sobreposição e proveniência e verifica duas
+salvaguardas: nenhum efeito próprio do perfil no ranking e nenhuma alegação de
+carga confirmada em fonte pública. A demonstração e os fluxos foram verificados
+em telas desktop e móvel.
+
+**Estado atual:** todo o recorte conhecido que não exige especialista ou uso de
+dados reais está implementado e testado. A capacidade permanece em validação
+porque significado epidemiológico, classificação dos sinais, gravidade, resposta
+sugerida, compreensão pelos usuários e controles para uma futura fonte municipal
+real ainda precisam de decisões registradas no
+`guia_validacao_de_dominio.md`.
+
+**Critério de saída:** decisões de domínio e governança aprovadas, terminologia
+sem inferência clínica indevida, fluxo compreendido pelos usuários e eventuais
+alterações implementadas e testadas. GOV-01 continua bloqueando qualquer carga
+municipal real; uma validação técnica bem-sucedida não substitui essa aprovação.
 
 ### CAP-05: tratamento preventivo
 
@@ -373,11 +390,18 @@ trabalho para encerrá-la é:
 A infraestrutura, a auditoria, a documentação para revisão e a apresentação
 histórica da CAP-02 estão prontas. O cálculo de tendência e a medição do impacto
 no ranking permanecem bloqueados até que as decisões clínicas e epidemiológicas
-do `guia_validacao_de_dominio.md` sejam preenchidas. Até essa revisão, o
-recorte técnico independente ativo na ordem canônica é a auditoria das fontes
-públicas da CAP-03. Ela permanece fora da ingestão, da demonstração e do ranking
-até que a reconciliação com as referências oficiais e a revisão de domínio
-estejam registradas.
+do `guia_validacao_de_dominio.md` sejam preenchidas. A CAP-03 também permanece
+em espera até que a fonte oficial seja reconciliada ou que uma decisão de
+domínio mantenha o indicador fora do produto.
+
+O trabalho técnico independente da CAP-04 está concluído. Para encerrá-la é
+necessário revisar as duas camadas com profissionais de TB e vigilância, validar
+o entendimento do fluxo com usuários, decidir a resposta operacional e obter a
+aprovação de governança antes de considerar qualquer dado municipal real. As
+decisões e o formulário de registro estão no
+`guia_validacao_de_dominio.md`. Alterações solicitadas nessa revisão devem ser
+implementadas e submetidas novamente aos gates técnicos antes de marcar a
+capacidade como concluída.
 
 Autenticação de produção, dados reais em nível de pessoa, automação clínica e
 modelos preditivos permanecem fora do ciclo atual.

@@ -8,13 +8,16 @@ Este documento orienta a revisão humana das regras de saúde usadas pelo TB-IA.
 Ele foi escrito para profissionais que não trabalham com programação. Não é
 necessário abrir o código-fonte para preencher a revisão.
 
-A versão atual detalha três revisões. A **CAP-01** prioriza municípios com
+A versão atual detalha quatro revisões. A **CAP-01** prioriza municípios com
 sinais comparativos de baixa testagem para HIV, baixo uso de TRM-TB e baixo uso
 de cultura entre casos de retratamento. A **CAP-02** apresenta a série histórica
 de incidência, suas quebras de comparabilidade e as decisões necessárias antes
 de criar qualquer regra de crescimento. A **CAP-03** avalia se os campos
 públicos de investigação de contatos permitem construir um indicador municipal
-confiável; esse indicador ainda não faz parte do produto.
+confiável; esse indicador ainda não faz parte do produto. A **CAP-04** separa
+lacunas territoriais observáveis em dados públicos de evidências operacionais
+sintéticas e registra o que deve ser validado antes de interpretar os sinais ou
+usar uma fonte municipal real.
 
 ## Quem deve revisar
 
@@ -27,34 +30,48 @@ A equipe de desenvolvimento pode preparar tabelas e demonstrar o produto, mas
 não deve aprovar sozinha definições epidemiológicas, gravidade, condutas
 sugeridas ou utilidade assistencial.
 
+Para a CAP-04, a revisão de domínio deve incluir experiência no programa de TB
+e em vigilância laboratorial. Uma futura integração municipal real também exige
+responsáveis por LGPD, segurança da informação e governança institucional; o
+parecer clínico ou epidemiológico não substitui essas autorizações.
+
 ## O que esta revisão decide
 
-A revisão deve responder a quatro perguntas:
+A revisão deve responder a cinco perguntas:
 
 1. Os grupos de pessoas e resultados de exames foram contados corretamente?
 1. É útil destacar os municípios dessa forma, sem criar uma falsa meta oficial?
 1. O peso no ranking e as ações sugeridas são proporcionais ao sinal observado?
 1. As explicações são claras e não parecem diagnóstico, prescrição ou avaliação
    individual de pacientes?
+1. A origem, a autorização e os controles de acesso são adequados para o uso
+   pretendido?
 
-As respostas possíveis para cada item são:
+### Respostas possíveis
 
 - **Aprovar:** a regra pode deixar de ser provisória.
 - **Aprovar com alterações:** a equipe deve implementar e testar as mudanças
   antes de nova assinatura.
-- **Reprovar:** a regra não deve participar do ranking.
+- **Reprovar:** a regra ou o fluxo não deve ser ativado no uso avaliado.
 - **Inconclusivo:** faltam fonte, amostra ou especialista para decidir.
 
 ## Limite de segurança
 
-O TB-IA usa dados públicos agregados por município. As capacidades descritas
-neste guia não identificam pessoas, não diagnosticam tuberculose ou resistência,
-não prescrevem exames e não avaliam a qualidade de um profissional ou serviço
-isolado.
+O TB-IA usa dados públicos agregados por município na análise territorial e
+somente dados sintéticos, identificados por pseudônimos, na demonstração
+operacional atual. Nenhuma capacidade descrita neste guia diagnostica
+tuberculose ou resistência, prescreve exames ou avalia isoladamente a qualidade
+de um profissional ou serviço.
 
 Um sinal no ranking significa apenas: "este valor municipal está entre os mais
 baixos do grupo comparado e merece revisão do programa". Ele não prova falha
-assistencial e não substitui a análise do contexto local.
+assistencial e não substitui a análise do contexto local. Um alerta operacional
+significa que existe evidência ou pendência registrada para revisão humana; ele
+também não confirma diagnóstico por conta própria.
+
+Dados reais em nível de pessoa continuam proibidos até que fonte, finalidade,
+autorização, acesso, retenção, auditoria e resposta a incidentes sejam aprovados
+em GOV-01.
 
 ## CAP-01 em linguagem simples
 
@@ -728,6 +745,239 @@ reconciliação técnica estiver aberta. Uma aprovação profissional não subst
 a reconciliação dos arquivos, e a equipe técnica não pode aprovar sozinha a
 semântica ou a utilidade epidemiológica.
 
+## CAP-04 em linguagem simples
+
+### Duas camadas que não devem ser confundidas
+
+A CAP-04 responde a duas perguntas diferentes. A primeira é territorial:
+"os dados públicos mostram uma possível lacuna de vigilância que merece revisão
+do programa?". A segunda é operacional: "há uma evidência ou pendência registrada
+para este caso sintético que uma equipe deveria revisar?". Nenhuma das duas
+perguntas equivale a diagnosticar resistência.
+
+| Camada | Unidade observada | Fonte atual | O que apresenta | O que não apresenta |
+| --- | --- | --- | --- | --- |
+| Territorial pública | Município e ano | SINAN-TB público agregado | Retratamento elevado, baixo uso de cultura no retratamento e baixo uso de TRM-TB | Casos confirmados ou carga municipal de resistência |
+| Operacional | Caso sintético pseudonimizado | Arquivos municipais de demonstração | Evidência explícita registrada, histórico de risco e lacuna de cultura ou teste de sensibilidade | Diagnóstico produzido pelo sistema ou autorização para usar dados reais |
+
+O perfil territorial é apenas descritivo e não cria nem recalcula pontos. Ele
+reutiliza três regras transparentes já existentes; exibi-las na CAP-04 não
+acrescenta uma nova contribuição ao ranking. Eventual pontuação das regras
+originais continua regida pela configuração e validação próprias de cada
+cenário. Resultado ausente, suprimido ou sem grupo suficiente para comparação
+não é tratado como alerta.
+
+A fila operacional atual usa somente dados sintéticos. Ela não mostra o
+pseudônimo da pessoa e não cria mapa de casos. Uma eventual integração real
+precisa de fonte autorizada e dos controles de GOV-01 antes de qualquer teste
+com dados pessoais.
+
+### Como os sinais operacionais foram separados
+
+Um alerta de vigilância de resistência pode reunir três classes de informação:
+
+1. **Evidência explícita registrada:** um registro separado informa
+   "resistance_status=confirmed" e "record_status=final". Na implementação
+   atual, a origem permitida é somente "synthetic_demo". O sistema apenas
+   reproduz a classificação declarada pelo registro; ele não interpreta um
+   laudo para produzir um diagnóstico.
+1. **Histórico de risco não verificado:** retratamento, falha prévia de tratamento
+   ou o antigo campo de resistência à rifampicina. Esses elementos pedem revisão,
+   mas nunca são apresentados como confirmação.
+1. **Lacuna de vigilância:** caso de retratamento pulmonar sem evento concluído
+   de cultura ou teste de sensibilidade registrado. A regra técnica atual exige
+   data de resultado, situação concluída e um tipo de exame reconhecido como
+   cultura, DST, sensibilidade ou suscetibilidade.
+
+Se o mesmo caso tiver mais de um desses elementos, o sistema gera um único
+alerta e mostra todas as evidências separadamente. Todos os alertas dessa classe
+recebem gravidade alta e ficam marcados como pendentes de revisão de domínio.
+A adequação dessa gravidade, da definição de exame concluído e da ação esperada
+ainda não foi aprovada por especialista.
+
+### Evidência técnica já disponível para a CAP-04
+
+A auditoria do Ceará em 2023 cobriu os 184 municípios:
+
+| Sinal público | Disponíveis | Suprimidos | Ausentes | Comparação | Municípios destacados |
+| --- | ---: | ---: | ---: | --- | ---: |
+| Retratamento elevado | 18 | 155 | 11 | Pronta | 5 |
+| Baixo uso de cultura no retratamento | 6 | 167 | 11 | Insuficiente | 0 |
+| Baixo uso de TRM-TB | 19 | 154 | 11 | Pronta | 5 |
+
+Foram nove municípios distintos com pelo menos um sinal e um município com dois
+sinais simultâneos. As 43 ocorrências com valor disponível tinham proveniência
+SINAN-TB; nenhuma estava sem fonte. A auditoria encontrou zero violação
+estrutural, zero perfil declarando efeito próprio no ranking e zero perfil
+alegando resistência confirmada em fonte pública.
+
+O relatório fica marcado como
+"technical_validation_pending_domain_review". Isso significa que o software
+reproduziu os dados e respeitou as salvaguardas programadas. Não significa que
+a interpretação, o limiar, a gravidade ou a conduta foram aprovados.
+
+Na demonstração operacional, as validações técnicas também garantem que:
+
+- o caso citado existe no mesmo ano e o pseudônimo coincide com o cadastro
+  sintético;
+- valores fora das listas permitidas são rejeitados;
+- registro preliminar, cancelado, indeterminado ou não confirmado não produz
+  sozinho um sinal de confirmação;
+- a fila e a API informam a classe e a proveniência da evidência sem devolver o
+  pseudônimo;
+- vários sinais do mesmo caso permanecem em um único alerta auditável.
+
+Essas verificações demonstram consistência do contrato, não validade clínica.
+
+### Quem precisa participar da decisão
+
+| Responsabilidade | Participação esperada |
+| --- | --- |
+| Significado epidemiológico dos sinais públicos | Profissional do programa de TB, vigilância ou epidemiologia |
+| Interpretação de cultura, teste de sensibilidade e evidência explícita | Médico ou profissional de referência em TB resistente e laboratório |
+| Utilidade e ação na fila municipal | Profissionais da vigilância municipal, APS e coordenação do programa |
+| Fonte real, finalidade, acesso, retenção e auditoria | Governança institucional, LGPD e segurança da informação |
+| Linguagem e compreensão do produto | Usuários representativos das camadas territorial e operacional |
+
+A equipe técnica deve demonstrar as regras e registrar as respostas, mas não
+pode decidir sozinha nenhum desses itens.
+
+## Decisões de domínio e governança necessárias para a CAP-04
+
+1. **D04-01 - Evidência explícita:** confirmar se um registro final marcado como
+   confirmado é suficiente para ser exibido como evidência explícita e quais
+   tipos de documento, exames e sistemas de origem podem declarar essa condição.
+1. **D04-02 - Histórico de risco:** decidir se retratamento, falha prévia e o
+   campo legado de resistência à rifampicina pertencem à mesma classe de
+   vigilância. Confirmar que nenhum deles deve ser chamado de resistência
+   confirmada sem outra evidência.
+1. **D04-03 - Cultura ou teste de sensibilidade concluído:** definir quais exames,
+   resultados, situações e prazos contam como evidência concluída e se a lacuna
+   deve se aplicar a todo retratamento pulmonar.
+1. **D04-04 - Agrupamento por caso:** confirmar se um único alerta deve reunir
+   todas as classes de sinal ou se alguma situação exige alertas, responsáveis
+   ou prioridades separados.
+1. **D04-05 - Gravidade e resposta:** revisar a gravidade alta, definir quem
+   revisa o alerta, em qual prazo e qual ação é esperada para cada combinação de
+   sinais. A resposta não pode ser uma prescrição automática.
+1. **D04-06 - Perfil territorial público:** confirmar se retratamento elevado,
+   baixo uso de cultura e baixo uso de TRM-TB são úteis como lacunas ou sinais
+   indiretos de vigilância, sem apresentá-los como carga de resistência.
+1. **D04-07 - Comparação e ranking:** revisar os grupos de comparação,
+   cobertura e percentis, distinguindo a contribuição de cenários já existentes
+   da apresentação criada pela CAP-04. Decidir se o perfil deve continuar
+   descritivo e se as regras subjacentes permanecem adequadas. A configuração
+   atual do perfil não acrescenta uma nova contribuição ao ranking.
+1. **D04-08 - Linguagem de segurança:** revisar rótulos, explicações,
+   recomendações e a distinção visual entre evidência explícita, histórico de
+   risco, lacuna de vigilância e dado público agregado.
+1. **D04-09 - Governança de dados reais:** antes de qualquer integração real,
+   registrar fonte, finalidade, fundamento jurídico, autorização institucional,
+   minimização, pseudonimização, perfis de acesso, retenção, trilha de auditoria,
+   resposta a incidentes e responsabilidade pelo tratamento.
+1. **D04-10 - Compreensão pelos usuários:** pedir que usuários das duas camadas
+   expliquem com as próprias palavras o significado de cada sinal, o que devem
+   fazer e o que o sistema não permite concluir.
+
+D04-01 a D04-08 e D04-10 são essenciais para retirar o estado provisório dos
+fluxos demonstrados. D04-09 e a entrega GOV-01 são obrigatórias antes de usar
+qualquer dado municipal real. Uma decisão de manter os sinais públicos fora do
+ranking também é válida, desde que seja registrada.
+
+## Roteiro sugerido para a revisão da CAP-04
+
+1. Ler "Duas camadas que não devem ser confundidas" e pedir aos revisores que
+   expliquem a diferença entre lacuna pública e evidência operacional.
+1. Abrir o perfil de um município com sinal, outro sem sinal e um resultado
+   suprimido ou ausente.
+1. Confirmar que nenhum elemento territorial parece estimar casos confirmados de
+   resistência ou alterar o ranking.
+1. Conferir a tabela CE/2023 e discutir a baixa disponibilidade dos três sinais,
+   especialmente cultura no retratamento.
+1. Abrir na fila sintética um exemplo de cada classe e um caso com classes
+   combinadas.
+1. Revisar quais registros podem ser chamados de evidência explícita e o que
+   caracteriza cultura ou teste de sensibilidade concluído.
+1. Definir gravidade, responsável, prazo e ação esperada sem automatizar
+   diagnóstico ou prescrição.
+1. Realizar o teste de compreensão com usuários e registrar dúvidas ou
+   interpretações indevidas.
+1. Se houver proposta de fonte real, submeter também a lista de GOV-01 aos
+   responsáveis institucionais.
+1. Preencher e assinar o registro abaixo.
+
+## Registro de decisão da CAP-04
+
+| ID | Decisão | Aprovar | Alterar | Reprovar | Inconclusivo | Observações |
+| --- | --- | :---: | :---: | :---: | :---: | --- |
+| D04-01 | Evidência explícita e fontes aceitas | [ ] | [ ] | [ ] | [ ] | |
+| D04-02 | Histórico de risco não confirmado | [ ] | [ ] | [ ] | [ ] | |
+| D04-03 | Cultura ou teste de sensibilidade concluído | [ ] | [ ] | [ ] | [ ] | |
+| D04-04 | Um alerta por caso e agrupamento dos sinais | [ ] | [ ] | [ ] | [ ] | |
+| D04-05 | Gravidade, responsável, prazo e ação | [ ] | [ ] | [ ] | [ ] | |
+| D04-06 | Utilidade dos três sinais públicos | [ ] | [ ] | [ ] | [ ] | |
+| D04-07 | Comparação e ausência de contribuição adicional do perfil | [ ] | [ ] | [ ] | [ ] | |
+| D04-08 | Linguagem e distinção entre as classes | [ ] | [ ] | [ ] | [ ] | |
+| D04-09 | Governança para dados municipais reais | [ ] | [ ] | [ ] | [ ] | |
+| D04-10 | Compreensão do fluxo por usuários | [ ] | [ ] | [ ] | [ ] | |
+
+**Uso territorial aprovado:** [ ] descritivo e sem ranking [ ] com alteração
+documentada [ ] fora do produto
+
+**Uso operacional aprovado:** [ ] demonstração sintética [ ] piloto autorizado
+após GOV-01 [ ] fora do produto
+
+**Fontes e tipos de evidência explícita aceitos:**
+
+**Definição aprovada de cultura ou teste de sensibilidade concluído:**
+
+**Responsável, prazo e ação esperada para o alerta:**
+
+**Fonte municipal real avaliada, se houver:**
+
+**Finalidade, autorização institucional e fundamento jurídico:**
+
+**Perfis de acesso, retenção e trilha de auditoria:**
+
+**Decisão geral:** [ ] aprovar [ ] aprovar com alterações [ ] reprovar [ ]
+inconclusivo
+
+**Alterações obrigatórias antes da aprovação:**
+
+______________________________________________________________________
+
+**Nome do revisor de domínio responsável:**
+
+**Formação e função:**
+
+**Instituição:**
+
+**Nome do responsável por governança, quando aplicável:**
+
+**Data:**
+
+**Versão ou identificação das fontes consultadas:**
+
+**Assinatura ou registro equivalente:**
+
+### Efeito da decisão geral da CAP-04
+
+- **Aprovar:** permite retirar o estado provisório somente dentro do uso e das
+  fontes registrados. Dados municipais reais continuam proibidos sem D04-09 e
+  GOV-01 aprovados.
+- **Aprovar com alterações:** mantém a CAP-04 em validação até que as mudanças
+  sejam implementadas, testadas e submetidas a nova revisão.
+- **Reprovar:** retira do produto o sinal ou fluxo reprovado. Isso não autoriza
+  substituí-lo por uma inferência ou fonte não avaliada.
+- **Inconclusivo:** mantém os sinais provisórios, sem nova contribuição ao
+  ranking e limitados à demonstração sintética até obter a evidência ausente.
+
+A CAP-04 só pode ser marcada como concluída quando as decisões essenciais
+estiverem registradas, as alterações solicitadas passarem pelos gates técnicos
+e o teste de compreensão estiver documentado. Uma auditoria com zero violações
+não substitui revisão epidemiológica, validação de fluxo ou autorização de
+governança.
+
 ## Onde encontrar a evidência
 
 A equipe técnica pode apresentar os seguintes artefatos sem exigir que o revisor
@@ -768,6 +1018,22 @@ os edite.
 Enquanto houver divergência, o comando grava o relatório e retorna código `1`.
 Esse código documenta um bloqueio esperado e não significa que o relatório foi
 perdido.
+
+### Evidência da CAP-04
+
+- Auditoria territorial gerada localmente:
+  `data/processed/mvp1/validation/resistance_surveillance_audit_ce_2023.json`.
+- Comando reproduzível:
+  `python -m tbia validate-resistance-surveillance --uf CE --year 2023`.
+- Contrato e limites da demonstração operacional:
+  `mvp2_municipal_contracts.md`.
+- Perfil territorial para revisão em `/territorios` e fila sintética em
+  `/acompanhamento`, após executar `make demo` e iniciar o servidor.
+
+O comando retorna sucesso quando as salvaguardas estruturais passam, mas mantém
+o estado `technical_validation_pending_domain_review`. O arquivo registra
+disponibilidade, comparação, sobreposição, proveniência e as proteções contra
+efeito no ranking ou alegação pública de resistência confirmada.
 
 A interface de demonstração fica em `/territorios`, após executar `make demo`
 e iniciar o servidor. Os arquivos gerados em `data/processed/` são evidência

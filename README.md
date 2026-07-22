@@ -147,7 +147,10 @@ The product frontend at `/` and `/territorios` is a responsive public aggregate
 territorial workbench with Portuguese default UI text and optional English via
 `?lang=en`. It exposes data readiness, UF/year/comparison controls,
 municipality search, synchronized MapLibre map/ranking/dossier selection,
-source freshness, and grouped territory reports. The municipal dossier also
+source freshness, and grouped territory reports. The municipal dossier
+presents a non-scoring resistance-surveillance profile with transparent public
+signals, comparison readiness and provenance. It explicitly states that public
+aggregate sources do not provide confirmed resistance burden. The dossier also
 shows the auditable annual TB-incidence series, explicitly separating available,
 suppressed, and missing years and exposing source or denominator breaks without
 inferring a trend. The map legend follows the
@@ -190,10 +193,13 @@ The MVP 2 demo uses synthetic, pseudonymized local CSVs only and rejects
 obvious identifiable columns in patient-level files. The product queue is
 available at `/acompanhamento` and uses `/api/operations/summary`,
 `/api/operations/alerts`, and `/api/operations/alerts/{alert_id}`. It provides
-URL-backed type, severity, status, facility, and team filters; explicit overdue
-and high-severity markers; a sticky desktop dossier; and expandable mobile
-alert details. The synthetic/pseudonymized boundary remains visible in the
-shared product shell, with Portuguese and English through `lang=pt` or
+URL-backed type, resistance-signal, severity, status, facility, and team
+filters; explicit overdue and high-severity markers; a sticky desktop dossier;
+and expandable mobile alert details. Resistance evidence is separated into
+explicit registered evidence, unverified risk history, and surveillance gaps
+without exposing pseudonyms. The synthetic/pseudonymized boundary remains
+visible in the shared product shell, with Portuguese and English through
+`lang=pt` or
 `lang=en`. The older `/api/mvp2/*` paths and the Jinja `/mvp2` route remain for
 backend compatibility. See `mvp2_municipal_contracts.md` for schemas and alert
 rules.

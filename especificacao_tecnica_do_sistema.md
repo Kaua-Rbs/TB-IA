@@ -101,19 +101,19 @@ map/ranking/dossier interactions. Its layer-specific legend reports values and
 units, separates available, suppressed, and missing data, and identifies the
 selected municipality and optional public reference overlays. The dossier
 keeps transparent scenario explanations, recommendations, indicators, caveats,
-and source freshness without patient-level maps or clinical automation. The
-The dossier also exposes a non-scoring resistance-surveillance profile using
-retreatment, culture-use, and TRM-TB-use signals. It distinguishes available,
+and source freshness without patient-level maps or clinical automation. It also
+exposes a non-scoring resistance-surveillance profile using retreatment,
+culture-use, and TRM-TB-use signals. The profile distinguishes available,
 suppressed, and missing data; carries comparison readiness and source
 provenance; and explicitly states that confirmed resistance burden is not
-available in the public aggregate sources.
-mobile shell reflows controls, rankings, status labels, and detail content
-without horizontal table dependence. Bairros or other public intramunicipal
-polygons are reference geography only; official UBS/team/microarea boundaries
-and TB outcomes by health territory are unavailable in the public-only MVP.
+available in the public aggregate sources. On mobile, the shell reflows
+controls, rankings, status labels, and detail content without horizontal table
+dependence. Bairros or other public intramunicipal polygons are reference
+geography only; official UBS/team/microarea boundaries and TB outcomes by
+health territory are unavailable in the public-only MVP.
 
-This is the implemented first engineering slice. Domain review,
-acceptance-dataset validation, and production deployment remain future work.
+This is the implemented first engineering slice. Recorded domain acceptance and
+production deployment remain pending.
 
 ### MVP 2: municipal operational integration
 
@@ -162,7 +162,15 @@ Current first implementation slice:
   paths;
 - remain without patient-level maps, task assignment, authentication, or RBAC.
 
-This starter slice is a workflow and data-contract pilot. It is not authorization to load real municipal patient data. Real exports require institutional approval, governance, local deployment controls, auditability, and role-based access decisions before production use.
+This starter slice is a workflow and data-contract pilot. It is not
+authorization to load real municipal patient data. Real exports require
+institutional approval, governance, local deployment controls, auditability,
+and role-based access decisions before production use.
+
+The CAP-04 resistance rules remain `pending_domain_review`. Their technical
+contract, evidence classes, severity, response and user comprehension must be
+reviewed through `guia_validacao_de_dominio.md`; GOV-01 is mandatory before
+any real municipal source is enabled.
 
 ### MVP 3: micro-care decision support
 
@@ -758,6 +766,8 @@ Indicator validation:
 - compare against TabNet/manual calculations;
 - unit tests for numerator and denominator logic;
 - snapshot tests for scenario classification;
+- audit CAP-04 public-signal availability, overlap, provenance, ranking isolation,
+  and the absence of confirmed public resistance burden;
 - review by epidemiology/domain expert.
 
 Workflow validation:
@@ -767,6 +777,8 @@ Workflow validation:
 - alert discard path;
 - audit log generation;
 - role permission tests.
+- preserve resistance evidence classes and source provenance without exposing
+  patient pseudonyms;
 
 Usability validation:
 
@@ -774,6 +786,8 @@ Usability validation:
 - surveillance professional can understand why a territory was flagged;
 - APS professional can act on a queue item without duplicate data entry;
 - users can distinguish recommendation, alert, and diagnosis.
+- users can distinguish a public territorial surveillance gap from explicit,
+  risk-history, and missing-evidence operational signals;
 
 Safety validation:
 
@@ -782,6 +796,9 @@ Safety validation:
 - no small-count public maps;
 - no generative AI recommendation without evidence source;
 - clear human validation requirement.
+- no confirmed resistance burden inferred from public aggregate signals;
+- no new CAP-04 ranking contribution before an explicit reviewed decision;
+- no real municipal source before GOV-01 approval.
 
 ## Non-functional requirements
 
